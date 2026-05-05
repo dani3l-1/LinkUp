@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
+const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -15,6 +16,7 @@ const EMAIL_OUTBOX_PATH = path.join(__dirname, 'data', 'email-outbox.json');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'campus-ride-share-secret-key';
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyDemoKey123456';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
+const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
 const CAR_SEATS = [
   { id: 'front_passenger', label: 'Front passenger' },
   { id: 'back_left', label: 'Back left' },
@@ -34,6 +36,8 @@ const SUPPORTED_UNIVERSITY_DOMAINS = {
   'berkeley.edu': 'University of California, Berkeley',
   'ucla.edu': 'University of California, Los Angeles',
   'uci.edu': 'University of California, Irvine',
+  'ivc.edu': 'Irvine Valley College',
+  'saddleback.edu': 'Saddleback College',
   'uwaterloo.ca': 'Waterloo University',
 };
 
@@ -41,6 +45,8 @@ const UNIVERSITY_DIRECTORY = {
   'berkeley.edu': { name: 'University of California, Berkeley', city: 'Berkeley', state: 'CA' },
   'ucla.edu': { name: 'University of California, Los Angeles', city: 'Los Angeles', state: 'CA' },
   'uci.edu': { name: 'University of California, Irvine', city: 'Irvine', state: 'CA' },
+  'ivc.edu': { name: 'Irvine Valley College', city: 'Irvine', state: 'CA' },
+  'saddleback.edu': { name: 'Saddleback College', city: 'Mission Viejo', state: 'CA' },
   'uwaterloo.ca': { name: 'Waterloo University', city: 'Waterloo', state: 'ON' },
   'ucsd.edu': { name: 'University of California, San Diego', city: 'La Jolla', state: 'CA' },
   'ucdavis.edu': { name: 'University of California, Davis', city: 'Davis', state: 'CA' },
@@ -133,17 +139,46 @@ app.use(
 );
 app.use(express.static(path.join(__dirname, 'public')));
 
+function getEmptyDb() {
+  return {
+    rides: [],
+    rideRequests: [],
+    users: [],
+    carts: {},
+    checkoutSessions: [],
+    trackingTrips: [],
+    rideMessages: {},
+  };
+}
+
 function loadDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
-    return JSON.parse(raw);
+    return { ...getEmptyDb(), ...JSON.parse(raw) };
   } catch (error) {
-    return { rides: [], rideRequests: [], users: [] };
+    return getEmptyDb();
   }
 }
 
 function saveDb(db) {
   fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+}
+
+function expireUnclaimedRideRequests(db) {
+  let changed = false;
+  const now = Date.now();
+  (db.rideRequests || []).forEach((request) => {
+    const isOpen = (request.status || 'open') === 'open';
+    const hasDriverClaim = (request.driverOffers || []).length > 0;
+    const requestStart = getTripStartMs(request);
+    if (isOpen && !hasDriverClaim && requestStart > 0 && requestStart < now) {
+      request.status = 'expired';
+      request.expiredAt = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (changed) saveDb(db);
+  return db;
 }
 
 function normalizeUserAccess(db) {
@@ -284,10 +319,22 @@ function getRideMiles(ride) {
   return Math.round(oneWayMiles * (ride.returnRide ? 2 : 1) * 10) / 10;
 }
 
-function withRideMiles(ride) {
+function getDriverRatingSummary(db, driverId) {
+  const ratings = (db?.rides || [])
+    .filter((ride) => ride.driverId === driverId)
+    .flatMap((ride) => (ride.passengers || [])
+      .map((passenger) => Number(passenger.driverRating))
+      .filter((rating) => Number.isFinite(rating) && rating >= 1 && rating <= 5));
+  if (!ratings.length) return { average: null, count: 0 };
+  const average = ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+  return { average: Math.round(average * 10) / 10, count: ratings.length };
+}
+
+function withRideMiles(ride, db = null) {
   const distanceMiles = Number.isFinite(Number(ride.distanceMiles))
     ? Number(ride.distanceMiles)
     : calculateDistanceMiles(ride.originLat, ride.originLng, ride.destinationLat, ride.destinationLng);
+  const driverRating = getDriverRatingSummary(db, ride.driverId);
   return {
     ...ride,
     distanceMiles,
@@ -295,6 +342,8 @@ function withRideMiles(ride) {
     vehicleSeatCount: inferVehicleSeatCount(ride),
     seatMap: getRideSeatMap(ride),
     seatsAvailable: getAvailableOpenSeatIds(ride).length,
+    driverRatingAverage: driverRating.average,
+    driverRatingCount: driverRating.count,
   };
 }
 
@@ -317,8 +366,8 @@ function isRideChatDisabled(ride) {
   return Boolean(disabledAt && Date.now() >= new Date(disabledAt).getTime());
 }
 
-function rideForUser(ride, userId) {
-  const publicRide = withRideMiles(ride);
+function rideForUser(ride, userId, db = null) {
+  const publicRide = withRideMiles(ride, db);
   if (!canUserSeeLicensePlate(ride, userId)) {
     delete publicRide.licensePlate;
   }
@@ -349,12 +398,13 @@ function sendVerificationCode(user, code) {
   );
 }
 
-function sendAuthEmail(to, subject, body) {
+function writeEmailToOutbox(to, subject, body, reason = 'SMTP not configured') {
   const email = {
     id: uuidv4(),
     to,
     subject,
     body,
+    reason,
     createdAt: new Date().toISOString(),
   };
 
@@ -367,7 +417,43 @@ function sendAuthEmail(to, subject, body) {
 
   outbox.push(email);
   fs.writeFileSync(EMAIL_OUTBOX_PATH, JSON.stringify(outbox, null, 2));
-  console.log('Auth email queued:', email);
+  console.log('Auth email saved to local outbox:', email);
+}
+
+function getMailTransporter() {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return null;
+  }
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
+async function sendAuthEmail(to, subject, body) {
+  const transporter = getMailTransporter();
+  if (!transporter) {
+    writeEmailToOutbox(to, subject, body);
+    return;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: EMAIL_FROM,
+      to,
+      subject,
+      text: body,
+    });
+    console.log('Auth email sent:', { to, subject });
+  } catch (error) {
+    writeEmailToOutbox(to, subject, body, error.message);
+    console.error('SMTP send failed; saved email to local outbox:', error.message);
+  }
 }
 
 function isUniversityEmail(email) {
@@ -1022,17 +1108,14 @@ app.get('/api/config/google-maps-key', (req, res) => {
 
 app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res) => {
   const trustedEmail = normalizeEmail(req.body.trustedEmail);
-  if (!trustedEmail) {
-    return res.status(400).json({ error: 'Trusted person email is required' });
-  }
 
   const db = loadDb();
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
-  if (trustedEmail === user.email) {
-    return res.status(400).json({ error: "Enter someone else's email for trip tracking" });
+  if (trustedEmail && trustedEmail === user.email) {
+    return res.status(400).json({ error: "Enter someone else's email for trip tracking or leave it blank and copy the link" });
   }
 
   const viewerToken = crypto.randomBytes(32).toString('hex');
@@ -1053,17 +1136,22 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
 
   trips.push(trip);
   saveDb(db);
-  sendAuthEmail(
-    trustedEmail,
-    user.firstName + ' invited you to track their LinkUp trip',
-    'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp'
-  );
+  if (trustedEmail) {
+    sendAuthEmail(
+      trustedEmail,
+      user.firstName + ' invited you to track their LinkUp trip',
+      'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp'
+    );
+  }
 
   res.json({
     id: trip.id,
     trustedEmail: trip.trustedEmail,
     status: trip.status,
-    message: 'Secure tracking invite sent. They can view this trip from the email link until sharing stops.',
+    viewerUrl,
+    message: trustedEmail
+      ? 'Secure tracking invite sent. You can also copy this trip link and share it yourself.'
+      : 'Secure tracking link created. Copy it and send it to anyone you trust.',
   });
 });
 
@@ -1137,7 +1225,7 @@ app.get('/api/track/:viewerToken', (req, res) => {
 
 
 app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
-  const db = loadDb();
+  const db = expireUnclaimedRideRequests(loadDb());
   res.json(db.rideRequests || []);
 });
 
@@ -1200,7 +1288,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
 });
 
 app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAccess, (req, res) => {
-  const db = loadDb();
+  const db = expireUnclaimedRideRequests(loadDb());
   const driver = db.users.find((u) => u.id === req.session.userId);
   if (!driver) {
     return res.status(404).json({ error: 'User not found' });
@@ -1209,6 +1297,9 @@ app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAcces
   const request = (db.rideRequests || []).find((entry) => entry.id === req.params.requestId);
   if (!request) {
     return res.status(404).json({ error: 'Trip request not found' });
+  }
+  if ((request.status || 'open') !== 'open') {
+    return res.status(400).json({ error: 'This ride request is no longer open' });
   }
   if (request.riderId === driver.id) {
     return res.status(400).json({ error: 'You cannot offer to drive your own request' });
@@ -1316,12 +1407,12 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
 
   db.rides.push(ride);
   saveDb(db);
-  res.json(rideForUser(ride, req.session.userId));
+  res.json(rideForUser(ride, req.session.userId, db));
 });
 
 app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   const db = loadDb();
-  res.json((db.rides || []).map((ride) => rideForUser(ride, req.session.userId)));
+  res.json((db.rides || []).map((ride) => rideForUser(ride, req.session.userId, db)));
 });
 
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
@@ -1395,7 +1486,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 
   db.rides.push(ride);
   saveDb(db);
-  res.json(rideForUser(ride, req.session.userId));
+  res.json(rideForUser(ride, req.session.userId, db));
 });
 
 app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res) => {
@@ -1428,7 +1519,7 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
   });
   ride.seatsAvailable = getAvailableOpenSeatIds(ride).length;
   saveDb(db);
-  res.json(withRideMiles(ride));
+  res.json(withRideMiles(ride, db));
 });
 
 app.get('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req, res) => {
@@ -1445,6 +1536,41 @@ app.get('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req, 
     messages: db.rideMessages[ride.id] || [],
     chatDisabled: isRideChatDisabled(ride),
     chatDisabledAt: getRideChatDisabledAt(ride),
+  });
+});
+
+app.post('/api/rides/:rideId/rating', requireAuth, requireServiceAccess, (req, res) => {
+  const rating = Number(req.body.rating);
+  const comment = String(req.body.comment || '').trim().slice(0, 300);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: 'Choose a rating from 1 to 5 stars' });
+  }
+
+  const db = loadDb();
+  const ride = (db.rides || []).find((entry) => entry.id === req.params.rideId);
+  if (!ride) {
+    return res.status(404).json({ error: 'Ride not found' });
+  }
+  const passenger = (ride.passengers || []).find((entry) => entry.studentId === req.session.userId);
+  if (!passenger) {
+    return res.status(403).json({ error: 'Only riders who reserved this ride can rate the driver' });
+  }
+  if (Date.now() <= getTripInterval(ride).end) {
+    return res.status(400).json({ error: 'You can rate the driver after the ride ends' });
+  }
+
+  passenger.driverRating = rating;
+  passenger.driverRatingComment = comment;
+  passenger.driverRatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json({
+    message: 'Driver rating saved',
+    ride: {
+      ...rideForUser(ride, req.session.userId, db),
+      selectedSeatId: passenger.seatId || '',
+      driverRatingByCurrentUser: passenger.driverRating,
+      driverRatingCommentByCurrentUser: passenger.driverRatingComment || '',
+    },
   });
 });
 
@@ -1496,7 +1622,7 @@ app.get('/api/cart', requireAuth, requireServiceAccess, (req, res) => {
   const cartRides = cartEntries
     .map((entry) => {
       const ride = db.rides.find((item) => item.id === entry.rideId);
-      return ride ? { ...rideForUser(ride, req.session.userId), selectedSeatId: entry.seatId } : null;
+      return ride ? { ...rideForUser(ride, req.session.userId, db), selectedSeatId: entry.seatId } : null;
     })
     .filter(Boolean);
 
@@ -1571,7 +1697,7 @@ app.post('/api/cart/checkout', requireAuth, requireServiceAccess, (req, res) => 
 
   db.carts[student.id] = [];
   saveDb(db);
-  res.json({ message: 'Payment complete. Your seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => withRideMiles(ride)) });
+  res.json({ message: 'Payment complete. Your seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => withRideMiles(ride, db)) });
 });
 
 app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess, (req, res) => {
@@ -1650,7 +1776,7 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req,
   });
   db.carts[student.id] = [];
   saveDb(db);
-  res.json({ message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => withRideMiles(ride)) });
+  res.json({ message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => withRideMiles(ride, db)) });
 });
 
 app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
@@ -1699,19 +1825,26 @@ app.delete('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) =>
 });
 
 app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
-  const db = loadDb();
+  const db = expireUnclaimedRideRequests(loadDb());
   const studentId = req.session.userId;
 
-  const createdRides = db.rides.filter((ride) => ride.driverId === studentId);
-  const joinedRides = db.rides.filter((ride) => ride.passengers.some((p) => p.studentId === studentId));
-  const riderRequests = (db.rideRequests || []).filter((request) => request.riderId === studentId);
-  const driverOffers = (db.rideRequests || []).filter((request) => request.driverOffers.some((offer) => offer.driverId === studentId));
+  const rides = Array.isArray(db.rides) ? db.rides : [];
+  const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
+  const createdRides = rides.filter((ride) => ride.driverId === studentId);
+  const joinedRides = rides.filter((ride) => (ride.passengers || []).some((p) => p.studentId === studentId));
+  const riderRequests = rideRequests.filter((request) => request.riderId === studentId);
+  const driverOffers = rideRequests.filter((request) => (request.driverOffers || []).some((offer) => offer.driverId === studentId));
 
   res.json({
-    createdRides: createdRides.map(withRideMiles),
+    createdRides: createdRides.map((ride) => withRideMiles(ride, db)),
     joinedRides: joinedRides.map((ride) => {
       const passenger = (ride.passengers || []).find((p) => p.studentId === studentId);
-      return { ...withRideMiles(ride), selectedSeatId: passenger?.seatId || '' };
+      return {
+        ...withRideMiles(ride, db),
+        selectedSeatId: passenger?.seatId || '',
+        driverRatingByCurrentUser: passenger?.driverRating || null,
+        driverRatingCommentByCurrentUser: passenger?.driverRatingComment || '',
+      };
     }),
     riderRequests,
     driverOffers,

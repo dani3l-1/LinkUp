@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260504-style-link-fix" />
+    <link rel="stylesheet" href="styles.css?v=20260505-rider-track-url" />
   </head>
   <body>
     <div class="app-shell">
@@ -378,10 +378,11 @@
                   <button id="stop-tracking" type="button" disabled>End trip</button>
                 </div>
                 <label class="tracking-recipient-label">
-                  Trusted person's email
-                  <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" required />
+                  Trusted person's email optional
+                  <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" />
                 </label>
-                <p class="tracking-note">They'll receive a secure link to view this trip only. The link expires when sharing stops.</p>
+                <p class="tracking-note">Start sharing to create a secure trip URL made for this rider. Copy it and send it to people you trust. The link expires when sharing stops.</p>
+                <button id="copy-tracking-link" class="copy-tracking-link hidden" type="button">Copy tracking link</button>
                 <div id="tracking-message" class="success-message"></div>
                 <div id="tracking-error" class="error-message"></div>
               </div>
@@ -416,13 +417,14 @@
           <section id="your-rides-page" class="card hidden">
             <div class="cart-header">
               <div>
-                <h3>Your reserved rides</h3>
-                <p>Trips you're driving and trips you reserved as a rider.</p>
+                <h3>Your rides</h3>
+                <p>Trips you're driving, trips you reserved, and ride requests you posted.</p>
               </div>
               <button id="your-rides-back-home" type="button">Return to browse rides</button>
             </div>
             <div class="your-rides-tabs">
               <button id="your-rides-current-tab" type="button" class="active">Current rides</button>
+              <button id="your-rides-requests-tab" type="button">Requested rides</button>
               <button id="your-rides-history-tab" type="button">History rides</button>
             </div>
             <div id="your-rides-list">Loading your reserved rides...</div>
@@ -482,6 +484,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260504-chat-expiration"></script>
+    <script src="app.js?v=20260505-rider-track-url"></script>
   </body>
 </html>

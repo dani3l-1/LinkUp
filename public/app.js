@@ -43,6 +43,7 @@ const yourRidesButton = document.getElementById('your-rides-button');
 const yourRidesPage = document.getElementById('your-rides-page');
 const yourRidesList = document.getElementById('your-rides-list');
 const yourRidesCurrentTab = document.getElementById('your-rides-current-tab');
+const yourRidesRequestsTab = document.getElementById('your-rides-requests-tab');
 const yourRidesHistoryTab = document.getElementById('your-rides-history-tab');
 const yourRidesBackHomeButton = document.getElementById('your-rides-back-home');
 const profileButton = document.getElementById('profile-button');
@@ -76,6 +77,7 @@ const trackTripPage = document.getElementById('track-trip-page');
 const trackBackHomeButton = document.getElementById('track-back-home');
 const startTrackingButton = document.getElementById('start-tracking');
 const stopTrackingButton = document.getElementById('stop-tracking');
+const copyTrackingLinkButton = document.getElementById('copy-tracking-link');
 const trackingStatus = document.getElementById('tracking-status');
 const trackingDriverInfo = document.getElementById('tracking-driver-info');
 const trackingDriverDetails = document.getElementById('tracking-driver-details');
@@ -132,6 +134,7 @@ let dropoffRadiusAutocomplete = null;
 let cartRideIds = new Set();
 let pendingVerificationEmail = '';
 let activeTrackingTripId = null;
+let activeTrackingViewerUrl = '';
 let trackingWatchId = null;
 let trackingMap = null;
 let trackingMarker = null;
@@ -806,6 +809,8 @@ function resetTrackingPage() {
   activeTrackingTripId = null;
   trackingRecipientEmail.disabled = false;
   trackingRecipientEmail.value = '';
+  activeTrackingViewerUrl = '';
+  copyTrackingLinkButton?.classList.add('hidden');
   setTrackingActive(false);
   trackingLastUpdate.textContent = 'No location shared yet.';
   trackingMapDiv.textContent = '';
@@ -1023,13 +1028,10 @@ async function startTripTracking() {
 
   try {
     const trustedEmail = trackingRecipientEmail.value.trim();
-    if (!trustedEmail) {
-      trackingError.textContent = 'Enter the email of the person you want to invite.';
-      trackingError.classList.add('show');
-      return;
-    }
     const data = await fetchJson('/api/trips/track/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trustedEmail }) });
     activeTrackingTripId = data.id;
+    activeTrackingViewerUrl = data.viewerUrl || '';
+    copyTrackingLinkButton?.classList.toggle('hidden', !activeTrackingViewerUrl);
     updateTrackingDriverInfo();
     setTrackingActive(true);
     trackingRecipientEmail.disabled = true;
@@ -1048,6 +1050,32 @@ async function startTripTracking() {
     );
   } catch (err) {
     trackingError.textContent = err.message;
+    trackingError.classList.add('show');
+  }
+}
+
+async function copyTrackingLink() {
+  clearTrackingMessages();
+  if (!activeTrackingViewerUrl) {
+    trackingError.textContent = 'Start sharing first to create a tracking link.';
+    trackingError.classList.add('show');
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(activeTrackingViewerUrl);
+    } else {
+      const tempInput = document.createElement('input');
+      tempInput.value = activeTrackingViewerUrl;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      tempInput.remove();
+    }
+    trackingMessage.textContent = 'Tracking link copied.';
+    trackingMessage.classList.add('show');
+  } catch (err) {
+    trackingError.textContent = 'Unable to copy link. ' + activeTrackingViewerUrl;
     trackingError.classList.add('show');
   }
 }
@@ -1141,6 +1169,13 @@ function formatMiles(miles) {
 
 function formatRidePrice(ride) {
   return formatCents(ride.priceCents || 500);
+}
+
+function formatDriverRating(ride) {
+  const count = Number(ride.driverRatingCount || 0);
+  const average = Number(ride.driverRatingAverage);
+  if (!count || !Number.isFinite(average)) return 'No ratings yet';
+  return average.toFixed(1) + ' out of 5 stars from ' + count + ' rider' + (count === 1 ? '' : 's');
 }
 
 function formatDuration(minutes) {
@@ -1458,6 +1493,7 @@ function renderRideCard(ride) {
   details.className = 'ride-details';
   details.innerHTML = `
     <div><strong>Driver:</strong> ${ride.driverFirstName} ${ride.driverLastName}</div>
+    <div><strong>Driver rating:</strong> ${formatDriverRating(ride)}</div>
     <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>
     ${getCoordinateMarkup(ride)}
     <div><strong>Departure:</strong> ${formatRideDateTime(ride)}</div>
@@ -1867,6 +1903,8 @@ function buildRideSummary(ride, options = {}) {
   container.innerHTML = `
     <h4>${ride.origin} → ${ride.destination}</h4>
     <div class="ride-details">
+      <div><strong>Driver:</strong> ${[ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver'}</div>
+      <div><strong>Driver rating:</strong> ${formatDriverRating(ride)}</div>
       <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>
       ${getCoordinateMarkup(ride)}
       <div><strong>Departure:</strong> ${formatRideDateTime(ride)}</div>
@@ -1909,6 +1947,7 @@ function renderCartItem(ride) {
     ${getCoordinateMarkup(ride)}
     <div><strong>Seat:</strong> ${ride.seatingChartUnavailable ? 'General shared spot' : (ride.selectedSeatId ? getSeatLabel(ride.selectedSeatId) : 'Selected seat')}</div>
     <div><strong>Driver:</strong> ${[ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ')}</div>
+    <div><strong>Driver rating:</strong> ${formatDriverRating(ride)}</div>
     <div><strong>Departure:</strong> ${formatRideDateTime(ride)}</div>
     <div><strong>Estimated ride time:</strong> ${formatDuration(ride.estimatedDurationMinutes)}</div>
     <div><strong>Item price:</strong> ${formatRidePrice(ride)}</div>
@@ -1963,8 +2002,26 @@ async function loadCart() {
   }
 }
 
+function clearBrowseFilters() {
+  rideSearchInput.value = '';
+  pickupRadiusMilesInput.value = '';
+  dropoffRadiusMilesInput.value = '';
+  rideFilterDateInput.value = '';
+  rideFilterSeatsInput.value = '';
+  rideFilterMaxPriceInput.value = '';
+  pickupRadiusLocationInput.value = '';
+  dropoffRadiusLocationInput.value = '';
+  delete pickupRadiusLocationInput.dataset.lat;
+  delete pickupRadiusLocationInput.dataset.lng;
+  delete dropoffRadiusLocationInput.dataset.lat;
+  delete dropoffRadiusLocationInput.dataset.lng;
+  sameGenderDriversOnlyFilter.checked = false;
+}
+
 function setBrowseRole(role) {
+  const roleChanged = browseRole !== role;
   browseRole = role;
+  if (roleChanged && role) clearBrowseFilters();
   browseDriverButton.classList.toggle('active', role === 'driver');
   browseRiderButton.classList.toggle('active', role === 'rider');
 }
@@ -2062,6 +2119,18 @@ async function loadRides() {
   }
 }
 
+function hasActiveDriverRequestFilters() {
+  const pickupMiles = Number(pickupRadiusMilesInput.value);
+  const dropoffMiles = Number(dropoffRadiusMilesInput.value);
+  return Boolean(
+    rideSearchInput.value.trim()
+    || rideFilterDateInput.value
+    || (Number.isFinite(Number(rideFilterMaxPriceInput.value)) && Number(rideFilterMaxPriceInput.value) > 0)
+    || (Number.isFinite(pickupMiles) && pickupMiles > 0 && getRadiusCenter(pickupRadiusLocationInput))
+    || (Number.isFinite(dropoffMiles) && dropoffMiles > 0 && getRadiusCenter(dropoffRadiusLocationInput))
+  );
+}
+
 function requestMatchesDriverFilters(request) {
   const search = rideSearchInput.value.trim().toLowerCase();
   if (search) {
@@ -2086,11 +2155,15 @@ async function loadRideRequests() {
   ridesList.textContent = 'Loading requested rides...';
   try {
     const requests = await fetchJson('/api/ride-requests');
-    const visibleRequests = requests.filter((request) => canCurrentUserSeeRequest(request) && requestMatchesDriverFilters(request));
+    const baseRequests = requests.filter((request) => canCurrentUserSeeRequest(request));
+    const filtersActive = hasActiveDriverRequestFilters();
+    const visibleRequests = filtersActive
+      ? baseRequests.filter((request) => requestMatchesDriverFilters(request))
+      : baseRequests;
     ridesList.innerHTML = '';
     updateBrowseRadiusMap(visibleRequests);
     if (!visibleRequests.length) {
-      ridesList.innerHTML = '<div class="ride-empty-state"><p>No students have requested rides that match your driver profile yet.</p></div>';
+      ridesList.innerHTML = '<div class="ride-empty-state"><p>' + (filtersActive ? 'No student ride requests match your current filters.' : 'No students have requested rides yet.') + '</p></div>';
       return;
     }
     visibleRequests
@@ -2108,6 +2181,7 @@ function isPastRide(ride) {
 function setYourRidesView(view) {
   yourRidesView = view;
   yourRidesCurrentTab.classList.toggle('active', view === 'current');
+  yourRidesRequestsTab.classList.toggle('active', view === 'requests');
   yourRidesHistoryTab.classList.toggle('active', view === 'history');
 }
 
@@ -2119,12 +2193,115 @@ function appendRideSection(container, title, rides, builder) {
   rides.forEach((ride) => container.appendChild(builder(ride)));
 }
 
+function createStarDisplay(rating, interactive = false) {
+  const stars = document.createElement('div');
+  stars.className = 'star-rating' + (interactive ? ' interactive' : '');
+  stars.setAttribute('aria-label', rating ? rating + ' out of 5 stars' : 'No rating selected');
+  for (let index = 1; index <= 5; index += 1) {
+    const star = document.createElement(interactive ? 'button' : 'span');
+    star.className = 'rating-star' + (index <= rating ? ' selected' : '');
+    star.textContent = '★';
+    star.dataset.rating = String(index);
+    if (interactive) {
+      star.type = 'button';
+      star.setAttribute('aria-label', index + ' out of 5 stars');
+    }
+    stars.appendChild(star);
+  }
+  return stars;
+}
+
+function updateStarDisplay(stars, rating) {
+  stars.setAttribute('aria-label', rating ? rating + ' out of 5 stars' : 'No rating selected');
+  stars.querySelectorAll('.rating-star').forEach((star) => {
+    star.classList.toggle('selected', Number(star.dataset.rating) <= rating);
+  });
+}
+
+function buildDriverRatingForm(ride) {
+  const wrapper = document.createElement('form');
+  wrapper.className = 'driver-rating-form';
+
+  const existingRating = Number(ride.driverRatingByCurrentUser);
+  if (existingRating) {
+    const summary = document.createElement('div');
+    summary.className = 'driver-rating-summary';
+    summary.innerHTML = '<strong>Your driver rating:</strong> <span>' + existingRating + ' out of 5 stars</span>';
+    summary.appendChild(createStarDisplay(existingRating));
+    wrapper.appendChild(summary);
+    return wrapper;
+  }
+
+  let selectedRating = 0;
+  const label = document.createElement('div');
+  label.className = 'driver-rating-label';
+  label.textContent = 'Rate your driver';
+  const stars = createStarDisplay(0, true);
+  stars.addEventListener('click', (event) => {
+    const star = event.target.closest('.rating-star');
+    if (!star) return;
+    selectedRating = Number(star.dataset.rating);
+    updateStarDisplay(stars, selectedRating);
+  });
+
+  const comment = document.createElement('input');
+  comment.type = 'text';
+  comment.maxLength = 300;
+  comment.placeholder = 'Optional note';
+
+  const button = document.createElement('button');
+  button.type = 'submit';
+  button.textContent = 'Submit rating';
+
+  const message = document.createElement('div');
+  message.className = 'success-message';
+  const error = document.createElement('div');
+  error.className = 'error-message';
+
+  wrapper.append(label, stars, comment, button, message, error);
+  wrapper.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    message.classList.remove('show');
+    error.classList.remove('show');
+    if (!selectedRating) {
+      error.textContent = 'Choose a star rating first';
+      error.classList.add('show');
+      return;
+    }
+    try {
+      await fetchJson('/api/rides/' + ride.id + '/rating', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: selectedRating, comment: comment.value.trim() }),
+      });
+      message.textContent = 'Rating saved.';
+      message.classList.add('show');
+      loadYourRides();
+    } catch (err) {
+      error.textContent = err.message;
+      error.classList.add('show');
+    }
+  });
+  return wrapper;
+}
+
 function buildHistoryRideCard(ride, role) {
   const item = role === 'Driver' ? buildDriverRideSummary(ride) : buildRideSummary(ride);
   item.classList.add('history-ride-card');
   const badge = document.createElement('div');
   badge.className = 'ride-role-badge ' + (role === 'Driver' ? 'driver-role' : 'rider-role');
   badge.textContent = role;
+  item.prepend(badge);
+  if (role === 'Rider') item.appendChild(buildDriverRatingForm(ride));
+  return item;
+}
+
+function buildHistoryRequestCard(request) {
+  const item = buildRequestSummary(request);
+  item.classList.add('history-ride-card');
+  const badge = document.createElement('div');
+  badge.className = 'ride-role-badge rider-role';
+  badge.textContent = 'Expired request';
   item.prepend(badge);
   return item;
 }
@@ -2137,6 +2314,13 @@ async function loadYourRides() {
     setYourRidesView(yourRidesView);
     const drivingRides = data.createdRides || [];
     const reservedRides = data.joinedRides || [];
+    const riderRequests = data.riderRequests || [];
+    const requestedRides = riderRequests
+      .filter((request) => (request.status || 'open') === 'open')
+      .sort((a, b) => getRideStartTime(a) - getRideStartTime(b));
+    const expiredRequests = riderRequests
+      .filter((request) => request.status === 'expired')
+      .sort((a, b) => getRideStartTime(b) - getRideStartTime(a));
     const currentDrivingRides = drivingRides
       .filter((ride) => !isPastRide(ride))
       .sort((a, b) => getRideStartTime(a) - getRideStartTime(b));
@@ -2144,16 +2328,28 @@ async function loadYourRides() {
       .filter((ride) => !isPastRide(ride))
       .sort((a, b) => getRideStartTime(a) - getRideStartTime(b));
     const historyRides = [
-      ...drivingRides.filter(isPastRide).map((ride) => ({ ride, role: 'Driver' })),
-      ...reservedRides.filter(isPastRide).map((ride) => ({ ride, role: 'Rider' })),
-    ].sort((a, b) => getRideStartTime(b.ride) - getRideStartTime(a.ride));
+      ...drivingRides.filter(isPastRide).map((ride) => ({ type: 'ride', ride, role: 'Driver', sortTime: getRideStartTime(ride) })),
+      ...reservedRides.filter(isPastRide).map((ride) => ({ type: 'ride', ride, role: 'Rider', sortTime: getRideStartTime(ride) })),
+      ...expiredRequests.map((request) => ({ type: 'request', request, sortTime: getRideStartTime(request) })),
+    ].sort((a, b) => b.sortTime - a.sortTime);
+
+    if (yourRidesView === 'requests') {
+      if (!requestedRides.length) {
+        yourRidesList.textContent = 'You have not requested any rides yet.';
+        return;
+      }
+      appendRideSection(yourRidesList, 'Ride requests you posted', requestedRides, (request) => buildRequestSummary(request));
+      return;
+    }
 
     if (yourRidesView === 'history') {
       if (!historyRides.length) {
         yourRidesList.textContent = 'No previous rides yet.';
         return;
       }
-      appendRideSection(yourRidesList, 'History rides', historyRides, (entry) => buildHistoryRideCard(entry.ride, entry.role));
+      appendRideSection(yourRidesList, 'History rides', historyRides, (entry) => (
+        entry.type === 'request' ? buildHistoryRequestCard(entry.request) : buildHistoryRideCard(entry.ride, entry.role)
+      ));
       return;
     }
 
@@ -2169,7 +2365,7 @@ async function loadYourRides() {
       return item;
     });
   } catch (err) {
-    yourRidesList.textContent = 'Unable to load your rides.';
+    yourRidesList.textContent = 'Unable to load your rides: ' + err.message;
   }
 }
 
@@ -2500,6 +2696,7 @@ chatBackHomeButton.addEventListener('click', () => showDashboardHome());
 cartButton.addEventListener('click', () => showCartPage());
 yourRidesButton.addEventListener('click', () => showYourRidesPage());
 yourRidesCurrentTab.addEventListener('click', () => { setYourRidesView('current'); loadYourRides(); });
+yourRidesRequestsTab.addEventListener('click', () => { setYourRidesView('requests'); loadYourRides(); });
 yourRidesHistoryTab.addEventListener('click', () => { setYourRidesView('history'); loadYourRides(); });
 yourRidesBackHomeButton.addEventListener('click', () => showDashboardHome());
 leaderboardButton.addEventListener('click', () => showLeaderboardPage());
@@ -2508,6 +2705,7 @@ profileButton.addEventListener('click', () => showProfilePage());
 profileBackHomeButton.addEventListener('click', () => showDashboardHome());
 trackTripButton.addEventListener('click', () => showTrackTripPage());
 trackBackHomeButton.addEventListener('click', () => showDashboardHome());
+copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
 startTrackingButton.addEventListener('click', () => startTripTracking());
 stopTrackingButton.addEventListener('click', () => stopTripTracking());
 continueShoppingButton.addEventListener('click', () => showDashboardHome());
