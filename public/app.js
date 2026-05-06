@@ -1,3 +1,4 @@
+const rideTransition = document.getElementById('ride-transition');
 const authSection = document.getElementById('auth-section');
 const dashboard = document.getElementById('dashboard');
 const siteLogo = document.querySelector('.site-logo');
@@ -5,6 +6,11 @@ const headerActions = document.getElementById('header-actions');
 const headerLeftActions = document.getElementById('header-left-actions');
 const signinForm = document.getElementById('signin-form');
 const signupForm = document.getElementById('signup-form');
+const privacyPage = document.getElementById('privacy-page');
+const termsPage = document.getElementById('terms-page');
+const privacyLink = document.getElementById('privacy-link');
+const termsLink = document.getElementById('terms-link');
+const legalBackButtons = document.querySelectorAll('.legal-back');
 const tabButtons = document.querySelectorAll('.tab-button');
 const tabContents = document.querySelectorAll('.tab-content');
 
@@ -60,6 +66,17 @@ const profileForm = document.getElementById('profile-form');
 const profileBackHomeButton = document.getElementById('profile-back-home');
 const profileMessage = document.getElementById('profile-message');
 const profileError = document.getElementById('profile-error');
+const profileSidebarButtons = document.querySelectorAll('.profile-sidebar-button');
+const profilePanels = document.querySelectorAll('[data-profile-panel]');
+const driverPayoutForm = document.getElementById('driver-payout-form');
+const payoutMessage = document.getElementById('payout-message');
+const payoutError = document.getElementById('payout-error');
+const defaultPaymentForm = document.getElementById('default-payment-form');
+const defaultPaymentSummary = document.getElementById('default-payment-summary');
+const defaultPaymentMessage = document.getElementById('default-payment-message');
+const defaultPaymentError = document.getElementById('default-payment-error');
+const payoutCommissionLabel = document.getElementById('payout-commission-label');
+const LINKUP_COMMISSION_RATE = 0.15;
 const cartCount = document.getElementById('cart-count');
 const cartItems = document.getElementById('cart-items');
 const cartSubtotal = document.getElementById('cart-subtotal');
@@ -115,12 +132,26 @@ const resetMessage = document.getElementById('reset-message');
 const resetError = document.getElementById('reset-error');
 const verificationMessage = document.getElementById('verification-message');
 const verificationError = document.getElementById('verification-error');
+const policyConsentForm = document.getElementById('policy-consent-form');
+const policyMessage = document.getElementById('policy-message');
+const policyError = document.getElementById('policy-error');
+const policyVersionSummary = document.getElementById('policy-version-summary');
+const policyRequiredMessage = document.getElementById('policy-required-message');
+const policyScrollbox = document.getElementById('policy-scrollbox');
+const policyScrollHint = document.getElementById('policy-scroll-hint');
+const policyAgreeButton = document.getElementById('policy-agree-button');
+const policyTermsButton = document.getElementById('policy-terms-button');
+const policyPrivacyButton = document.getElementById('policy-privacy-button');
+const policyCollapseButton = document.getElementById('policy-collapse-button');
+const policyReleaseCard = document.querySelector('.policy-release-card');
 
 let currentUser = null;
 let originMap = null;
 let destinationMap = null;
 let originMarker = null;
 let destinationMarker = null;
+let offerRouteRenderer = null;
+let offerRouteLine = null;
 let originAutocomplete = null;
 let destinationAutocomplete = null;
 let requestOriginAutocomplete = null;
@@ -129,6 +160,8 @@ let requestOriginMap = null;
 let requestDestinationMap = null;
 let requestOriginMarker = null;
 let requestDestinationMarker = null;
+let requestRouteRenderer = null;
+let requestRouteLine = null;
 let pickupRadiusAutocomplete = null;
 let dropoffRadiusAutocomplete = null;
 let cartRideIds = new Set();
@@ -145,14 +178,92 @@ let sharedTrackingPath = null;
 let sharedTrackingPollId = null;
 let currentVehicleSeatCount = 5;
 let driverAvailableSeatIds = new Set();
+let isRestoringRoute = false;
+
+function getAppRoute() {
+  return decodeURIComponent(window.location.hash.replace(/^#/, '')).trim();
+}
+
+function setAppRoute(route) {
+  if (isRestoringRoute || !route) return;
+  const nextUrl = window.location.pathname + window.location.search + '#' + encodeURIComponent(route);
+  window.history.replaceState({}, document.title, nextUrl);
+}
+
+function clearAppRoute() {
+  window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+}
+
+function profileRouteForTab(tabName = 'info') {
+  return tabName === 'info' ? 'profile' : 'profile-' + tabName;
+}
 let browseRole = null;
 let yourRidesView = 'current';
 let selectedChatRideId = '';
 let browseRadiusMap = null;
 let browsePickupCircle = null;
 let browseDropoffCircle = null;
+let browsePickupMarker = null;
+let browseDropoffMarker = null;
+let browseRouteRenderer = null;
+let browseRouteLine = null;
 let browseResultMarkers = [];
+let browsePinLabels = new Map();
 const selectedSeatByRide = new Map();
+
+// ── Uber-style dark map theme ───────────────────────────────────
+const UBER_MAP_STYLES = [
+  { elementType: 'geometry',        stylers: [{ color: '#1a1a2e' }] },
+  { elementType: 'labels.text.fill',stylers: [{ color: '#7a8fa6' }] },
+  { elementType: 'labels.text.stroke',stylers:[{ color: '#0d1117' }] },
+  { featureType: 'road',             elementType: 'geometry',       stylers: [{ color: '#2d2d44' }] },
+  { featureType: 'road',             elementType: 'geometry.stroke', stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'road.highway',     elementType: 'geometry',       stylers: [{ color: '#3a3a5c' }] },
+  { featureType: 'road.highway',     elementType: 'geometry.stroke', stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'water',            elementType: 'geometry',       stylers: [{ color: '#0f1923' }] },
+  { featureType: 'water',            elementType: 'labels.text.fill',stylers:[{ color: '#3d5a73' }] },
+  { featureType: 'poi',              elementType: 'geometry',       stylers: [{ color: '#1c1c30' }] },
+  { featureType: 'poi.park',         elementType: 'geometry',       stylers: [{ color: '#1a2e1a' }] },
+  { featureType: 'transit',          elementType: 'geometry',       stylers: [{ color: '#22223a' }] },
+  { featureType: 'administrative',   elementType: 'geometry',       stylers: [{ color: '#2a2a40' }] },
+  { featureType: 'landscape',        elementType: 'geometry',       stylers: [{ color: '#16162a' }] },
+];
+
+// Custom SVG marker icons
+function makeOriginIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="10" fill="#3ecfcf" opacity="0.18"/>
+    <circle cx="14" cy="14" r="6"  fill="#3ecfcf"/>
+    <circle cx="14" cy="14" r="3"  fill="#0d1517"/>
+  </svg>`;
+  return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(14, 14) };
+}
+function makeDestinationIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+    <path d="M16 0C7.163 0 0 7.163 0 16c0 10 16 24 16 24S32 26 32 16C32 7.163 24.837 0 16 0z" fill="#4d9ef5"/>
+    <circle cx="16" cy="16" r="7" fill="#fff"/>
+    <circle cx="16" cy="16" r="4" fill="#4d9ef5"/>
+  </svg>`;
+  return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(16, 40) };
+}
+function makeCarIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+    <circle cx="18" cy="18" r="17" fill="#1e2d30" stroke="#3ecfcf" stroke-width="1.5"/>
+    <path d="M10 21l2-6h12l2 6H10z" fill="#3ecfcf"/>
+    <rect x="11" y="21" width="14" height="5" rx="2" fill="#3ecfcf"/>
+    <circle cx="13.5" cy="26.5" r="2" fill="#0d1517"/>
+    <circle cx="22.5" cy="26.5" r="2" fill="#0d1517"/>
+    <path d="M13 18h10" stroke="#0d1517" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`;
+  return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(18, 18) };
+}
+function makeLetterIcon(letter) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
+    <path d="M15 0C6.716 0 0 6.716 0 15c0 9.375 15 23 15 23S30 24.375 30 15C30 6.716 23.284 0 15 0z" fill="#4d9ef5"/>
+    <text x="15" y="20" font-family="sans-serif" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">${letter}</text>
+  </svg>`;
+  return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(15, 38) };
+}
 
 
 const originSearchInput = document.getElementById('origin-search');
@@ -160,6 +271,7 @@ const originMapDiv = document.getElementById('origin-map');
 const destinationSearchInput = document.getElementById('destination-search');
 const destinationMapDiv = document.getElementById('destination-map');
 const sameGenderOnlyRideCheckbox = document.getElementById('same-gender-only-ride');
+const sameSchoolOnlyFilter = document.getElementById('same-school-only');
 const sameGenderDriversOnlyFilter = document.getElementById('same-gender-drivers-only');
 const browseSearchLabel = document.getElementById('browse-search-label');
 const pickupLocationLabel = document.getElementById('pickup-location-label');
@@ -173,6 +285,9 @@ const dropoffRadiusLocationInput = document.getElementById('dropoff-radius-locat
 const dropoffRadiusMilesInput = document.getElementById('dropoff-radius-miles');
 const browseRadiusMapDiv = document.getElementById('browse-radius-map');
 const browseMapHint = document.getElementById('browse-map-hint');
+const browseMapPanel = document.getElementById('browse-map-panel');
+const browseMapHintPanel = document.getElementById('browse-map-hint-panel');
+const browseRiderLayout = document.getElementById('browse-rider-layout');
 const rideFilterDateInput = document.getElementById('ride-filter-date');
 const rideFilterSeatsInput = document.getElementById('ride-filter-seats');
 const rideFilterMaxPriceInput = document.getElementById('ride-filter-max-price');
@@ -221,9 +336,14 @@ function initializeOriginMap() {
   originMap = new google.maps.Map(originMapDiv, {
     zoom: 13,
     center,
-    styles: [{ elementType: 'labels', stylers: [{ visibility: 'off' }] }],
+    styles: UBER_MAP_STYLES,
+    disableDefaultUI: false,
+    zoomControl: true,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
   });
-  originMarker = new google.maps.Marker({ map: originMap, position: center });
+  originMarker = new google.maps.Marker({ map: originMap, position: center, icon: makeOriginIcon() });
   originAutocomplete = new google.maps.places.Autocomplete(originSearchInput, { componentRestrictions: { country: 'us' } });
   originAutocomplete.addListener('place_changed', () => {
     const place = originAutocomplete.getPlace();
@@ -237,23 +357,70 @@ function initializeOriginMap() {
 }
 
 function initializeDestinationMap() {
-  const center = { lat: 34.069, lng: -118.445 };
-  destinationMap = new google.maps.Map(destinationMapDiv, {
-    zoom: 13,
-    center,
-    styles: [{ elementType: 'labels', stylers: [{ visibility: 'off' }] }],
-  });
-  destinationMarker = new google.maps.Marker({ map: destinationMap, position: center });
   destinationAutocomplete = new google.maps.places.Autocomplete(destinationSearchInput, { componentRestrictions: { country: 'us' } });
   destinationAutocomplete.addListener('place_changed', () => {
     const place = destinationAutocomplete.getPlace();
     if (place.geometry) updateDestinationLocation(place.name, place.geometry.location.lat(), place.geometry.location.lng());
   });
-  destinationMapDiv.addEventListener('click', () => {
-    const lat = destinationMap.getCenter().lat();
-    const lng = destinationMap.getCenter().lng();
-    updateDestinationLocation(`Location (${lat.toFixed(3)}, ${lng.toFixed(3)})`, lat, lng);
-  });
+}
+
+
+function getLatLngFromInputs(latId, lngId) {
+  const lat = Number(document.getElementById(latId)?.value);
+  const lng = Number(document.getElementById(lngId)?.value);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+function clearMapRoute(rendererRef, lineRef) {
+  if (lineRef.current) lineRef.current.setMap(null);
+  lineRef.current = null;
+  if (rendererRef.current) rendererRef.current.setMap(null);
+  rendererRef.current = null;
+}
+
+function drawRouteOnMap(map, origin, destination, rendererRef, lineRef) {
+  clearMapRoute(rendererRef, lineRef);
+  if (!map || !origin || !destination || !window.google?.maps) return;
+  if (google.maps.DirectionsService && google.maps.DirectionsRenderer) {
+    const service = new google.maps.DirectionsService();
+    rendererRef.current = new google.maps.DirectionsRenderer({
+      map,
+      suppressMarkers: true,
+      preserveViewport: true,
+      polylineOptions: { strokeColor: '#67d7d9', strokeOpacity: 0.95, strokeWeight: 5 },
+    });
+    service.route({ origin, destination, travelMode: google.maps.TravelMode.DRIVING }, (result, status) => {
+      if (status === 'OK') {
+        rendererRef.current.setDirections(result);
+      } else {
+        lineRef.current = new google.maps.Polyline({ map, path: [origin, destination], strokeColor: '#67d7d9', strokeOpacity: 0.9, strokeWeight: 4 });
+      }
+    });
+  } else {
+    lineRef.current = new google.maps.Polyline({ map, path: [origin, destination], strokeColor: '#67d7d9', strokeOpacity: 0.9, strokeWeight: 4 });
+  }
+}
+
+function fitRouteBounds(map, origin, destination) {
+  if (!map || !origin || !destination || !window.google?.maps) return;
+  const bounds = new google.maps.LatLngBounds();
+  bounds.extend(origin);
+  bounds.extend(destination);
+  map.fitBounds(bounds);
+}
+
+function updateOfferRouteMap() {
+  const origin = getLatLngFromInputs('origin-lat', 'origin-lng');
+  const destination = getLatLngFromInputs('destination-lat', 'destination-lng');
+  drawRouteOnMap(originMap, origin, destination, { get current() { return offerRouteRenderer; }, set current(value) { offerRouteRenderer = value; } }, { get current() { return offerRouteLine; }, set current(value) { offerRouteLine = value; } });
+  fitRouteBounds(originMap, origin, destination);
+}
+
+function updateRequestRouteMap() {
+  const origin = getLatLngFromInputs('request-origin-lat', 'request-origin-lng');
+  const destination = getLatLngFromInputs('request-destination-lat', 'request-destination-lng');
+  drawRouteOnMap(requestOriginMap, origin, destination, { get current() { return requestRouteRenderer; }, set current(value) { requestRouteRenderer = value; } }, { get current() { return requestRouteLine; }, set current(value) { requestRouteLine = value; } });
+  fitRouteBounds(requestOriginMap, origin, destination);
 }
 
 function updateOriginLocation(name, lat, lng) {
@@ -264,8 +431,11 @@ function updateOriginLocation(name, lat, lng) {
   document.getElementById('origin-selected').classList.add('active');
   if (originMap && originMarker) {
     const position = { lat, lng };
+    originMarker.setLabel('P');
+    originMarker.setTitle('Pick-up');
     originMarker.setPosition(position);
     originMap.setCenter(position);
+    updateOfferRouteMap();
   }
 }
 
@@ -280,8 +450,11 @@ function updateRequestOriginLocation(name, lat, lng) {
   }
   if (requestOriginMap && requestOriginMarker) {
     const position = { lat: Number(lat), lng: Number(lng) };
+    requestOriginMarker.setLabel('P');
+    requestOriginMarker.setTitle('Pick-up');
     requestOriginMarker.setPosition(position);
     requestOriginMap.setCenter(position);
+    updateRequestRouteMap();
   }
 }
 
@@ -294,10 +467,13 @@ function updateRequestDestinationLocation(name, lat, lng) {
     selected.textContent = 'Selected: ' + name + ' (' + Number(lat).toFixed(5) + ', ' + Number(lng).toFixed(5) + ')';
     selected.classList.add('active');
   }
-  if (requestDestinationMap && requestDestinationMarker) {
-    const position = { lat: Number(lat), lng: Number(lng) };
+  const position = { lat: Number(lat), lng: Number(lng) };
+  if (requestOriginMap) {
+    if (!requestDestinationMarker) requestDestinationMarker = new google.maps.Marker({ map: requestOriginMap, icon: makeDestinationIcon(), title: 'Drop-off' });
+    requestDestinationMarker.setMap(requestOriginMap);
     requestDestinationMarker.setPosition(position);
-    requestDestinationMap.setCenter(position);
+    requestOriginMap.setCenter(position);
+    updateRequestRouteMap();
   }
 }
 
@@ -324,6 +500,11 @@ function initializeRadiusAutocomplete() {
 function clearRequestLocationCoordinates(kind) {
   document.getElementById('request-' + kind + '-lat').value = '';
   document.getElementById('request-' + kind + '-lng').value = '';
+  const selected = document.getElementById('request-' + kind + '-selected');
+  if (selected) {
+    selected.textContent = '';
+    selected.classList.remove('active');
+  }
 }
 
 function geocodeAddress(address) {
@@ -369,23 +550,17 @@ function initializeRequestMaps() {
   if (!window.google?.maps) return;
   const center = { lat: 34.069, lng: -118.445 };
   const requestOriginMapDiv = document.getElementById('request-origin-map');
-  const requestDestinationMapDiv = document.getElementById('request-destination-map');
   if (requestOriginMapDiv && !requestOriginMap) {
-    requestOriginMap = new google.maps.Map(requestOriginMapDiv, { zoom: 13, center, styles: [{ elementType: 'labels', stylers: [{ visibility: 'off' }] }] });
-    requestOriginMarker = new google.maps.Marker({ map: requestOriginMap, position: center });
+    requestOriginMap = new google.maps.Map(requestOriginMapDiv, {
+      zoom: 13, center,
+      styles: UBER_MAP_STYLES,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+    });
+    requestOriginMarker = new google.maps.Marker({ map: requestOriginMap, position: center, icon: makeOriginIcon(), title: 'Pick-up' });
     requestOriginMapDiv.addEventListener('click', () => {
       const lat = requestOriginMap.getCenter().lat();
       const lng = requestOriginMap.getCenter().lng();
       updateRequestOriginLocation('Location (' + lat.toFixed(3) + ', ' + lng.toFixed(3) + ')', lat, lng);
-    });
-  }
-  if (requestDestinationMapDiv && !requestDestinationMap) {
-    requestDestinationMap = new google.maps.Map(requestDestinationMapDiv, { zoom: 13, center, styles: [{ elementType: 'labels', stylers: [{ visibility: 'off' }] }] });
-    requestDestinationMarker = new google.maps.Marker({ map: requestDestinationMap, position: center });
-    requestDestinationMapDiv.addEventListener('click', () => {
-      const lat = requestDestinationMap.getCenter().lat();
-      const lng = requestDestinationMap.getCenter().lng();
-      updateRequestDestinationLocation('Location (' + lat.toFixed(3) + ', ' + lng.toFixed(3) + ')', lat, lng);
     });
   }
 }
@@ -419,10 +594,13 @@ function updateDestinationLocation(name, lat, lng) {
   document.getElementById('destination-lng').value = lng;
   document.getElementById('destination-selected').textContent = `Selected: ${name}`;
   document.getElementById('destination-selected').classList.add('active');
-  if (destinationMap && destinationMarker) {
-    const position = { lat, lng };
+  const position = { lat: Number(lat), lng: Number(lng) };
+  if (originMap) {
+    if (!destinationMarker) destinationMarker = new google.maps.Marker({ map: originMap, icon: makeDestinationIcon(), title: 'Drop-off' });
+    destinationMarker.setMap(originMap);
     destinationMarker.setPosition(position);
-    destinationMap.setCenter(position);
+    originMap.setCenter(position);
+    updateOfferRouteMap();
   }
 }
 
@@ -450,11 +628,33 @@ async function checkAuth() {
     currentUser = await fetchJson('/api/auth/me');
     showDashboard(currentUser);
   } catch (error) {
-    showAuthSection();
+    const route = getAppRoute();
+    if (route === 'privacy' || route === 'terms') showLegalPage(route);
+    else showAuthSection();
   }
 }
 
+function hideLegalPages() {
+  privacyPage.classList.add('hidden');
+  termsPage.classList.add('hidden');
+}
+
+function showLegalPage(pageName) {
+  setAppRoute(pageName);
+  authSection.classList.add('hidden');
+  dashboard.classList.add('hidden');
+  sharedTrackPage.classList.add('hidden');
+  hideLegalPages();
+  document.body.classList.remove('dashboard-mode');
+  headerLeftActions.classList.add('hidden');
+  headerActions.classList.add('hidden');
+  if (pageName === 'privacy') privacyPage.classList.remove('hidden');
+  if (pageName === 'terms') termsPage.classList.remove('hidden');
+}
+
 function showAuthSection() {
+  hideLegalPages();
+  sharedTrackPage.classList.add('hidden');
   siteLogo.src = 'assets/images/LinkUp-header.png';
   siteLogo.alt = 'LinkUp - Ride Connect Save';
   siteLogo.removeAttribute('role');
@@ -511,6 +711,26 @@ function getDisplayName(user) {
   return 'there';
 }
 
+function playRideTransition() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return Promise.resolve();
+  }
+  rideTransition.classList.remove('hidden');
+  rideTransition.classList.remove('leaving');
+  rideTransition.setAttribute('aria-hidden', 'false');
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      rideTransition.classList.add('leaving');
+      window.setTimeout(() => {
+        rideTransition.classList.add('hidden');
+        rideTransition.classList.remove('leaving');
+        rideTransition.setAttribute('aria-hidden', 'true');
+        resolve();
+      }, 260);
+    }, 1050);
+  });
+}
+
 function clearRequestRideMessages() {
   requestRideMessage.textContent = '';
   requestRideMessage.classList.remove('show');
@@ -537,6 +757,7 @@ function clearTrackingMessages() {
 }
 
 function hideDashboardPages() {
+  hideLegalPages();
   dashboardHome.classList.add('hidden');
   waitlistPage.classList.add('hidden');
   requestRidePage.classList.add('hidden');
@@ -570,6 +791,165 @@ function fillProfileForm(user) {
   document.getElementById('profile-birthday').value = user.birthday || '';
   document.getElementById('profile-gender').value = user.gender || '';
   document.getElementById('profile-email').value = user.email || '';
+}
+
+function userNeedsPolicyConsent(user) {
+  return Boolean(user?.requiresPolicyConsent);
+}
+
+function clearPolicyMessages() {
+  policyMessage.textContent = '';
+  policyMessage.classList.remove('show');
+  policyError.textContent = '';
+  policyError.classList.remove('show');
+}
+
+function hasScrolledPolicyToBottom() {
+  if (!policyScrollbox) return false;
+  return policyScrollbox.scrollTop + policyScrollbox.clientHeight >= policyScrollbox.scrollHeight - 4;
+}
+
+function getProfilePolicyControls() {
+  const termsCheckbox = document.getElementById('profile-terms-agree');
+  const privacyCheckbox = document.getElementById('profile-privacy-agree');
+  return {
+    termsCheckbox,
+    privacyCheckbox,
+    termsLabel: termsCheckbox?.closest('label'),
+    privacyLabel: privacyCheckbox?.closest('label'),
+  };
+}
+
+function updatePolicyAgreeButtonState() {
+  if (!policyAgreeButton || !policyScrollHint) return;
+  const isFullPolicyView = policyReleaseCard?.classList.contains('policy-full-view') === true;
+  if (!userNeedsPolicyConsent(currentUser)) {
+    policyAgreeButton.disabled = true;
+    policyScrollHint.textContent = isFullPolicyView
+      ? 'Full policy view is open. Use the back button above when you are done reading.'
+      : 'You are current. Agreement is only required when LinkUp publishes a new required update.';
+    return;
+  }
+
+  if (isFullPolicyView) {
+    policyAgreeButton.disabled = true;
+    policyScrollHint.textContent = 'Full policy view is open. Use the back button above to return to the agreement.';
+    return;
+  }
+
+  const { termsCheckbox, privacyCheckbox } = getProfilePolicyControls();
+  const termsChecked = termsCheckbox?.checked === true;
+  const privacyChecked = privacyCheckbox?.checked === true;
+  const scrolledToBottom = hasScrolledPolicyToBottom();
+  policyAgreeButton.disabled = !(termsChecked && privacyChecked && scrolledToBottom);
+  policyScrollHint.textContent = scrolledToBottom
+    ? 'You reached the bottom. Check both boxes to continue.'
+    : 'Scroll to the bottom to unlock the agreement button.';
+}
+
+function setPolicyFullView(mode = '') {
+  const expanded = mode === 'terms' || mode === 'privacy';
+  policyReleaseCard?.classList.toggle('policy-full-view', expanded);
+  policyReleaseCard?.classList.toggle('policy-terms-view', mode === 'terms');
+  policyReleaseCard?.classList.toggle('policy-privacy-view', mode === 'privacy');
+  policyTermsButton?.classList.toggle('hidden', expanded);
+  policyPrivacyButton?.classList.toggle('hidden', expanded);
+  policyCollapseButton?.classList.toggle('hidden', !expanded);
+  if (expanded && policyScrollbox) policyScrollbox.scrollTop = 0;
+  updatePolicyAgreeButtonState();
+}
+
+function fillPolicyConsentForm(user) {
+  setPolicyFullView('');
+  const { termsCheckbox, privacyCheckbox, termsLabel, privacyLabel } = getProfilePolicyControls();
+  const needsConsent = userNeedsPolicyConsent(user);
+  if (termsCheckbox) termsCheckbox.checked = false;
+  if (privacyCheckbox) privacyCheckbox.checked = false;
+  termsLabel?.classList.toggle('hidden', !needsConsent);
+  privacyLabel?.classList.toggle('hidden', !needsConsent);
+  policyAgreeButton?.classList.toggle('hidden', !needsConsent);
+  policyScrollHint?.classList.toggle('hidden', !needsConsent);
+  if (policyScrollbox) policyScrollbox.scrollTop = 0;
+  const termsVersion = user.requiredTermsVersion || 'current';
+  const privacyVersion = user.requiredPrivacyVersion || 'current';
+  policyVersionSummary.textContent = needsConsent
+    ? 'Required Terms version: ' + termsVersion + ' | Required Privacy Notice version: ' + privacyVersion
+    : 'Accepted Terms version: ' + (user.termsVersion || termsVersion) + ' | Accepted Privacy Notice version: ' + (user.privacyVersion || privacyVersion);
+  policyRequiredMessage.textContent = needsConsent
+    ? 'A new LinkUp policy or required profile feature is available. Please review and agree before using ride services.'
+    : 'You have accepted the latest required LinkUp policies. No new agreement is needed until LinkUp publishes a required update.';
+  updatePolicyAgreeButtonState();
+}
+
+function showProfileTab(tabName) {
+  if (!profilePage.classList.contains('hidden')) setAppRoute(profileRouteForTab(tabName));
+  profileSidebarButtons.forEach((button) => button.classList.toggle('active', button.dataset.profileTab === tabName));
+  profilePanels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.profilePanel !== tabName));
+  if (tabName === 'payment') fillDefaultPaymentForm(currentUser || {});
+  if (tabName === 'payouts') fillDriverPayoutForm(currentUser || {});
+  if (tabName === 'policies') fillPolicyConsentForm(currentUser || {});
+}
+
+function clearDefaultPaymentMessages() {
+  defaultPaymentMessage.textContent = '';
+  defaultPaymentMessage.classList.remove('show');
+  defaultPaymentError.textContent = '';
+  defaultPaymentError.classList.remove('show');
+}
+
+function fillDefaultPaymentForm(user) {
+  const method = user.defaultPaymentMethod || null;
+  document.getElementById('default-payment-name').value = method?.billingName || [user.firstName, user.lastName].filter(Boolean).join(' ');
+  document.getElementById('default-payment-card').value = '';
+  document.getElementById('default-payment-expiry').value = method?.expiry || '';
+  document.getElementById('default-payment-cvv').value = '';
+  document.getElementById('default-payment-zip').value = method?.billingZip || '';
+  defaultPaymentSummary.textContent = method
+    ? method.brand + ' ending in ' + method.last4 + (method.expiry ? ' - expires ' + method.expiry : '')
+    : 'No default payment method saved.';
+}
+
+function getDefaultPaymentPayload() {
+  return {
+    name: document.getElementById('default-payment-name').value.trim(),
+    cardNumber: document.getElementById('default-payment-card').value.trim(),
+    expiry: document.getElementById('default-payment-expiry').value.trim(),
+    cvv: document.getElementById('default-payment-cvv').value.trim(),
+    billingZip: document.getElementById('default-payment-zip').value.trim(),
+  };
+}
+
+function clearPayoutMessages() {
+  payoutMessage.textContent = '';
+  payoutMessage.classList.remove('show');
+  payoutError.textContent = '';
+  payoutError.classList.remove('show');
+}
+
+function fillDriverPayoutForm(user) {
+  const info = user.payoutInfo || {};
+  document.getElementById('payout-legal-name').value = info.legalName || [user.firstName, user.lastName].filter(Boolean).join(' ');
+  document.getElementById('payout-method').value = info.method || '';
+  document.getElementById('payout-email').value = info.email || user.email || '';
+  document.getElementById('payout-phone').value = info.phone || '';
+  document.getElementById('payout-handle').value = info.handle || '';
+  document.getElementById('payout-address').value = info.address || '';
+  document.getElementById('payout-notes').value = info.notes || '';
+  document.getElementById('payout-confirm').checked = Boolean(info.confirmedAt);
+  if (payoutCommissionLabel) payoutCommissionLabel.textContent = Math.round(LINKUP_COMMISSION_RATE * 100) + '%';
+}
+
+function getDriverPayoutPayload() {
+  return {
+    legalName: document.getElementById('payout-legal-name').value.trim(),
+    method: document.getElementById('payout-method').value,
+    email: document.getElementById('payout-email').value.trim(),
+    phone: document.getElementById('payout-phone').value.trim(),
+    handle: document.getElementById('payout-handle').value.trim(),
+    address: document.getElementById('payout-address').value.trim(),
+    notes: document.getElementById('payout-notes').value.trim(),
+    confirmed: document.getElementById('payout-confirm').checked,
+  };
 }
 
 function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter) {
@@ -669,24 +1049,43 @@ async function loadLeaderboard() {
 }
 
 function showLeaderboardPage() {
+  setAppRoute('leaderboard');
   clearCartMessages();
   hideDashboardPages();
   leaderboardPage.classList.remove('hidden');
   loadLeaderboard();
 }
 
-function showProfilePage() {
+function showProfilePage(tabName = 'info') {
+  setAppRoute(profileRouteForTab(tabName));
   clearCartMessages();
   clearProfileMessages();
+  clearPolicyMessages();
   hideDashboardPages();
   fillProfileForm(currentUser || {});
+  fillDefaultPaymentForm(currentUser || {});
+  fillDriverPayoutForm(currentUser || {});
+  fillPolicyConsentForm(currentUser || {});
+  showProfileTab(tabName);
   profilePage.classList.remove('hidden');
 }
 
+function showPolicyConsentRequired() {
+  setAppRoute('profile-policies');
+  showProfilePage('policies');
+  policyError.textContent = 'Please agree to the latest Terms of Service and Privacy Notice before using LinkUp services.';
+  policyError.classList.add('show');
+}
+
 function showDashboardHome() {
+  setAppRoute('home');
   clearCartMessages();
   if (currentUser && !currentUser.serviceApproved) {
     showWaitlistPage(currentUser);
+    return;
+  }
+  if (userNeedsPolicyConsent(currentUser)) {
+    showPolicyConsentRequired();
     return;
   }
   hideDashboardPages();
@@ -695,6 +1094,7 @@ function showDashboardHome() {
 }
 
 function showWaitlistPage(user) {
+  setAppRoute('waitlist');
   hideDashboardPages();
   waitlistPage.classList.remove('hidden');
   waitlistMessage.textContent = 'We saved your account for ' + (user.university || user.universityDomain || 'your university') + '. We will notify you when LinkUp launches at your university.';
@@ -702,6 +1102,7 @@ function showWaitlistPage(user) {
 
 function showCartPage() {
   if (!ensureServiceAccess()) return;
+  setAppRoute('cart');
   clearCartMessages();
   hideDashboardPages();
   cartPage.classList.remove('hidden');
@@ -710,6 +1111,7 @@ function showCartPage() {
 
 function showYourRidesPage() {
   if (!ensureServiceAccess()) return;
+  setAppRoute('your-rides');
   clearCartMessages();
   hideDashboardPages();
   yourRidesPage.classList.remove('hidden');
@@ -718,6 +1120,7 @@ function showYourRidesPage() {
 
 function showChatPage() {
   if (!ensureServiceAccess()) return;
+  setAppRoute('chat');
   clearCartMessages();
   hideDashboardPages();
   chatPage.classList.remove('hidden');
@@ -726,6 +1129,7 @@ function showChatPage() {
 
 function showRequestRidePage() {
   if (!ensureServiceAccess()) return;
+  setAppRoute('request-ride');
   clearCartMessages();
   clearRequestRideMessages();
   hideDashboardPages();
@@ -735,6 +1139,7 @@ function showRequestRidePage() {
 
 function showListRidePage() {
   if (!ensureServiceAccess()) return;
+  setAppRoute('list-ride');
   clearCartMessages();
   hideDashboardPages();
   listRidePage.classList.remove('hidden');
@@ -742,13 +1147,14 @@ function showListRidePage() {
   loadGoogleMapsAPI().then(() => {
     setTimeout(() => {
       if (!originMap) initializeOriginMap();
-      if (!destinationMap) initializeDestinationMap();
+      if (!destinationAutocomplete) initializeDestinationMap();
     }, 100);
   });
 }
 
 function showTrackTripPage() {
   if (!ensureServiceAccess()) return;
+  setAppRoute('track-trip');
   clearCartMessages();
   clearTrackingMessages();
   hideDashboardPages();
@@ -756,19 +1162,59 @@ function showTrackTripPage() {
 }
 
 function ensureServiceAccess() {
-  if (currentUser?.serviceApproved) return true;
-  showWaitlistPage(currentUser || {});
-  return false;
+  if (!currentUser?.serviceApproved) {
+    showWaitlistPage(currentUser || {});
+    return false;
+  }
+  if (userNeedsPolicyConsent(currentUser)) {
+    showPolicyConsentRequired();
+    return false;
+  }
+  return true;
 }
 
 function showPaymentPage() {
+  setAppRoute('payment');
   clearCartMessages();
   hideDashboardPages();
   paymentPage.classList.remove('hidden');
   paymentSummary.textContent = `You will pay the driver-set price for ${cartRideIds.size} ride${cartRideIds.size === 1 ? '' : 's'} in your cart.`;
 }
 
+function restoreAppRoute() {
+  const route = getAppRoute();
+  isRestoringRoute = true;
+  try {
+    if (route === 'privacy' || route === 'terms') showLegalPage(route);
+    else if (route === 'cart') showCartPage();
+    else if (route === 'payment') showPaymentPage();
+    else if (route === 'your-rides') showYourRidesPage();
+    else if (route === 'chat') showChatPage();
+    else if (route === 'request-ride') showRequestRidePage();
+    else if (route === 'list-ride') showListRidePage();
+    else if (route === 'track-trip') showTrackTripPage();
+    else if (route === 'leaderboard') showLeaderboardPage();
+    else if (route === 'profile-payment') showProfilePage('payment');
+    else if (route === 'profile-payouts') showProfilePage('payouts');
+    else if (route === 'profile-policies') showProfilePage('policies');
+    else if (route === 'profile') showProfilePage('info');
+    else if (route === 'browse-driver') {
+      showDashboardHome();
+      showDriverBrowse();
+    } else if (route === 'browse-rider') {
+      showDashboardHome();
+      showRiderBrowse();
+    } else {
+      showDashboardHome();
+    }
+  } finally {
+    isRestoringRoute = false;
+  }
+}
+
 function showDashboard(user) {
+  hideLegalPages();
+  sharedTrackPage.classList.add('hidden');
   siteLogo.src = 'assets/images/LinkUp-wordmark.png';
   siteLogo.alt = 'LinkUp';
   siteLogo.setAttribute('role', 'button');
@@ -785,9 +1231,13 @@ function showDashboard(user) {
     showWaitlistPage(user);
     return;
   }
-  renderBrowseRoleChoice();
+  if (userNeedsPolicyConsent(user)) {
+    showPolicyConsentRequired();
+    return;
+  }
   loadCart();
   loadProfile();
+  restoreAppRoute();
 }
 
 function updateTrackingDriverInfo() {
@@ -798,9 +1248,9 @@ function updateTrackingDriverInfo() {
   }
   const fullName = [currentUser.firstName, currentUser.middleName, currentUser.lastName].filter(Boolean).join(' ');
   trackingDriverDetails.innerHTML = `
-    <div><strong>Name:</strong> ${fullName || getDisplayName(currentUser)}</div>
-    <div><strong>Email:</strong> ${currentUser.email}</div>
-    <div><strong>University:</strong> ${currentUser.university}</div>
+    <div><strong>Name:</strong> ${esc(fullName || getDisplayName(currentUser))}</div>
+    <div><strong>Email:</strong> ${esc(currentUser.email)}</div>
+    <div><strong>University:</strong> ${esc(currentUser.university)}</div>
   `;
   trackingDriverInfo.classList.remove('hidden');
 }
@@ -976,8 +1426,12 @@ function updateTrackingMap(location, pathLocations = []) {
   }
 
   if (!trackingMap) {
-    trackingMap = new google.maps.Map(trackingMapDiv, { zoom: 15, center: position });
-    trackingMarker = new google.maps.Marker({ map: trackingMap, position, title: 'Your location' });
+    trackingMap = new google.maps.Map(trackingMapDiv, {
+      zoom: 15, center: position,
+      styles: UBER_MAP_STYLES,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+    });
+    trackingMarker = new google.maps.Marker({ map: trackingMap, position, icon: makeCarIcon(), title: 'Your location' });
     trackingPath = new google.maps.Polyline({ map: trackingMap, path: [], strokeColor: '#8fb8ff', strokeOpacity: 0.9, strokeWeight: 4 });
   } else {
     trackingMap.setCenter(position);
@@ -1110,8 +1564,12 @@ function updateSharedTrackingMap(location, pathLocations = []) {
   }
 
   if (!sharedTrackingMap) {
-    sharedTrackingMap = new google.maps.Map(sharedTrackMapDiv, { zoom: 15, center: position });
-    sharedTrackingMarker = new google.maps.Marker({ map: sharedTrackingMap, position, title: 'Current location' });
+    sharedTrackingMap = new google.maps.Map(sharedTrackMapDiv, {
+      zoom: 15, center: position,
+      styles: UBER_MAP_STYLES,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+    });
+    sharedTrackingMarker = new google.maps.Marker({ map: sharedTrackingMap, position, icon: makeCarIcon(), title: 'Current location' });
     sharedTrackingPath = new google.maps.Polyline({ map: sharedTrackingMap, path: [], strokeColor: '#8fb8ff', strokeOpacity: 0.9, strokeWeight: 4 });
   } else {
     sharedTrackingMap.setCenter(position);
@@ -1123,6 +1581,7 @@ function updateSharedTrackingMap(location, pathLocations = []) {
 }
 
 async function loadSharedTrackingPage(viewerToken) {
+  hideLegalPages();
   authSection.classList.add('hidden');
   dashboard.classList.add('hidden');
   sharedTrackPage.classList.remove('hidden');
@@ -1304,13 +1763,15 @@ function getAlphabetLabel(index) {
   return alphabet[index % alphabet.length] + Math.floor(index / alphabet.length + 1);
 }
 
+
 function ensureBrowseRadiusMap() {
   if (!window.google?.maps || !browseRadiusMapDiv) return null;
   if (!browseRadiusMap) {
     browseRadiusMap = new google.maps.Map(browseRadiusMapDiv, {
       zoom: 12,
       center: { lat: 34.069, lng: -118.445 },
-      styles: [{ elementType: 'labels', stylers: [{ visibility: 'off' }] }],
+      styles: UBER_MAP_STYLES,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
   }
   return browseRadiusMap;
@@ -1319,6 +1780,37 @@ function ensureBrowseRadiusMap() {
 function clearBrowseResultMarkers() {
   browseResultMarkers.forEach((marker) => marker.setMap(null));
   browseResultMarkers = [];
+  browsePinLabels = new Map();
+}
+
+function clearBrowseRoute() {
+  if (browseRouteLine) browseRouteLine.setMap(null);
+  browseRouteLine = null;
+  if (browseRouteRenderer) browseRouteRenderer.setMap(null);
+  browseRouteRenderer = null;
+}
+
+function drawBrowseRoute(map, pickupCenter, dropoffCenter) {
+  clearBrowseRoute();
+  if (!map || !pickupCenter || !dropoffCenter || browseRole !== 'rider') return;
+  if (google.maps.DirectionsService && google.maps.DirectionsRenderer) {
+    const service = new google.maps.DirectionsService();
+    browseRouteRenderer = new google.maps.DirectionsRenderer({
+      map,
+      suppressMarkers: true,
+      preserveViewport: true,
+      polylineOptions: { strokeColor: '#67d7d9', strokeOpacity: 0.95, strokeWeight: 5 },
+    });
+    service.route({ origin: pickupCenter, destination: dropoffCenter, travelMode: google.maps.TravelMode.DRIVING }, (result, status) => {
+      if (status === 'OK') {
+        browseRouteRenderer.setDirections(result);
+      } else {
+        browseRouteLine = new google.maps.Polyline({ map, path: [pickupCenter, dropoffCenter], strokeColor: '#67d7d9', strokeOpacity: 0.9, strokeWeight: 4 });
+      }
+    });
+    return;
+  }
+  browseRouteLine = new google.maps.Polyline({ map, path: [pickupCenter, dropoffCenter], strokeColor: '#67d7d9', strokeOpacity: 0.9, strokeWeight: 4 });
 }
 
 function drawRadiusCircle(existingCircle, center, miles, color) {
@@ -1354,10 +1846,21 @@ function updateBrowseRadiusMap(items = []) {
   const hasPickupRadius = pickupCenter && pickupMiles > 0;
   const hasDropoffRadius = dropoffCenter && dropoffMiles > 0;
 
-  browseRadiusMapDiv.classList.toggle('hidden', !hasPickupRadius && !hasDropoffRadius && !items.length);
+  // Map is always visible in the right panel for rider mode; no hidden toggle needed
   browsePickupCircle = drawRadiusCircle(browsePickupCircle, pickupCenter, pickupMiles, '#3ecfcf');
   browseDropoffCircle = drawRadiusCircle(browseDropoffCircle, dropoffCenter, dropoffMiles, '#4d9ef5');
   clearBrowseResultMarkers();
+  drawBrowseRoute(map, pickupCenter, dropoffCenter);
+  if (pickupCenter && browseRole === 'rider') {
+    if (!browsePickupMarker) browsePickupMarker = new google.maps.Marker({ map, icon: makeOriginIcon(), title: 'Your pickup area' });
+    browsePickupMarker.setMap(map);
+    browsePickupMarker.setPosition(pickupCenter);
+  } else if (browsePickupMarker) browsePickupMarker.setMap(null);
+  if (dropoffCenter && browseRole === 'rider') {
+    if (!browseDropoffMarker) browseDropoffMarker = new google.maps.Marker({ map, icon: makeDestinationIcon(), title: 'Your desired destination' });
+    browseDropoffMarker.setMap(map);
+    browseDropoffMarker.setPosition(dropoffCenter);
+  } else if (browseDropoffMarker) browseDropoffMarker.setMap(null);
 
   const bounds = new google.maps.LatLngBounds();
   let hasBounds = false;
@@ -1380,11 +1883,13 @@ function updateBrowseRadiusMap(items = []) {
       const position = getRideDestinationCoordinate(ride);
       if (!position) return;
       const distance = dropoffCenter ? distanceBetweenCoordinates(dropoffCenter, position) : null;
+      const pinLabel = getAlphabetLabel(index);
+      browsePinLabels.set(ride.id, { label: pinLabel, pickupDistance: pickupCenter ? distanceBetweenCoordinates(pickupCenter, getRideOriginCoordinate(ride)) : null, dropoffDistance: distance });
       const marker = new google.maps.Marker({
         map,
         position,
-        label: getAlphabetLabel(index),
-        title: getAlphabetLabel(index) + ': ' + ride.origin + ' to ' + ride.destination + (distance === null ? '' : ' - ' + formatMiles(distance) + ' from desired drop-off'),
+        icon: makeLetterIcon(pinLabel),
+        title: pinLabel + ': ' + ride.origin + ' to ' + ride.destination + (distance === null ? '' : ' - ' + formatMiles(distance) + ' from desired drop-off'),
       });
       browseResultMarkers.push(marker);
       bounds.extend(position);
@@ -1396,16 +1901,17 @@ function updateBrowseRadiusMap(items = []) {
     map.fitBounds(bounds);
   }
 
-  if (browseMapHint) {
+  if (browseMapHintPanel || browseMapHint) {
+    let hintText = '';
     if (browseRole === 'rider' && sortedItems.length) {
-      browseMapHint.textContent = 'Pins A, B, C show matching ride drop-offs, sorted by closest to your desired drop-off area.';
-      browseMapHint.classList.add('active');
+      hintText = '⊙ is your pickup area, ◎ is your destination, and pins A, B, C… show rides sorted by closest drop-off.';
     } else if (hasPickupRadius || hasDropoffRadius) {
-      browseMapHint.textContent = 'Radius circles show the pickup and drop-off areas you entered.';
-      browseMapHint.classList.add('active');
-    } else {
-      browseMapHint.textContent = '';
-      browseMapHint.classList.remove('active');
+      hintText = 'Radius circles show your pickup and drop-off areas.';
+    }
+    if (browseMapHintPanel) browseMapHintPanel.textContent = hintText;
+    if (browseMapHint) {
+      browseMapHint.textContent = hintText;
+      browseMapHint.classList.toggle('active', !!hintText);
     }
   }
 }
@@ -1443,7 +1949,7 @@ function canMatchSameGender(riderGender, driverGender) {
 }
 
 function canCurrentUserSeeRide(ride) {
-  if (ride.university !== currentUser.university) return false;
+  if (sameSchoolOnlyFilter?.checked && ride.university !== currentUser.university) return false;
   const sameGenderMatch = canMatchSameGender(currentUser.gender, ride.driverGender);
   if (ride.sameGenderOnly && !sameGenderMatch) return false;
   if (sameGenderDriversOnlyFilter.checked && !sameGenderMatch) return false;
@@ -1483,28 +1989,40 @@ function sortVisibleRides(rides) {
 }
 
 
+function esc(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function renderRideCard(ride) {
   const card = document.createElement('div');
   card.className = 'ride-card';
+  const pinInfo = browsePinLabels.get(ride.id);
+  if (pinInfo) {
+    const pinBadge = document.createElement('div');
+    pinBadge.className = 'browse-ride-pin-badge';
+    pinBadge.innerHTML = '<span class="request-pin-label">' + esc(pinInfo.label) + '</span><span>Map pin ' + esc(pinInfo.label) + (pinInfo.dropoffDistance === null ? '' : ' · ' + esc(formatMiles(pinInfo.dropoffDistance)) + ' from your destination') + '</span>';
+    card.appendChild(pinBadge);
+  }
   const title = document.createElement('h4');
   title.textContent = `${ride.origin} → ${ride.destination}`;
   card.appendChild(title);
   const details = document.createElement('div');
   details.className = 'ride-details';
   details.innerHTML = `
-    <div><strong>Driver:</strong> ${ride.driverFirstName} ${ride.driverLastName}</div>
-    <div><strong>Driver rating:</strong> ${formatDriverRating(ride)}</div>
+    <div><strong>Driver:</strong> ${esc(ride.driverFirstName)} ${esc(ride.driverLastName)}</div>
+    <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
+    <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
     <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>
     ${getCoordinateMarkup(ride)}
-    <div><strong>Departure:</strong> ${formatRideDateTime(ride)}</div>
-    <div><strong>Estimated ride time:</strong> ${formatDuration(ride.estimatedDurationMinutes)}</div>
-    ${ride.returnRide ? `<div><strong>Return:</strong> ${formatRideDateTime(ride.returnRide)}</div>` : ''}
-    <div><strong>Seats left:</strong> ${ride.seatsAvailable}</div>
+    <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
+    <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
+    ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
+    <div><strong>Seats left:</strong> ${esc(ride.seatsAvailable)}</div>
     ${ride.seatingChartUnavailable ? '<div><strong>Seats:</strong> Seating chart unavailable</div>' : ''}
-    <div><strong>Miles:</strong> ${formatMiles(getRideMiles(ride))}</div>
-    <div><strong>Price:</strong> ${formatRidePrice(ride)}</div>
+    <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
+    <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
     ${getVehicleDetailMarkup(ride)}
-    <div><strong>Notes:</strong> ${ride.notes || 'None'}</div>
+    <div><strong>Notes:</strong> ${esc(ride.notes || 'None')}</div>
   `;
   card.appendChild(details);
   if (ride.driverId === currentUser.id) {
@@ -1527,6 +2045,8 @@ function renderRideCard(ride) {
     const cartActionButton = document.createElement('button');
     const isInCart = cartRideIds.has(ride.id);
     const selectedSeatId = selectedSeatByRide.get(ride.id) || '';
+    const cardError = document.createElement('div');
+    cardError.className = 'error-message';
     if (ride.seatingChartUnavailable) {
       cartActionButton.textContent = isInCart ? 'In cart' : 'Add shared spot to cart';
       cartActionButton.disabled = isInCart || ride.seatsAvailable <= 0;
@@ -1539,17 +2059,36 @@ function renderRideCard(ride) {
       cartActionButton.disabled = isInCart || !selectedSeatId || ride.seatsAvailable <= 0;
       card.appendChild(renderRideSeatPicker(ride, cartActionButton));
     }
+    const riderTermsLabel = document.createElement('label');
+    riderTermsLabel.className = 'checkbox-label terms-agreement rider-terms-agreement';
+    const riderTermsCheckbox = document.createElement('input');
+    riderTermsCheckbox.type = 'checkbox';
+    riderTermsLabel.append(
+      riderTermsCheckbox,
+      document.createTextNode(' I agree to LinkUp\'s Terms of Service for this ride.')
+    );
+    card.appendChild(riderTermsLabel);
+
     cartActionButton.onclick = async () => {
+      cardError.textContent = '';
+      cardError.classList.remove('show');
+      if (!riderTermsCheckbox.checked) {
+        cardError.textContent = 'You must agree to the Terms of Service before adding this ride.';
+        cardError.classList.add('show');
+        return;
+      }
       try {
         const seatId = ride.seatingChartUnavailable ? '' : selectedSeatByRide.get(ride.id);
-        await fetchJson(`/api/cart/${ride.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seatId }) });
+        await fetchJson(`/api/cart/${ride.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seatId, termsAccepted: true }) });
         await loadCart();
         loadRides();
       } catch (err) {
-        alert(err.message);
+        cardError.textContent = err.message;
+        cardError.classList.add('show');
       }
     };
     card.appendChild(cartActionButton);
+    card.appendChild(cardError);
   }
   const riders = document.createElement('div');
   riders.style.marginTop = '0.8rem';
@@ -1620,11 +2159,13 @@ async function loadRideChat(rideId, listElement, errorElement, formElement) {
     data.messages.forEach((message) => {
       const item = document.createElement('div');
       item.className = 'chat-message' + (message.senderId === currentUser?.id ? ' mine' : '');
-      item.innerHTML = `
-        <div class="chat-message-meta">${message.senderFirstName || 'Student'} · ${message.senderRole || 'Rider'} · ${formatChatTime(message.createdAt)}</div>
-        <div class="chat-message-text"></div>
-      `;
-      item.querySelector('.chat-message-text').textContent = message.text;
+      const meta = document.createElement('div');
+      meta.className = 'chat-message-meta';
+      meta.textContent = (message.senderFirstName || 'Student') + ' · ' + (message.senderRole || 'Rider') + ' · ' + formatChatTime(message.createdAt);
+      const textDiv = document.createElement('div');
+      textDiv.className = 'chat-message-text';
+      textDiv.textContent = message.text;
+      item.append(meta, textDiv);
       listElement.appendChild(item);
     });
     listElement.scrollTop = listElement.scrollHeight;
@@ -1643,14 +2184,14 @@ function createChatRideDetails(ride) {
   const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
   const riderCount = (ride.passengers || []).length;
   details.innerHTML = `
-    <h4>${ride.origin} → ${ride.destination}</h4>
+    <h4>${esc(ride.origin)} → ${esc(ride.destination)}</h4>
     <div class="chat-ride-detail-grid">
-      <div><strong>Date:</strong> ${new Date(ride.date + 'T00:00:00').toLocaleDateString()}</div>
-      <div><strong>Time:</strong> ${formatRideTime(ride.time) || 'Time not set'}</div>
-      <div><strong>Driver:</strong> ${driverName}</div>
-      <div><strong>Riders:</strong> ${riderCount}</div>
-      <div><strong>Estimated ride time:</strong> ${formatDuration(ride.estimatedDurationMinutes)}</div>
-      <div><strong>Your role:</strong> ${getChatRideRole(ride)}</div>
+      <div><strong>Date:</strong> ${esc(new Date(ride.date + 'T00:00:00').toLocaleDateString())}</div>
+      <div><strong>Time:</strong> ${esc(formatRideTime(ride.time) || 'Time not set')}</div>
+      <div><strong>Driver:</strong> ${esc(driverName)}</div>
+      <div><strong>Riders:</strong> ${esc(riderCount)}</div>
+      <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
+      <div><strong>Your role:</strong> ${esc(getChatRideRole(ride))}</div>
     </div>
   `;
   return details;
@@ -1818,17 +2359,18 @@ function buildRequestSummary(request) {
   const details = document.createElement('div');
   details.className = 'ride-details';
   details.innerHTML = `
-    <div><strong>Rider:</strong> ${request.riderFirstName || 'Student'} ${request.riderLastName || ''}</div>
+    <div><strong>Rider:</strong> ${esc(request.riderFirstName || 'Student')} ${esc(request.riderLastName || '')}</div>
+    <div><strong>School:</strong> ${esc(request.university || 'Unknown school')}</div>
     <div><strong>Preference:</strong> ${request.sameGenderDriverOnly ? 'Same gender driver only' : 'Open to all drivers'}</div>
     ${getCoordinateMarkup(request)}
-    <div><strong>Requested time:</strong> ${requestTime}</div>
-    <div><strong>Estimated ride time:</strong> ${formatDuration(request.estimatedDurationMinutes)}</div>
-    <div><strong>Riders:</strong> ${request.riderCount || 1}</div>
+    <div><strong>Requested time:</strong> ${esc(requestTime)}</div>
+    <div><strong>Estimated ride time:</strong> ${esc(formatDuration(request.estimatedDurationMinutes))}</div>
+    <div><strong>Riders:</strong> ${esc(request.riderCount || 1)}</div>
     <div><strong>Share with others:</strong> ${request.shareRideWithOthers === undefined ? 'Not specified' : (request.shareRideWithOthers ? 'Yes' : 'No')}</div>
-    <div><strong>Willing to pay:</strong> ${formatCents(request.willingToPayCents)}</div>
-    <div><strong>Status:</strong> ${request.status || 'open'}</div>
-    <div><strong>Driver offers:</strong> ${(request.driverOffers || []).length}</div>
-    <div><strong>Notes:</strong> ${request.notes || 'None'}</div>
+    <div><strong>Willing to pay:</strong> ${esc(formatCents(request.willingToPayCents))}</div>
+    <div><strong>Status:</strong> ${esc(request.status || 'open')}</div>
+    <div><strong>Driver offers:</strong> ${esc((request.driverOffers || []).length)}</div>
+    <div><strong>Notes:</strong> ${esc(request.notes || 'None')}</div>
   `;
   container.appendChild(details);
   return container;
@@ -1837,11 +2379,16 @@ function buildRequestSummary(request) {
 function buildRequestBrowseCard(request) {
   const card = buildRequestSummary(request);
   const alreadyOffered = (request.driverOffers || []).some((offer) => offer.driverId === currentUser.id);
+  const cardError = document.createElement('div');
+  cardError.className = 'error-message';
+
   const offerButton = document.createElement('button');
   offerButton.type = 'button';
   offerButton.textContent = alreadyOffered ? 'Offer sent' : 'Offer to drive';
   offerButton.disabled = alreadyOffered;
   offerButton.addEventListener('click', async () => {
+    cardError.textContent = '';
+    cardError.classList.remove('show');
     try {
       await fetchJson('/api/ride-requests/' + request.id + '/offer', { method: 'POST' });
       offerButton.textContent = 'Offer sent';
@@ -1849,37 +2396,73 @@ function buildRequestBrowseCard(request) {
       loadRideRequests();
       loadProfile();
     } catch (err) {
-      alert(err.message);
+      cardError.textContent = err.message;
+      cardError.classList.add('show');
     }
   });
   card.appendChild(offerButton);
 
   if (request.shareRideWithOthers && alreadyOffered) {
+    // Inline form instead of window.prompt
+    const sharedForm = document.createElement('div');
+    sharedForm.className = 'shared-ride-post-form';
+    sharedForm.style.marginTop = '0.6rem';
+    sharedForm.style.display = 'flex';
+    sharedForm.style.flexWrap = 'wrap';
+    sharedForm.style.gap = '0.5rem';
+    sharedForm.style.alignItems = 'center';
+
+    const seatsInput = document.createElement('input');
+    seatsInput.type = 'number';
+    seatsInput.min = '1';
+    seatsInput.max = '7';
+    seatsInput.value = '1';
+    seatsInput.style.width = '60px';
+    seatsInput.setAttribute('aria-label', 'Additional shared seats');
+    const seatsLabel = document.createElement('label');
+    seatsLabel.textContent = 'Seats:';
+    seatsLabel.style.fontSize = '0.9rem';
+
+    const priceInput = document.createElement('input');
+    priceInput.type = 'number';
+    priceInput.min = '0.50';
+    priceInput.step = '0.01';
+    priceInput.value = ((request.willingToPayCents || 500) / 100).toFixed(2);
+    priceInput.style.width = '70px';
+    priceInput.setAttribute('aria-label', 'Price per spot');
+    const priceLabel = document.createElement('label');
+    priceLabel.textContent = 'Price ($):';
+    priceLabel.style.fontSize = '0.9rem';
+
     const postSharedButton = document.createElement('button');
     postSharedButton.type = 'button';
     postSharedButton.textContent = 'Post shared ride';
     postSharedButton.addEventListener('click', async () => {
-      const seatsAvailable = window.prompt('How many additional shared seats are available?', '1');
-      if (seatsAvailable === null) return;
-      const price = window.prompt('Price per shared spot ($)', ((request.willingToPayCents || 500) / 100).toFixed(2));
-      if (price === null) return;
+      cardError.textContent = '';
+      cardError.classList.remove('show');
       try {
         await fetchJson('/api/ride-requests/' + request.id + '/post-shared-ride', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ seatsAvailable: Number(seatsAvailable), price: Number(price) }),
+          body: JSON.stringify({ seatsAvailable: Number(seatsInput.value), price: Number(priceInput.value) }),
         });
         postSharedButton.textContent = 'Shared ride posted';
         postSharedButton.disabled = true;
+        seatsInput.disabled = true;
+        priceInput.disabled = true;
         loadRides();
         loadProfile();
       } catch (err) {
-        alert(err.message);
+        cardError.textContent = err.message;
+        cardError.classList.add('show');
       }
     });
-    card.appendChild(postSharedButton);
+
+    sharedForm.append(seatsLabel, seatsInput, priceLabel, priceInput, postSharedButton);
+    card.appendChild(sharedForm);
   }
 
+  card.appendChild(cardError);
   return card;
 }
 
@@ -1901,21 +2484,22 @@ function buildRideSummary(ride, options = {}) {
   const container = document.createElement('div');
   container.className = 'ride-card';
   container.innerHTML = `
-    <h4>${ride.origin} → ${ride.destination}</h4>
+    <h4>${esc(ride.origin)} → ${esc(ride.destination)}</h4>
     <div class="ride-details">
-      <div><strong>Driver:</strong> ${[ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver'}</div>
-      <div><strong>Driver rating:</strong> ${formatDriverRating(ride)}</div>
+      <div><strong>Driver:</strong> ${esc([ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver')}</div>
+      <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
+      <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
       <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>
       ${getCoordinateMarkup(ride)}
-      <div><strong>Departure:</strong> ${formatRideDateTime(ride)}</div>
-      <div><strong>Estimated ride time:</strong> ${formatDuration(ride.estimatedDurationMinutes)}</div>
-      ${ride.returnRide ? `<div><strong>Return:</strong> ${formatRideDateTime(ride.returnRide)}</div>` : ''}
-      <div><strong>Seats available:</strong> ${ride.seatsAvailable}</div>
-      ${selectedSeatId ? `<div><strong>Seat:</strong> ${getSeatLabel(selectedSeatId)}</div>` : ''}
-      <div><strong>Miles:</strong> ${formatMiles(getRideMiles(ride))}</div>
-      <div><strong>Price:</strong> ${formatRidePrice(ride)}</div>
+      <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
+      <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
+      ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
+      <div><strong>Seats available:</strong> ${esc(ride.seatsAvailable)}</div>
+      ${selectedSeatId ? `<div><strong>Seat:</strong> ${esc(getSeatLabel(selectedSeatId))}</div>` : ''}
+      <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
+      <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
       ${getVehicleDetailMarkup(ride)}
-      <div><strong>Passengers:</strong> ${ride.passengers.length}</div>
+      <div><strong>Passengers:</strong> ${esc(ride.passengers.length)}</div>
     </div>
   `;
   if (ride.seatingChartUnavailable) {
@@ -1943,14 +2527,15 @@ function renderCartItem(ride) {
   const detail = document.createElement('div');
   detail.className = 'cart-item-detail';
   detail.innerHTML = `
-    <div><strong>Cart item:</strong> ${ride.origin} → ${ride.destination}</div>
+    <div><strong>Cart item:</strong> ${esc(ride.origin)} → ${esc(ride.destination)}</div>
     ${getCoordinateMarkup(ride)}
-    <div><strong>Seat:</strong> ${ride.seatingChartUnavailable ? 'General shared spot' : (ride.selectedSeatId ? getSeatLabel(ride.selectedSeatId) : 'Selected seat')}</div>
-    <div><strong>Driver:</strong> ${[ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ')}</div>
-    <div><strong>Driver rating:</strong> ${formatDriverRating(ride)}</div>
-    <div><strong>Departure:</strong> ${formatRideDateTime(ride)}</div>
-    <div><strong>Estimated ride time:</strong> ${formatDuration(ride.estimatedDurationMinutes)}</div>
-    <div><strong>Item price:</strong> ${formatRidePrice(ride)}</div>
+    <div><strong>Seat:</strong> ${ride.seatingChartUnavailable ? 'General shared spot' : (ride.selectedSeatId ? esc(getSeatLabel(ride.selectedSeatId)) : 'Selected seat')}</div>
+    <div><strong>Driver:</strong> ${esc([ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' '))}</div>
+    <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
+    <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
+    <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
+    <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
+    <div><strong>Item price:</strong> ${esc(formatRidePrice(ride))}</div>
   `;
   item.prepend(detail);
 
@@ -2015,6 +2600,7 @@ function clearBrowseFilters() {
   delete pickupRadiusLocationInput.dataset.lng;
   delete dropoffRadiusLocationInput.dataset.lat;
   delete dropoffRadiusLocationInput.dataset.lng;
+  if (sameSchoolOnlyFilter) sameSchoolOnlyFilter.checked = true;
   sameGenderDriversOnlyFilter.checked = false;
 }
 
@@ -2031,7 +2617,8 @@ function renderBrowseRoleChoice() {
   browseTitle.textContent = 'Browse rides';
   browseSubtitle.textContent = 'Choose whether you are driving or riding today.';
   browseControls.classList.add('hidden');
-  browseRadiusMapDiv?.classList.add('hidden');
+  browseMapPanel?.classList.add('hidden');
+  browseRiderLayout?.classList.remove('rider-active');
   clearBrowseResultMarkers();
   if (browsePickupCircle) browsePickupCircle.setMap(null);
   if (browseDropoffCircle) browseDropoffCircle.setMap(null);
@@ -2040,10 +2627,21 @@ function renderBrowseRoleChoice() {
 }
 
 function showRiderBrowse() {
+  setAppRoute('browse-rider');
   setBrowseRole('rider');
-  loadGoogleMapsAPI().then(() => { initializeRadiusAutocomplete(); loadRides(); });
+  loadGoogleMapsAPI().then(() => {
+    initializeRadiusAutocomplete();
+    loadRides();
+    // Show map immediately; trigger resize after layout settles
+    browseMapPanel?.classList.remove('hidden');
+    browseRiderLayout?.classList.add('rider-active');
+    setTimeout(() => {
+      const map = ensureBrowseRadiusMap();
+      if (map) google.maps.event.trigger(map, 'resize');
+    }, 100);
+  });
   browseTitle.textContent = 'Browse available rides';
-  browseSubtitle.textContent = 'Search, filter, and sort driver seat offers from your university network.';
+  browseSubtitle.textContent = 'Search, filter, and sort driver seat offers from the LinkUp college network.';
   browseSearchLabel.firstChild.textContent = 'Search destination or meetup';
   pickupLocationLabel.firstChild.textContent = 'Your pick-up area ';
   pickupRadiusLabel.firstChild.textContent = 'Pick-up radius (mi) ';
@@ -2058,10 +2656,13 @@ function showRiderBrowse() {
 }
 
 function showDriverBrowse() {
+  setAppRoute('browse-driver');
   setBrowseRole('driver');
   loadGoogleMapsAPI().then(() => { initializeRadiusAutocomplete(); loadRideRequests(); });
+  browseMapPanel?.classList.add('hidden');
+  browseRiderLayout?.classList.remove('rider-active');
   browseTitle.textContent = 'Browse requested rides';
-  browseSubtitle.textContent = 'Review student ride requests from your university network.';
+  browseSubtitle.textContent = 'Review student ride requests from the LinkUp college network.';
   browseSearchLabel.firstChild.textContent = 'Search requested route';
   pickupLocationLabel.firstChild.textContent = 'Driver pick-up center ';
   pickupRadiusLabel.firstChild.textContent = 'Willing pick-up radius (mi) ';
@@ -2144,7 +2745,7 @@ function requestMatchesDriverFilters(request) {
 }
 
 function canCurrentUserSeeRequest(request) {
-  if (request.university !== currentUser.university) return false;
+  if (sameSchoolOnlyFilter?.checked && request.university !== currentUser.university) return false;
   if (request.riderId === currentUser.id) return false;
   if (request.sameGenderDriverOnly && !canMatchSameGender(request.riderGender, currentUser.gender)) return false;
   return (request.status || 'open') === 'open';
@@ -2442,7 +3043,8 @@ vehicleSeatCountSelect.addEventListener('change', () => {
 renderDriverSeatLayout();
 browseDriverButton.addEventListener('click', () => showDriverBrowse());
 browseRiderButton.addEventListener('click', () => showRiderBrowse());
-sameGenderDriversOnlyFilter.addEventListener('change', () => loadRides());
+sameGenderDriversOnlyFilter.addEventListener('change', () => refreshActiveBrowse());
+sameSchoolOnlyFilter?.addEventListener('change', () => refreshActiveBrowse());
 function refreshActiveBrowse() {
   if (browseRole === 'driver') loadRideRequests();
   if (browseRole === 'rider') loadRides();
@@ -2537,8 +3139,15 @@ signupForm.addEventListener('submit', async (event) => {
   const gender = document.getElementById('signup-gender').value;
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value.trim();
+  const termsAccepted = document.getElementById('signup-terms-agree').checked;
+  const privacyAccepted = document.getElementById('signup-privacy-agree').checked;
+  if (!termsAccepted || !privacyAccepted) {
+    signupError.textContent = 'You must agree to the Terms of Service and Privacy Policy before creating an account.';
+    signupError.classList.add('show');
+    return;
+  }
   try {
-    const data = await fetchJson('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, middleName, lastName, birthday, gender, email, password }) });
+    const data = await fetchJson('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, middleName, lastName, birthday, gender, email, password, termsAccepted, privacyAccepted }) });
     signupForm.reset();
     showVerificationForm(data.email, data.message);
   } catch (err) {
@@ -2567,6 +3176,7 @@ signinForm.addEventListener('submit', async (event) => {
     await fetchJson('/api/auth/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
     currentUser = await fetchJson('/api/auth/me');
     signinForm.reset();
+    await playRideTransition();
     showDashboard(currentUser);
   } catch (err) {
     if (err.message === 'Please verify your email before signing in') {
@@ -2703,6 +3313,103 @@ leaderboardButton.addEventListener('click', () => showLeaderboardPage());
 leaderboardBackHomeButton.addEventListener('click', () => showDashboardHome());
 profileButton.addEventListener('click', () => showProfilePage());
 profileBackHomeButton.addEventListener('click', () => showDashboardHome());
+privacyLink.addEventListener('click', () => showLegalPage('privacy'));
+termsLink.addEventListener('click', () => showLegalPage('terms'));
+legalBackButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    if (currentUser) showDashboard(currentUser);
+    else showAuthSection();
+  });
+});
+profileSidebarButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    clearDefaultPaymentMessages();
+    clearPayoutMessages();
+    showProfileTab(button.dataset.profileTab);
+  });
+});
+defaultPaymentForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearDefaultPaymentMessages();
+  try {
+    currentUser = await fetchJson('/api/profile/payment-method', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getDefaultPaymentPayload()),
+    });
+    fillDefaultPaymentForm(currentUser);
+    defaultPaymentMessage.textContent = 'Default payment method saved.';
+    defaultPaymentMessage.classList.add('show');
+  } catch (err) {
+    defaultPaymentError.textContent = err.message;
+    defaultPaymentError.classList.add('show');
+  }
+});
+policyScrollbox?.addEventListener('scroll', updatePolicyAgreeButtonState);
+policyTermsButton?.addEventListener('click', () => setPolicyFullView('terms'));
+policyPrivacyButton?.addEventListener('click', () => setPolicyFullView('privacy'));
+policyCollapseButton?.addEventListener('click', () => setPolicyFullView(''));
+document.getElementById('profile-terms-agree')?.addEventListener('change', updatePolicyAgreeButtonState);
+document.getElementById('profile-privacy-agree')?.addEventListener('change', updatePolicyAgreeButtonState);
+
+policyConsentForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearPolicyMessages();
+  if (!userNeedsPolicyConsent(currentUser)) {
+    policyMessage.textContent = 'You already accepted the current Terms of Service and Privacy Notice.';
+    policyMessage.classList.add('show');
+    fillPolicyConsentForm(currentUser || {});
+    return;
+  }
+  const { termsCheckbox, privacyCheckbox } = getProfilePolicyControls();
+  const payload = {
+    termsAccepted: termsCheckbox?.checked === true,
+    privacyAccepted: privacyCheckbox?.checked === true,
+  };
+  if (!hasScrolledPolicyToBottom()) {
+    policyError.textContent = 'Scroll to the bottom of the policy updates before agreeing.';
+    policyError.classList.add('show');
+    return;
+  }
+  if (!payload.termsAccepted || !payload.privacyAccepted) {
+    policyError.textContent = 'You must agree to both policies before continuing.';
+    policyError.classList.add('show');
+    return;
+  }
+  try {
+    currentUser = await fetchJson('/api/profile/policies', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    fillPolicyConsentForm(currentUser);
+    updateUserHeader(currentUser);
+    policyMessage.textContent = 'Policy agreement saved. You can now use LinkUp services.';
+    policyMessage.classList.add('show');
+    loadCart();
+  } catch (err) {
+    policyError.textContent = err.message;
+    policyError.classList.add('show');
+  }
+});
+
+driverPayoutForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearPayoutMessages();
+  try {
+    currentUser = await fetchJson('/api/profile/payout', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getDriverPayoutPayload()),
+    });
+    fillDriverPayoutForm(currentUser);
+    payoutMessage.textContent = 'Payout information saved.';
+    payoutMessage.classList.add('show');
+  } catch (err) {
+    payoutError.textContent = err.message;
+    payoutError.classList.add('show');
+  }
+});
 trackTripButton.addEventListener('click', () => showTrackTripPage());
 trackBackHomeButton.addEventListener('click', () => showDashboardHome());
 copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
@@ -2772,6 +3479,7 @@ signoutButton.addEventListener('click', async () => {
       await stopTripTracking();
     }
     await fetchJson('/api/auth/signout', { method: 'POST' });
+    clearAppRoute();
     showAuthSection();
   } catch (err) {
     console.error('Sign out error:', err);
@@ -2790,6 +3498,7 @@ async function completeStripeCheckout(sessionId) {
     loadRides();
     loadProfile();
     window.history.replaceState({}, document.title, window.location.pathname);
+    clearAppRoute();
   } catch (err) {
     if (!currentUser) {
       showAuthSection();

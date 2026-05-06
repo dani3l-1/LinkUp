@@ -4,9 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260505-rider-track-url" />
+    <link rel="stylesheet" href="styles.css?v=20260506-hash-routing" />
   </head>
   <body>
+    <div id="ride-transition" class="ride-transition hidden" aria-hidden="true">
+      <div class="ride-transition-map">
+        <div class="ride-transition-road"></div>
+        <div class="ride-transition-car">LinkUp</div>
+      </div>
+    </div>
     <div class="app-shell">
       <header>
         <div class="header-left-actions hidden" id="header-left-actions">
@@ -26,7 +32,7 @@
         <section id="auth-section" class="card">
 
           <div class="auth-tabs">
-            <button class="tab-button active" data-tab="signin">Sign In</button>
+            <button class="tab-button active" data-tab="signin">Log In</button>
             <button class="tab-button" data-tab="signup">Sign Up</button>
           </div>
 
@@ -35,7 +41,7 @@
             <h2>Welcome back</h2>
             <label>Email <input type="email" id="signin-email" placeholder="you@university.edu" required /></label>
             <label>Password <input type="password" id="signin-password" placeholder="••••••••" required /></label>
-            <button type="submit">Sign In</button>
+            <button type="submit">Let's Ride</button>
             <button type="button" id="forgot-auth-link" class="text-button">Forgot username or password?</button>
             <div id="signin-error" class="error-message"></div>
           </form>
@@ -52,6 +58,8 @@
                 <option value="">Select gender</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
+                <option value="nonbinary">Non-binary</option>
+                <option value="prefer-not-to-say">Prefer not to say</option>
               </select>
             </label>
             <label>University Email <input type="email" id="signup-email" placeholder="name@university.edu" required /></label>
@@ -65,6 +73,14 @@
                 <li id="req-special"><span class="check-icon">✓</span> One special character (!@#$%^&*…)</li>
               </ul>
             </div>
+            <label class="checkbox-label terms-agreement signup-consent">
+              <input type="checkbox" id="signup-terms-agree" required />
+              I agree to LinkUp's Terms of Service.
+            </label>
+            <label class="checkbox-label terms-agreement signup-consent">
+              <input type="checkbox" id="signup-privacy-agree" required />
+              I agree to LinkUp's Privacy Policy.
+            </label>
             <button type="submit">Create Account</button>
             <div id="signup-error" class="error-message"></div>
           </form>
@@ -156,30 +172,197 @@
             <div class="cart-header">
               <div>
                 <h3>Profile</h3>
-                <p>Update your personal information.</p>
+                <p>Manage your account and driver payout details.</p>
               </div>
               <button id="profile-back-home" type="button">Return to browse rides</button>
             </div>
-            <form id="profile-form" class="profile-form">
-              <div class="profile-grid">
-                <label>First Name <input type="text" id="profile-first-name" required /></label>
-                <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
-                <label>Last Name <input type="text" id="profile-last-name" required /></label>
-                <label>Birthday <input type="date" id="profile-birthday" disabled /></label>
-                <label>Gender
-                  <select id="profile-gender" disabled>
-                    <option value="">Select gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </label>
-                <label>University Email <input type="email" id="profile-email" disabled /></label>
+            <div class="profile-layout">
+              <aside class="profile-sidebar" aria-label="Profile sections">
+                <button class="profile-sidebar-button active" type="button" data-profile-tab="info">Personal info</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="payment">Payment method</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="payouts">Driver payouts</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
+              </aside>
+              <div class="profile-content">
+                <div id="profile-info-panel" class="profile-panel" data-profile-panel="info">
+                  <form id="profile-form" class="profile-form">
+                    <div class="profile-grid">
+                      <label>First Name <input type="text" id="profile-first-name" required /></label>
+                      <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
+                      <label>Last Name <input type="text" id="profile-last-name" required /></label>
+                      <label>Birthday <input type="date" id="profile-birthday" disabled /></label>
+                      <label>Gender
+                        <select id="profile-gender" disabled>
+                          <option value="">Select gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </label>
+                      <label>University Email <input type="email" id="profile-email" disabled /></label>
+                    </div>
+                    <p class="profile-note">Birthday, gender, and university email cannot be changed. Name changes are limited to once every 6 months.</p>
+                    <button type="submit">Save Profile</button>
+                    <div id="profile-message" class="success-message"></div>
+                    <div id="profile-error" class="error-message"></div>
+                  </form>
+                </div>
+                <div id="profile-payment-panel" class="profile-panel hidden" data-profile-panel="payment">
+                  <form id="default-payment-form" class="profile-form payout-guide">
+                    <div>
+                      <h4>Default payment method</h4>
+                      <p>Save the card details you want to use when checking out rides.</p>
+                    </div>
+                    <div id="default-payment-summary" class="payment-method-summary">No default payment method saved.</div>
+                    <div class="payout-note payout-warning">
+                      For this local prototype, LinkUp stores only card brand, last 4 digits, expiration, and billing name. Do not store full card numbers in the local database.
+                    </div>
+                    <div class="profile-grid">
+                      <label>Billing name <input type="text" id="default-payment-name" placeholder="Name on card" required /></label>
+                      <label>Card number <input type="text" id="default-payment-card" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" required /></label>
+                      <label>Expiration <input type="text" id="default-payment-expiry" autocomplete="cc-exp" placeholder="MM/YY" required /></label>
+                      <label>CVV <input type="password" id="default-payment-cvv" autocomplete="cc-csc" placeholder="123" required /></label>
+                      <label>Billing ZIP <input type="text" id="default-payment-zip" autocomplete="postal-code" placeholder="Optional" /></label>
+                    </div>
+                    <button type="submit">Save payment method</button>
+                    <div id="default-payment-message" class="success-message"></div>
+                    <div id="default-payment-error" class="error-message"></div>
+                  </form>
+                </div>
+                <div id="profile-policies-panel" class="profile-panel hidden" data-profile-panel="policies">
+                  <form id="policy-consent-form" class="profile-form payout-guide">
+                    <div class="policy-release-card">
+                      <div class="policy-release-header">
+                        <span class="policy-release-eyebrow">New LinkUp rules</span>
+                        <h4>Review what changed</h4>
+                        <p id="policy-required-message">Review and accept the latest LinkUp policies to keep using ride services.</p>
+                      </div>
+                      <div id="policy-version-summary" class="payout-note"></div>
+                      <div class="policy-release-actions">
+                        <button id="policy-terms-button" type="button">View Terms of Service</button>
+                        <button id="policy-privacy-button" type="button">View Privacy Policy</button>
+                        <button id="policy-collapse-button" type="button" class="hidden">Back to policy agreement</button>
+                      </div>
+                      <div id="policy-scrollbox" class="policy-scrollbox" tabindex="0" aria-label="Latest LinkUp policy updates">
+                        <section>
+                          <h5>Service access</h5>
+                          <p>LinkUp ride services require an approved university account, verified email, and agreement to the latest Terms of Service and Privacy Notice.</p>
+                        </section>
+                        <section>
+                          <h5>Ride safety</h5>
+                          <p>Riders and drivers must provide accurate trip, seat, vehicle, pickup, and drop-off information. Do not use LinkUp to create unsafe, misleading, or unauthorized rides.</p>
+                        </section>
+                        <section>
+                          <h5>Payments and reservations</h5>
+                          <p>Seats are only reserved after checkout is completed. Driver-set prices, payout details, and commission rules must be accurate before a ride is listed or accepted.</p>
+                        </section>
+                        <section>
+                          <h5>Location sharing</h5>
+                          <p>Track My Trip location sharing is for rider safety. Only share tracking links with trusted people, and stop tracking when the trip is complete.</p>
+                        </section>
+                        <section>
+                          <h5>Privacy notice</h5>
+                          <p>LinkUp uses account, university, ride, chat, payment summary, payout, and location-related information to run the service. Sensitive details should be limited to what is needed for the app to function.</p>
+                        </section>
+                        <section class="policy-full-only policy-terms-full">
+                          <h5>Terms of Service</h5>
+                          <p>These Terms are a starter template for LinkUp and should be reviewed by a qualified attorney before real users, payments, or public launch.</p>
+                          <h5>Service role</h5>
+                          <p>LinkUp is a student ride marketplace that helps users offer, request, reserve, and coordinate rides. LinkUp is not the driver, transportation carrier, insurer, or employer of drivers.</p>
+                          <h5>User responsibilities</h5>
+                          <p>Users must provide accurate information, use their own university email, obey applicable laws, respect other users, and avoid unsafe, fraudulent, harassing, or illegal conduct.</p>
+                          <h5>Driver responsibilities</h5>
+                          <p>Drivers are responsible for legal driving eligibility, safe operation, accurate ride details, vehicle condition, insurance, license plate accuracy, honoring paid seats, and complying with all laws and school rules.</p>
+                          <h5>Rider responsibilities</h5>
+                          <p>Riders are responsible for choosing rides carefully, arriving on time, paying required amounts, respecting drivers and other riders, and using safety tools when appropriate.</p>
+                          <h5>Payments and payouts</h5>
+                          <p>Driver-set ride prices may include LinkUp commission. Payment and payout flows must use approved payment providers before production. LinkUp may withhold or reverse payouts for fraud, disputes, cancellations, or safety issues.</p>
+                          <h5>Safety and liability</h5>
+                          <p>Rides involve real-world risk. Users agree to use the service at their own risk to the fullest extent allowed by law. LinkUp should obtain legal and insurance advice before public launch.</p>
+                          <h5>Account limits</h5>
+                          <p>LinkUp may suspend accounts, remove listings, disable chats, or restrict access to protect users, enforce these Terms, or comply with law.</p>
+                        </section>
+                        <section class="policy-full-only policy-privacy-full">
+                          <h5>Privacy Policy</h5>
+                          <p>This Privacy Policy explains how LinkUp collects, uses, protects, and deletes information in this student ride-sharing prototype. Have a qualified attorney review this before launch.</p>
+                          <h5>Information we collect</h5>
+                          <p>We collect account details, university email verification details, ride and request details, approximate and exact trip coordinates, reserved seats, ride chats, driver ratings, live trip tracking locations, vehicle details, masked payment method details, and driver payout contact details.</p>
+                          <h5>How we use information</h5>
+                          <p>We use information to verify student access, match riders and drivers, reserve seats, process payments, support safety features, send account emails, show ride history, prevent abuse, and operate the service.</p>
+                          <h5>Sensitive information</h5>
+                          <p>License plates are intended to be visible only to confirmed riders. Live location is intended for active trip safety sharing. Payment cards and payout bank details should be handled by Stripe in production, not stored directly by LinkUp.</p>
+                          <h5>Retention</h5>
+                          <p>LinkUp should keep sensitive data only as long as needed for safety, payments, dispute handling, legal compliance, and app operations. Users should be able to request account or data deletion before production launch.</p>
+                          <h5>Security</h5>
+                          <p>We use password hashing, session cookies, access checks, rate limits, safer response headers, and limited storage of payment data. No system is perfectly secure, and production launch requires a real database, HTTPS, monitoring, backups, and incident response procedures.</p>
+                          <h5>Contact</h5>
+                          <p>For privacy questions or deletion requests, contact the LinkUp operator at the support email listed by the app owner.</p>
+                        </section>
+                        <section>
+                          <h5>Required profile features</h5>
+                          <p>When LinkUp adds a required profile feature or updates a policy, you may be asked to review these notes and agree again before continuing to ride services.</p>
+                        </section>
+                        <section>
+                          <h5>Ready to continue</h5>
+                          <p>You have reached the end of the update notes. Check both boxes below to confirm that you agree to the latest Terms of Service and Privacy Notice.</p>
+                        </section>
+                      </div>
+                      <p id="policy-scroll-hint" class="policy-scroll-hint">Scroll to the bottom to unlock the agreement button.</p>
+                    </div>
+                    <label class="checkbox-label terms-agreement">
+                      <input type="checkbox" id="profile-terms-agree" required />
+                      I agree to the latest LinkUp Terms of Service.
+                    </label>
+                    <label class="checkbox-label terms-agreement">
+                      <input type="checkbox" id="profile-privacy-agree" required />
+                      I agree to the latest LinkUp Privacy Notice.
+                    </label>
+                    <button type="submit" id="policy-agree-button" disabled>Agree and continue</button>
+                    <div id="policy-message" class="success-message"></div>
+                    <div id="policy-error" class="error-message"></div>
+                  </form>
+                </div>
+                <div id="profile-payouts-panel" class="profile-panel hidden" data-profile-panel="payouts">
+                  <form id="driver-payout-form" class="profile-form payout-guide">
+                    <div>
+                      <h4>Driver payout information</h4>
+                      <p>Enter the payout details LinkUp should use after a ride is completed and commission is deducted.</p>
+                    </div>
+                    <div class="payout-note payout-warning">
+                      Do not enter raw bank account or routing numbers here. Use a payout email, phone number, handle, or notes for manual payout until Stripe Connect is connected.
+                    </div>
+                    <div class="profile-grid">
+                      <label>Legal payout name <input type="text" id="payout-legal-name" placeholder="Name used for payout" required /></label>
+                      <label>Payout method
+                        <select id="payout-method" required>
+                          <option value="">Select method</option>
+                          <option value="zelle">Zelle</option>
+                          <option value="venmo">Venmo</option>
+                          <option value="paypal">PayPal</option>
+                          <option value="stripe">Stripe Connect later</option>
+                          <option value="check">Paper check</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </label>
+                      <label>Payout email <input type="email" id="payout-email" placeholder="driver@example.com" /></label>
+                      <label>Payout phone <input type="tel" id="payout-phone" placeholder="Optional" /></label>
+                      <label>Payout handle <input type="text" id="payout-handle" placeholder="@username or account label" /></label>
+                      <label>Mailing address <input type="text" id="payout-address" placeholder="Optional for checks or records" /></label>
+                    </div>
+                    <label>Payout notes <textarea id="payout-notes" rows="3" placeholder="Any extra payout instructions"></textarea></label>
+                    <label class="checkbox-label terms-agreement">
+                      <input type="checkbox" id="payout-confirm" required />
+                      I confirm this payout information is accurate.
+                    </label>
+                    <div class="payout-note">
+                      LinkUp commission is currently <strong><span id="payout-commission-label">15%</span></strong>. Driver payout equals total paid seats minus commission.
+                    </div>
+                    <button type="submit">Save payout information</button>
+                    <div id="payout-message" class="success-message"></div>
+                    <div id="payout-error" class="error-message"></div>
+                  </form>
+                </div>
               </div>
-              <p class="profile-note">Birthday, gender, and university email cannot be changed. Name changes are limited to once every 6 months.</p>
-              <button type="submit">Save Profile</button>
-              <div id="profile-message" class="success-message"></div>
-              <div id="profile-error" class="error-message"></div>
-            </form>
+            </div>
           </section>
 
           <!-- Home / Browse -->
@@ -197,42 +380,61 @@
               </div>
             </section>
 
-            <section class="card browse-controls hidden" id="browse-controls">
-              <label id="browse-search-label">
-                Search destination or meetup
-                <input type="search" id="ride-search" placeholder="Where do you want to go?" />
-              </label>
-              <div class="radius-filter-grid">
-                <label id="pickup-location-label">Your pick-up area <input type="text" id="pickup-radius-location" placeholder="Campus, address, or landmark" /></label>
-                <label id="pickup-radius-label">Pick-up radius (mi) <input type="number" id="pickup-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
-                <label id="dropoff-location-label">Your drop-off area <input type="text" id="dropoff-radius-location" placeholder="Destination area" /></label>
-                <label id="dropoff-radius-label">Drop-off radius (mi) <input type="number" id="dropoff-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
-              </div>
-              <div class="filter-grid">
-                <label>Date <input type="date" id="ride-filter-date" /></label>
-                <label>Min seats <input type="number" id="ride-filter-seats" min="1" max="5" placeholder="1" /></label>
-                <label>Max price ($) <input type="number" id="ride-filter-max-price" min="0.50" step="0.01" placeholder="Any" /></label>
-                <label>Sort by
-                  <select id="ride-sort">
-                    <option value="soonest">Soonest departure</option>
-                    <option value="price-low">Lowest price</option>
-                    <option value="price-high">Highest price</option>
-                    <option value="seats-high">Most seats</option>
-                  </select>
-                </label>
-              </div>
-              <label class="checkbox-label ride-filter">
-                <input type="checkbox" id="same-gender-drivers-only" />
-                Same gender drivers only
-              </label>
-              <div id="browse-radius-map" class="map-container browse-radius-map hidden"></div>
-              <div id="browse-map-hint" class="selected-location browse-map-hint"></div>
-            </section>
+            <!-- Two-column layout: controls left, map right (rider only) -->
+            <div class="browse-rider-layout" id="browse-rider-layout">
 
-            <article class="card">
-              <h3 id="browse-results-title">Choose a role to start</h3>
-              <div id="rides-list">Loading rides…</div>
-            </article>
+              <!-- Left: filters -->
+              <div class="browse-left-panel">
+                <section class="card browse-controls hidden" id="browse-controls">
+                  <label id="browse-search-label">
+                    Search destination or meetup
+                    <input type="search" id="ride-search" placeholder="Where do you want to go?" />
+                  </label>
+                  <div class="radius-filter-grid">
+                    <label id="pickup-location-label">Your pick-up area <input type="text" id="pickup-radius-location" placeholder="Campus, address, or landmark" /></label>
+                    <label id="pickup-radius-label">Pick-up radius (mi) <input type="number" id="pickup-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
+                    <label id="dropoff-location-label">Your drop-off area <input type="text" id="dropoff-radius-location" placeholder="Destination area" /></label>
+                    <label id="dropoff-radius-label">Drop-off radius (mi) <input type="number" id="dropoff-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
+                  </div>
+                  <div class="filter-grid">
+                    <label>Date <input type="date" id="ride-filter-date" /></label>
+                    <label>Min seats <input type="number" id="ride-filter-seats" min="1" max="5" placeholder="1" /></label>
+                    <label>Max price ($) <input type="number" id="ride-filter-max-price" min="0.50" step="0.01" placeholder="Any" /></label>
+                    <label>Sort by
+                      <select id="ride-sort">
+                        <option value="soonest">Soonest departure</option>
+                        <option value="price-low">Lowest price</option>
+                        <option value="price-high">Highest price</option>
+                        <option value="seats-high">Most seats</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="browse-checkbox-row">
+                    <label class="checkbox-label ride-filter">
+                      <input type="checkbox" id="same-school-only" checked />
+                      Same school only
+                    </label>
+                    <label class="checkbox-label ride-filter">
+                      <input type="checkbox" id="same-gender-drivers-only" />
+                      Same gender drivers only
+                    </label>
+                  </div>
+                  <div id="browse-map-hint" class="selected-location browse-map-hint browse-map-hint-inline hidden"></div>
+                </section>
+              </div>
+
+              <!-- Right: sticky map panel (shown only for rider role) -->
+              <div class="browse-map-panel hidden" id="browse-map-panel">
+                <div id="browse-radius-map" class="browse-radius-map-fullpanel"></div>
+                <div id="browse-map-hint-panel" class="browse-map-hint-panel"></div>
+              </div>
+
+              <article class="card browse-results-card">
+                <h3 id="browse-results-title">Choose a role to start</h3>
+                <div id="rides-list">Loading rides…</div>
+              </article>
+
+            </div><!-- /.browse-rider-layout -->
           </div>
 
           <!-- Request a ride page -->
@@ -252,19 +454,24 @@
                   <div class="location-picker request-location-picker">
                     <label>Pick-up location</label>
                     <input type="text" id="request-origin" placeholder="Campus, dorm, airport, address..." required />
-                    <div id="request-origin-map" class="map-container"></div>
                     <div id="request-origin-selected" class="selected-location"></div>
                   </div>
                   <div class="location-picker request-location-picker">
                     <label>Drop-off location</label>
                     <input type="text" id="request-destination" placeholder="Where do you want to go?" required />
-                    <div id="request-destination-map" class="map-container"></div>
                     <div id="request-destination-selected" class="selected-location"></div>
                   </div>
                   <input type="hidden" id="request-origin-lat" />
                   <input type="hidden" id="request-origin-lng" />
                   <input type="hidden" id="request-destination-lat" />
                   <input type="hidden" id="request-destination-lng" />
+                  <div class="route-map-block request-route-map-block">
+                    <div class="route-map-heading">
+                      <span>Route map</span>
+                      <small>One map shows pickup, drop-off, and route.</small>
+                    </div>
+                    <div id="request-origin-map" class="map-container route-map"></div>
+                  </div>
                   <label>Date <input type="date" id="request-date" required /></label>
                   <label>Departure time <input type="time" id="request-time" required /></label>
                   <label>Riders <input type="number" id="request-rider-count" min="1" max="7" value="1" required /></label>
@@ -297,7 +504,6 @@
                   <div class="location-picker">
                     <label>Pick-up location</label>
                     <input type="text" id="origin-search" placeholder="Search address or landmark…" />
-                    <div id="origin-map" class="map-container"></div>
                     <input type="hidden" id="origin" required />
                     <input type="hidden" id="origin-lat" />
                     <input type="hidden" id="origin-lng" />
@@ -307,11 +513,18 @@
                   <div class="location-picker">
                     <label>Drop-off location</label>
                     <input type="text" id="destination-search" placeholder="Search address or landmark…" />
-                    <div id="destination-map" class="map-container"></div>
                     <input type="hidden" id="destination" required />
                     <input type="hidden" id="destination-lat" />
                     <input type="hidden" id="destination-lng" />
                     <div id="destination-selected" class="selected-location"></div>
+                  </div>
+
+                  <div class="route-map-block offer-route-map-block">
+                    <div class="route-map-heading">
+                      <span>Route map</span>
+                      <small>One map shows pickup, drop-off, and route.</small>
+                    </div>
+                    <div id="origin-map" class="map-container route-map"></div>
                   </div>
 
                   <label>Date <input type="date" id="ride-date" required /></label>
@@ -463,6 +676,59 @@
 
         </section>
 
+        <!-- ── Legal pages ─────────────────────────────────────── -->
+        <section id="privacy-page" class="card legal-page hidden">
+          <div class="cart-header">
+            <div>
+              <h3>Privacy Policy</h3>
+              <p>Last updated: May 5, 2026</p>
+            </div>
+            <button class="legal-back" type="button">Return to browse rides</button>
+          </div>
+          <div class="legal-content">
+            <p>This Privacy Policy explains how LinkUp collects, uses, protects, and deletes information in this student ride-sharing prototype. Have a qualified attorney review this before launch.</p>
+            <h4>Information we collect</h4>
+            <p>We collect account details, university email verification details, ride and request details, approximate and exact trip coordinates, reserved seats, ride chats, driver ratings, live trip tracking locations, vehicle details, masked payment method details, and driver payout contact details.</p>
+            <h4>How we use information</h4>
+            <p>We use information to verify student access, match riders and drivers, reserve seats, process payments, support safety features, send account emails, show ride history, prevent abuse, and operate the service.</p>
+            <h4>Sensitive information</h4>
+            <p>License plates are intended to be visible only to confirmed riders. Live location is intended for active trip safety sharing. Payment cards and payout bank details should be handled by Stripe in production, not stored directly by LinkUp.</p>
+            <h4>Retention</h4>
+            <p>LinkUp should keep sensitive data only as long as needed for safety, payments, dispute handling, legal compliance, and app operations. Users should be able to request account or data deletion before production launch.</p>
+            <h4>Security</h4>
+            <p>We use password hashing, session cookies, access checks, rate limits, safer response headers, and limited storage of payment data. No system is perfectly secure, and production launch requires a real database, HTTPS, monitoring, backups, and incident response procedures.</p>
+            <h4>Contact</h4>
+            <p>For privacy questions or deletion requests, contact the LinkUp operator at the support email listed by the app owner.</p>
+          </div>
+        </section>
+
+        <section id="terms-page" class="card legal-page hidden">
+          <div class="cart-header">
+            <div>
+              <h3>Terms of Service</h3>
+              <p>Last updated: May 5, 2026</p>
+            </div>
+            <button class="legal-back" type="button">Return to browse rides</button>
+          </div>
+          <div class="legal-content">
+            <p>These Terms are a starter template for LinkUp and should be reviewed by a qualified attorney before real users, payments, or public launch.</p>
+            <h4>Service role</h4>
+            <p>LinkUp is a student ride marketplace that helps users offer, request, reserve, and coordinate rides. LinkUp is not the driver, transportation carrier, insurer, or employer of drivers.</p>
+            <h4>User responsibilities</h4>
+            <p>Users must provide accurate information, use their own university email, obey applicable laws, respect other users, and avoid unsafe, fraudulent, harassing, or illegal conduct.</p>
+            <h4>Driver responsibilities</h4>
+            <p>Drivers are responsible for legal driving eligibility, safe operation, accurate ride details, vehicle condition, insurance, license plate accuracy, honoring paid seats, and complying with all laws and school rules.</p>
+            <h4>Rider responsibilities</h4>
+            <p>Riders are responsible for choosing rides carefully, arriving on time, paying required amounts, respecting drivers and other riders, and using safety tools when appropriate.</p>
+            <h4>Payments and payouts</h4>
+            <p>Driver-set ride prices may include LinkUp commission. Payment and payout flows must use approved payment providers before production. LinkUp may withhold or reverse payouts for fraud, disputes, cancellations, or safety issues.</p>
+            <h4>Safety and liability</h4>
+            <p>Rides involve real-world risk. Users agree to use the service at their own risk to the fullest extent allowed by law. LinkUp should obtain legal and insurance advice before public launch.</p>
+            <h4>Account limits</h4>
+            <p>LinkUp may suspend accounts, remove listings, disable chats, or restrict access to protect users, enforce these Terms, or comply with law.</p>
+          </div>
+        </section>
+
         <!-- ── Shared tracking view ───────────────────────────── -->
         <section id="shared-track-page" class="card hidden">
           <div class="cart-header">
@@ -482,8 +748,13 @@
         </section>
 
       </main>
+      <footer class="app-footer">
+        <button id="privacy-link" type="button" class="text-button">Privacy Policy</button>
+        <span>•</span>
+        <button id="terms-link" type="button" class="text-button">Terms of Service</button>
+      </footer>
     </div>
 
-    <script src="app.js?v=20260505-rider-track-url"></script>
+    <script src="app.js?v=20260506-hash-routing"></script>
   </body>
 </html>

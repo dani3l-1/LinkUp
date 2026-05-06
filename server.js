@@ -13,10 +13,16 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const DB_PATH = path.join(__dirname, 'data', 'db.json');
 const EMAIL_OUTBOX_PATH = path.join(__dirname, 'data', 'email-outbox.json');
-const SESSION_SECRET = process.env.SESSION_SECRET || 'campus-ride-share-secret-key';
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyDemoKey123456';
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is not set. Refusing to start.');
+  process.exit(1);
+}
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
+const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.1';
+const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.1';
 const CAR_SEATS = [
   { id: 'front_passenger', label: 'Front passenger' },
   { id: 'back_left', label: 'Back left' },
@@ -123,21 +129,90 @@ function getUniversityNameFromEmail(email) {
   return getUniversityInfoFromDomain(getEmailDomain(email)).name;
 }
 
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+function securityHeaders(req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), geolocation=(self)');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://maps.googleapis.com; frame-ancestors 'none';"
+  );
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+  next();
+}
+
+function makeRateLimiter({ windowMs, max, message }) {
+  const hits = new Map();
+  // Periodically evict expired entries to prevent unbounded memory growth
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of hits) {
+      if (entry.resetAt <= now) hits.delete(key);
+    }
+  }, windowMs).unref();
+
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = (req.ip || req.socket.remoteAddress || 'unknown') + ':' + req.baseUrl + req.path;
+    const current = hits.get(key) || { count: 0, resetAt: now + windowMs };
+    if (current.resetAt <= now) {
+      current.count = 0;
+      current.resetAt = now + windowMs;
+    }
+    current.count += 1;
+    hits.set(key, current);
+    res.setHeader('RateLimit-Limit', String(max));
+    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - current.count)));
+    res.setHeader('RateLimit-Reset', String(Math.ceil(current.resetAt / 1000)));
+    if (current.count > max) {
+      return res.status(429).json({ error: message || 'Too many requests. Please wait and try again.' });
+    }
+    next();
+  };
+}
+
+const authRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 60, message: 'Too many authentication attempts. Please wait and try again.' });
+const sensitiveWriteRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 40, message: 'Too many sensitive updates. Please wait and try again.' });
+const trackingRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many tracking requests. Please slow down.' });
+
+app.use(securityHeaders);
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true,
+  credentials: true,
+}));
+app.use(express.json({ limit: '100kb' }));
+app.use('/api/auth', authRateLimit);
+app.use('/api/profile/payment-method', sensitiveWriteRateLimit);
+app.use('/api/profile/payout', sensitiveWriteRateLimit);
+app.use('/api/cart/create-checkout-session', sensitiveWriteRateLimit);
+app.use('/api/cart/checkout', sensitiveWriteRateLimit);
+app.use('/api/cart/checkout/complete', sensitiveWriteRateLimit);
+app.use('/api/track', trackingRateLimit);
 app.use(
   session({
+    name: 'linkup.sid',
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
+      sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     },
   })
 );
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+}));
 
 function getEmptyDb() {
   return {
@@ -151,17 +226,38 @@ function getEmptyDb() {
   };
 }
 
+function normalizeDbShape(db) {
+  const base = getEmptyDb();
+  const normalized = { ...base, ...(db && typeof db === 'object' ? db : {}) };
+  if (!Array.isArray(normalized.rides)) normalized.rides = [];
+  if (!Array.isArray(normalized.rideRequests)) normalized.rideRequests = [];
+  if (!Array.isArray(normalized.users)) normalized.users = [];
+  if (!normalized.carts || typeof normalized.carts !== 'object' || Array.isArray(normalized.carts)) normalized.carts = {};
+  if (!Array.isArray(normalized.checkoutSessions)) normalized.checkoutSessions = [];
+  if (!Array.isArray(normalized.trackingTrips)) normalized.trackingTrips = [];
+  if (!normalized.rideMessages || typeof normalized.rideMessages !== 'object' || Array.isArray(normalized.rideMessages)) normalized.rideMessages = {};
+  return normalized;
+}
+
 function loadDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
-    return { ...getEmptyDb(), ...JSON.parse(raw) };
+    return normalizeDbShape(JSON.parse(raw));
   } catch (error) {
     return getEmptyDb();
   }
 }
 
 function saveDb(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+  const tmpPath = DB_PATH + '.tmp';
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(db, null, 2));
+    fs.renameSync(tmpPath, DB_PATH);
+  } catch (err) {
+    console.error('saveDb error:', err);
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+    throw err;
+  }
 }
 
 function expireUnclaimedRideRequests(db) {
@@ -244,6 +340,38 @@ function calculateDistanceMiles(originLat, originLng, destinationLat, destinatio
 function sanitizeDurationMinutes(value) {
   const minutes = Math.round(Number(value));
   return Number.isFinite(minutes) && minutes >= 5 && minutes <= 720 ? minutes : 90;
+}
+
+function parseTripCoordinate(value, min, max) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max ? number : null;
+}
+
+function parseLatitude(value) {
+  return parseTripCoordinate(value, -90, 90);
+}
+
+function parseLongitude(value) {
+  return parseTripCoordinate(value, -180, 180);
+}
+
+function hasBlankCoordinate(value) {
+  return value === null || value === undefined || value === '';
+}
+
+function parseOptionalLatitude(value) {
+  return hasBlankCoordinate(value) ? null : parseLatitude(value);
+}
+
+function parseOptionalLongitude(value) {
+  return hasBlankCoordinate(value) ? null : parseLongitude(value);
+}
+
+function isValidTripDateTime(date, time) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return false;
+  if (!/^\d{2}:\d{2}$/.test(String(time || ''))) return false;
+  const timestamp = new Date(String(date) + 'T' + String(time)).getTime();
+  return Number.isFinite(timestamp);
 }
 
 function getTripStartMs(trip) {
@@ -483,6 +611,10 @@ function getUserUniversityDisplay(user) {
   return user.university;
 }
 
+function userNeedsPolicyConsent(user) {
+  return user.termsVersion !== REQUIRED_TERMS_VERSION || user.privacyVersion !== REQUIRED_PRIVACY_VERSION;
+}
+
 function publicUser(user) {
   const fallbackName = user.name || user.email.split('@')[0];
   return {
@@ -499,6 +631,13 @@ function publicUser(user) {
     waitlisted: user.serviceApproved !== true,
     emailVerified: user.emailVerified !== false,
     nameLastChangedAt: user.nameLastChangedAt || null,
+    defaultPaymentMethod: user.defaultPaymentMethod || null,
+    payoutInfo: user.payoutInfo || null,
+    termsVersion: user.termsVersion || '',
+    privacyVersion: user.privacyVersion || '',
+    requiredTermsVersion: REQUIRED_TERMS_VERSION,
+    requiredPrivacyVersion: REQUIRED_PRIVACY_VERSION,
+    requiresPolicyConsent: userNeedsPolicyConsent(user),
   };
 }
 
@@ -545,6 +684,14 @@ function requireServiceAccess(req, res, next) {
   }
   if (user.serviceApproved !== true) {
     return res.status(403).json({ error: 'LinkUp has not launched at your university yet. Your account is on the waitlist, and we will notify you when access opens.' });
+  }
+  if (userNeedsPolicyConsent(user)) {
+    return res.status(403).json({
+      error: 'Please review and agree to the latest Terms of Service and Privacy Notice in your profile before using LinkUp services.',
+      code: 'POLICY_CONSENT_REQUIRED',
+      requiredTermsVersion: REQUIRED_TERMS_VERSION,
+      requiredPrivacyVersion: REQUIRED_PRIVACY_VERSION,
+    });
   }
   next();
 }
@@ -638,6 +785,14 @@ function publicTrackingTrip(trip) {
   };
 }
 
+function getCardBrand(cardDigits) {
+  if (/^4/.test(cardDigits)) return 'Visa';
+  if (/^5[1-5]/.test(cardDigits) || /^2[2-7]/.test(cardDigits)) return 'Mastercard';
+  if (/^3[47]/.test(cardDigits)) return 'American Express';
+  if (/^6(?:011|5)/.test(cardDigits)) return 'Discover';
+  return 'Card';
+}
+
 function validatePayment(payment) {
   if (!payment || !payment.name || !payment.cardNumber || !payment.expiry || !payment.cvv) {
     return { valid: false, error: 'All payment fields are required' };
@@ -660,15 +815,19 @@ function validatePayment(payment) {
     return { valid: false, error: 'Please enter a valid CVV' };
   }
 
-  return { valid: true, last4: cardDigits.slice(-4) };
+  return {
+    valid: true,
+    last4: cardDigits.slice(-4),
+    brand: getCardBrand(cardDigits),
+    expiry: String(payment.expiry).trim(),
+    billingName: String(payment.name || '').trim(),
+    billingZip: String(payment.billingZip || '').trim(),
+  };
 }
 
 function canStudentReserveRide(student, ride, seatId = '', db = null) {
   if (!ride) {
     return 'Ride not found';
-  }
-  if (ride.university !== student.university) {
-    return 'This ride is not in your university network';
   }
   if (ride.driverId === student.id) {
     return 'You cannot reserve your own ride';
@@ -706,6 +865,9 @@ app.post('/api/auth/signup', async (req, res) => {
   if (!firstName || !lastName || !birthday || !gender || !email || !password) {
     return res.status(400).json({ error: 'All fields are required' });
   }
+  if (req.body.termsAccepted !== true || req.body.privacyAccepted !== true) {
+    return res.status(400).json({ error: 'You must agree to the Terms of Service and Privacy Policy before creating an account' });
+  }
 
   const normalizedEmail = normalizeEmail(email);
   if (!isUniversityEmail(normalizedEmail)) {
@@ -742,6 +904,11 @@ app.post('/api/auth/signup', async (req, res) => {
     waitlistedAt: serviceApproved ? null : new Date().toISOString(),
     passwordHash: hashedPassword,
     emailVerified: false,
+    termsAcceptedAt: new Date().toISOString(),
+    privacyAcceptedAt: new Date().toISOString(),
+    termsVersion: REQUIRED_TERMS_VERSION,
+    privacyVersion: REQUIRED_PRIVACY_VERSION,
+    policyAcceptedAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   };
 
@@ -1020,6 +1187,111 @@ app.put('/api/profile', requireAuth, (req, res) => {
   res.json(publicUser(user));
 });
 
+app.put('/api/profile/policies', requireAuth, (req, res) => {
+  if (req.body.termsAccepted !== true || req.body.privacyAccepted !== true) {
+    return res.status(400).json({ error: 'You must agree to the latest Terms of Service and Privacy Notice' });
+  }
+
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const now = new Date().toISOString();
+  user.termsAcceptedAt = now;
+  user.privacyAcceptedAt = now;
+  user.policyAcceptedAt = now;
+  user.termsVersion = REQUIRED_TERMS_VERSION;
+  user.privacyVersion = REQUIRED_PRIVACY_VERSION;
+  user.updatedAt = now;
+
+  saveDb(db);
+  res.json(publicUser(user));
+});
+
+app.put('/api/profile/payment-method', requireAuth, requireServiceAccess, (req, res) => {
+  const paymentValidation = validatePayment({
+    name: req.body.name,
+    cardNumber: req.body.cardNumber,
+    expiry: req.body.expiry,
+    cvv: req.body.cvv,
+    billingZip: req.body.billingZip,
+  });
+  if (!paymentValidation.valid) {
+    return res.status(400).json({ error: paymentValidation.error });
+  }
+
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  user.defaultPaymentMethod = {
+    brand: paymentValidation.brand,
+    last4: paymentValidation.last4,
+    expiry: paymentValidation.expiry,
+    billingName: paymentValidation.billingName.slice(0, 120),
+    billingZip: paymentValidation.billingZip.slice(0, 20),
+    updatedAt: new Date().toISOString(),
+  };
+  user.updatedAt = new Date().toISOString();
+
+  saveDb(db);
+  res.json(publicUser(user));
+});
+
+app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => {
+  const method = String(req.body.method || '').trim();
+  const allowedMethods = new Set(['zelle', 'venmo', 'paypal', 'stripe', 'check', 'other']);
+  const legalName = String(req.body.legalName || '').trim();
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const phone = String(req.body.phone || '').trim();
+  const handle = String(req.body.handle || '').trim();
+  const address = String(req.body.address || '').trim();
+  const notes = String(req.body.notes || '').trim();
+
+  if (!legalName) {
+    return res.status(400).json({ error: 'Legal payout name is required' });
+  }
+  if (!allowedMethods.has(method)) {
+    return res.status(400).json({ error: 'Choose a valid payout method' });
+  }
+  if (!email && !phone && !handle && !address) {
+    return res.status(400).json({ error: 'Add at least one payout contact: email, phone, handle, or mailing address' });
+  }
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ error: 'Enter a valid payout email' });
+  }
+  if (!req.body.confirmed) {
+    return res.status(400).json({ error: 'Confirm that the payout information is accurate' });
+  }
+
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  user.payoutInfo = {
+    legalName: legalName.slice(0, 120),
+    method,
+    email: email.slice(0, 160),
+    phone: phone.slice(0, 40),
+    handle: handle.slice(0, 80),
+    address: address.slice(0, 220),
+    notes: notes.slice(0, 300),
+    commissionRate: 0.15,
+    confirmedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  user.updatedAt = new Date().toISOString();
+
+  saveDb(db);
+  res.json(publicUser(user));
+});
+
 // Sign out endpoint
 app.post('/api/auth/signout', (req, res) => {
   req.session.destroy((err) => {
@@ -1030,7 +1302,7 @@ app.post('/api/auth/signout', (req, res) => {
   });
 });
 
-app.get('/api/leaderboard/schools', (req, res) => {
+app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
   const db = normalizeUserAccess(loadDb());
   const schoolCounts = new Map();
 
@@ -1101,8 +1373,8 @@ app.get('/api/leaderboard/schools', (req, res) => {
   res.json({ schools, mileageSchools, totalUsers: (db.users || []).length });
 });
 
-// Get Google Maps API key
-app.get('/api/config/google-maps-key', (req, res) => {
+// Get Google Maps API key — requires authentication to prevent key harvesting
+app.get('/api/config/google-maps-key', requireAuth, (req, res) => {
   res.json({ apiKey: GOOGLE_MAPS_API_KEY });
 });
 
@@ -1235,9 +1507,27 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     return res.status(400).json({ error: 'Missing trip request information' });
   }
 
+  if (!isValidTripDateTime(date, time)) {
+    return res.status(400).json({ error: 'Enter a valid request date and time' });
+  }
+
   const willingToPayCents = Math.round(Number(willingToPay) * 100);
   if (!Number.isInteger(willingToPayCents) || willingToPayCents < 50) {
     return res.status(400).json({ error: 'Offer amount must be at least $0.50' });
+  }
+  const riderCountNumber = Number(riderCount);
+  if (!Number.isInteger(riderCountNumber) || riderCountNumber < 1 || riderCountNumber > 7) {
+    return res.status(400).json({ error: 'Rider count must be between 1 and 7' });
+  }
+  const parsedOriginLat = parseOptionalLatitude(originLat);
+  const parsedOriginLng = parseOptionalLongitude(originLng);
+  const parsedDestinationLat = parseOptionalLatitude(destinationLat);
+  const parsedDestinationLng = parseOptionalLongitude(destinationLng);
+  if ((!hasBlankCoordinate(originLat) && parsedOriginLat === null)
+    || (!hasBlankCoordinate(originLng) && parsedOriginLng === null)
+    || (!hasBlankCoordinate(destinationLat) && parsedDestinationLat === null)
+    || (!hasBlankCoordinate(destinationLng) && parsedDestinationLng === null)) {
+    return res.status(400).json({ error: 'Enter valid pickup and drop-off coordinates' });
   }
 
   const db = loadDb();
@@ -1260,13 +1550,13 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     university: rider.university,
     origin,
     destination,
-    originLat: originLat === null || originLat === undefined || originLat === '' ? null : parseFloat(originLat),
-    originLng: originLng === null || originLng === undefined || originLng === '' ? null : parseFloat(originLng),
-    destinationLat: destinationLat === null || destinationLat === undefined || destinationLat === '' ? null : parseFloat(destinationLat),
-    destinationLng: destinationLng === null || destinationLng === undefined || destinationLng === '' ? null : parseFloat(destinationLng),
+    originLat: parsedOriginLat,
+    originLng: parsedOriginLng,
+    destinationLat: parsedDestinationLat,
+    destinationLng: parsedDestinationLng,
     date,
     time,
-    riderCount: Number(riderCount),
+    riderCount: riderCountNumber,
     willingToPayCents,
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
     shareRideWithOthers: Boolean(shareRideWithOthers),
@@ -1303,9 +1593,6 @@ app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAcces
   }
   if (request.riderId === driver.id) {
     return res.status(400).json({ error: 'You cannot offer to drive your own request' });
-  }
-  if (request.university !== driver.university) {
-    return res.status(400).json({ error: 'This request is not in your university network' });
   }
   if (request.sameGenderDriverOnly && !canMatchSameGender(request.riderGender, driver.gender)) {
     return res.status(400).json({ error: 'This rider requested same-gender drivers only' });
@@ -1350,9 +1637,6 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
   }
   if (!request.shareRideWithOthers) {
     return res.status(400).json({ error: 'This rider did not agree to share this ride with others' });
-  }
-  if (request.university !== driver.university) {
-    return res.status(400).json({ error: 'This request is not in your university network' });
   }
   if (!request.driverOffers.some((offer) => offer.driverId === driver.id)) {
     return res.status(400).json({ error: 'Offer to drive this request before posting it as a shared ride' });
@@ -1429,12 +1713,26 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     return res.status(400).json({ error: 'You must agree to the driver terms and conditions before listing a ride' });
   }
 
+  if (!isValidTripDateTime(date, time)) {
+    return res.status(400).json({ error: 'Enter a valid ride date and time' });
+  }
+  const parsedOriginLat = parseLatitude(originLat);
+  const parsedOriginLng = parseLongitude(originLng);
+  const parsedDestinationLat = parseLatitude(destinationLat);
+  const parsedDestinationLng = parseLongitude(destinationLng);
+  if ([parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng].some((value) => value === null)) {
+    return res.status(400).json({ error: 'Enter valid pickup and drop-off coordinates' });
+  }
+
   const priceCents = Math.round(Number(price) * 100);
   if (!Number.isInteger(priceCents) || priceCents < 50) {
     return res.status(400).json({ error: 'Ride price must be at least $0.50' });
   }
   if (hasReturnRide && (!returnDate || !returnTime)) {
     return res.status(400).json({ error: 'Return date and time are required for a return ride' });
+  }
+  if (hasReturnRide && !isValidTripDateTime(returnDate, returnTime)) {
+    return res.status(400).json({ error: 'Enter a valid return date and time' });
   }
 
   const db = loadDb();
@@ -1456,11 +1754,11 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     university: driver.university,
     origin,
     destination,
-    originLat: parseFloat(originLat),
-    originLng: parseFloat(originLng),
-    destinationLat: parseFloat(destinationLat),
-    destinationLng: parseFloat(destinationLng),
-    distanceMiles: calculateDistanceMiles(originLat, originLng, destinationLat, destinationLng),
+    originLat: parsedOriginLat,
+    originLng: parsedOriginLng,
+    destinationLat: parsedDestinationLat,
+    destinationLng: parsedDestinationLng,
+    distanceMiles: calculateDistanceMiles(parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng),
     date,
     time,
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
@@ -1492,6 +1790,9 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res) => {
   const { rideId } = req.params;
   const seatId = String(req.body.seatId || '').trim();
+  if (req.body.termsAccepted !== true) {
+    return res.status(400).json({ error: 'You must agree to the Terms of Service before joining this ride' });
+  }
 
   const db = loadDb();
   const student = db.users.find((u) => u.id === req.session.userId);
@@ -1637,6 +1938,9 @@ function reserveCartRides(db, student, cartEntries) {
 
   const ridesToReserve = [];
   for (const entry of cartEntries) {
+    if (!entry.termsAcceptedAt) {
+      return { error: 'Please agree to the Terms of Service again before checkout' };
+    }
     const ride = db.rides.find((r) => r.id === entry.rideId);
     const reserveError = canStudentReserveRide(student, ride, entry.seatId, db);
     if (reserveError) {
@@ -1714,6 +2018,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
 
   const checkoutRides = [];
   for (const entry of cartEntries) {
+    if (!entry.termsAcceptedAt) return res.status(400).json({ error: 'Please agree to the Terms of Service again before checkout' });
     const ride = db.rides.find((r) => r.id === entry.rideId);
     const reserveError = canStudentReserveRide(student, ride, entry.seatId, db);
     if (reserveError) return res.status(400).json({ error: reserveError });
@@ -1782,6 +2087,9 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req,
 app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   const { rideId } = req.params;
   const seatId = String(req.body.seatId || '').trim();
+  if (req.body.termsAccepted !== true) {
+    return res.status(400).json({ error: 'You must agree to the Terms of Service before adding this ride' });
+  }
   const db = loadDb();
   const student = db.users.find((u) => u.id === req.session.userId);
   if (!student) {
@@ -1806,8 +2114,9 @@ app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   const existingEntry = cartEntries.find((entry) => entry.rideId === ride.id);
   if (existingEntry) {
     existingEntry.seatId = seatId;
+    existingEntry.termsAcceptedAt = new Date().toISOString();
   } else {
-    cartEntries.push({ rideId: ride.id, seatId });
+    cartEntries.push({ rideId: ride.id, seatId, termsAcceptedAt: new Date().toISOString() });
   }
   saveDb(db);
 

@@ -10,6 +10,10 @@ Ride Connect Save - A university-only ride-sharing app for students to offer and
 - **Ride matching**: Browse and join rides within your university network
 - **Ride history**: View rides you've posted and rides you've joined
 - **Session management**: Secure login with sessions
+- **Driver payout information**: Drivers can save payout method/contact details in their profile so LinkUp can pay them after completed rides and commission
+- **Default payment method**: Users can save a masked default card in profile for faster checkout
+- **Privacy Policy and Terms**: In-app legal pages explain data handling, user responsibilities, payments, safety, and liability basics
+- **Security hardening**: Adds safer response headers, smaller request bodies, stronger session cookie settings, and rate limits on sensitive endpoints
 
 ## Requirements
 - Node.js and npm
@@ -71,3 +75,11 @@ SESSION_SECRET=your_session_secret_key_here
 - `POST /api/rides` — Create a new ride with location coordinates (requires authentication)
 - `POST /api/rides/:rideId/join` — Join an existing ride (requires authentication)
 - `GET /api/profile` — Get your posted and joined rides (requires authentication)
+
+
+## Security notes
+- Do not commit `.env`, `data/db.json`, or `data/email-outbox.json`.
+- Local `db.json` storage is for development only. Use a managed database before real users.
+- Do not store full payment cards, CVV, bank account numbers, or routing numbers in LinkUp.
+- Use Stripe Checkout/Elements and Stripe Connect before production payments and payouts.
+- Review the Privacy Policy and Terms of Service with a qualified attorney before public launch.
