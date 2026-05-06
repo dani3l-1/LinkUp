@@ -838,6 +838,42 @@ button:disabled::before { display: none; }
 
 .browse-map-hint { margin-top: 0.3rem; }
 
+/* ─── Map pin highlight — flashes when scrolled-to from map ─── */
+@keyframes map-pin-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(167,139,250,0), var(--shadow-md); }
+  30%  { box-shadow: 0 0 0 6px rgba(167,139,250,0.45), 0 0 32px rgba(167,139,250,0.25); }
+  100% { box-shadow: 0 0 0 0 rgba(167,139,250,0), var(--shadow-md); }
+}
+
+.ride-card.map-pin-highlight {
+  animation: map-pin-flash 1.8s ease both;
+  border-color: rgba(167,139,250,0.55) !important;
+  border-left-color: #a78bfa !important;
+}
+
+/* ─── Pin letter badge on ride/request cards ────────────────── */
+.request-pin-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #4d9ef5;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+/* ─── Browse map hint panel ─────────────────────────────────── */
+.browse-map-hint-panel {
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 @media (min-width: 720px) {
   .radius-filter-grid { grid-template-columns: 1.2fr 0.8fr 1.2fr 0.8fr; }
   .filter-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -3425,5 +3461,131 @@ textarea:disabled,
 
   .policy-full-view .policy-scrollbox {
     padding: 1.25rem;
+  }
+}
+
+
+/* Pickup/drop-off flexibility radius fields */
+.radius-preference-grid {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0 1.1rem;
+}
+
+@media (min-width: 720px) {
+  .radius-preference-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.radius-preference-grid label {
+  margin-bottom: 0;
+}
+
+
+/* Request ride alignment pass */
+#request-ride-page {
+  overflow: visible;
+}
+
+#request-ride-page .cart-header {
+  align-items: start;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+#request-ride-page .request-ride-card h3 {
+  margin-bottom: 1.35rem;
+}
+
+#request-ride-form {
+  display: grid;
+  gap: 1.15rem;
+}
+
+#request-ride-form .request-ride-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.15rem 1.25rem;
+  align-items: end;
+}
+
+#request-ride-form .request-location-picker {
+  grid-column: span 2;
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  min-height: 0;
+  padding: 0;
+}
+
+#request-ride-form .request-location-picker label,
+#request-ride-form .request-ride-grid > label,
+#request-ride-form .radius-preference-grid label {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+#request-ride-form .request-location-picker input,
+#request-ride-form .request-ride-grid > label input,
+#request-ride-form .radius-preference-grid input,
+#request-notes {
+  width: 100%;
+  min-height: 3.55rem;
+}
+
+#request-ride-form .request-location-picker .selected-location {
+  min-height: 2.35rem;
+  display: flex;
+  align-items: center;
+}
+
+#request-ride-form .request-route-map-block {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
+}
+
+#request-ride-form .route-map {
+  height: clamp(360px, 46vh, 560px);
+}
+
+#request-ride-form .radius-preference-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.15rem 1.25rem;
+  margin: 0;
+}
+
+#request-ride-form > .checkbox-label {
+  margin: 0.1rem 0 0;
+  align-items: flex-start;
+}
+
+#request-ride-form > label:not(.checkbox-label) {
+  margin: 0;
+}
+
+#request-ride-form button[type='submit'] {
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  #request-ride-form .request-ride-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #request-ride-form .request-location-picker,
+  #request-ride-form .request-route-map-block,
+  #request-ride-form .radius-preference-grid {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  #request-ride-form .request-ride-grid,
+  #request-ride-form .radius-preference-grid {
+    grid-template-columns: 1fr;
   }
 }

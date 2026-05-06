@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260506-hash-routing" />
+    <link rel="stylesheet" href="styles.css?v=20260506-tracking-route" />
   </head>
   <body>
     <div id="ride-transition" class="ride-transition hidden" aria-hidden="true">
@@ -468,9 +468,12 @@
                   <div class="route-map-block request-route-map-block">
                     <div class="route-map-heading">
                       <span>Route map</span>
-                      <small>One map shows pickup, drop-off, and route.</small>
                     </div>
                     <div id="request-origin-map" class="map-container route-map"></div>
+                  </div>
+                  <div class="radius-preference-grid">
+                    <label>Pick-up flexibility radius (mi) <input type="number" id="request-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Drop-off flexibility radius (mi) <input type="number" id="request-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
                   </div>
                   <label>Date <input type="date" id="request-date" required /></label>
                   <label>Departure time <input type="time" id="request-time" required /></label>
@@ -522,9 +525,13 @@
                   <div class="route-map-block offer-route-map-block">
                     <div class="route-map-heading">
                       <span>Route map</span>
-                      <small>One map shows pickup, drop-off, and route.</small>
                     </div>
                     <div id="origin-map" class="map-container route-map"></div>
+                  </div>
+
+                  <div class="radius-preference-grid">
+                    <label>Pick-up flexibility radius (mi) <input type="number" id="offer-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Drop-off flexibility radius (mi) <input type="number" id="offer-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
                   </div>
 
                   <label>Date <input type="date" id="ride-date" required /></label>
@@ -755,6 +762,6 @@
       </footer>
     </div>
 
-    <script src="app.js?v=20260506-hash-routing"></script>
+    <script src="app.js?v=20260506-tracking-route"></script>
   </body>
 </html>

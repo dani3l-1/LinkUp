@@ -367,6 +367,12 @@ function parseOptionalLongitude(value) {
   return hasBlankCoordinate(value) ? null : parseLongitude(value);
 }
 
+function parseRadiusMiles(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const miles = Number(value);
+  return Number.isFinite(miles) && miles >= 0 && miles <= 100 ? Math.round(miles * 10) / 10 : null;
+}
+
 function isValidTripDateTime(date, time) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return false;
   if (!/^\d{2}:\d{2}$/.test(String(time || ''))) return false;
@@ -777,12 +783,47 @@ function publicTrackingTrip(trip) {
     trustedEmail: trip.trustedEmail,
     viewerAccessExpiresAt: trip.viewerAccessExpiresAt || null,
     status: trip.status,
+    rideId: trip.rideId || '',
+    rideRoute: trip.rideRoute || null,
     lastLocation: trip.lastLocation || null,
     locations: (trip.locations || []).slice(-20),
     createdAt: trip.createdAt,
     updatedAt: trip.updatedAt,
     stoppedAt: trip.stoppedAt || null,
   };
+}
+
+function getTrackingRideRoute(ride) {
+  if (!ride) return null;
+  const originLat = Number(ride.originLat);
+  const originLng = Number(ride.originLng);
+  const destinationLat = Number(ride.destinationLat);
+  const destinationLng = Number(ride.destinationLng);
+  if (![originLat, originLng, destinationLat, destinationLng].every(Number.isFinite)) return null;
+  return {
+    origin: ride.origin || 'Pick-up',
+    destination: ride.destination || 'Drop-off',
+    originLat,
+    originLng,
+    destinationLat,
+    destinationLng,
+    date: ride.date || '',
+    time: ride.time || '',
+  };
+}
+
+function findTrackableRideForUser(db, userId) {
+  const now = Date.now();
+  return (db.rides || [])
+    .filter((ride) => (ride.passengers || []).some((passenger) => passenger.studentId === userId))
+    .map((ride) => ({ ride, interval: getTripInterval(ride) }))
+    .filter((entry) => entry.interval.end >= now - 30 * 60 * 1000)
+    .sort((a, b) => {
+      const aActive = a.interval.start <= now && a.interval.end >= now;
+      const bActive = b.interval.start <= now && b.interval.end >= now;
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      return Math.abs(a.interval.start - now) - Math.abs(b.interval.start - now);
+    })[0]?.ride || null;
 }
 
 function getCardBrand(cardDigits) {
@@ -1390,6 +1431,8 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     return res.status(400).json({ error: "Enter someone else's email for trip tracking or leave it blank and copy the link" });
   }
 
+  const trackingRide = findTrackableRideForUser(db, user.id);
+  const trackingRoute = getTrackingRideRoute(trackingRide);
   const viewerToken = crypto.randomBytes(32).toString('hex');
   const viewerUrl = APP_BASE_URL + '/?trackToken=' + viewerToken;
   const trips = getTrackingTrips(db);
@@ -1397,6 +1440,8 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     id: uuidv4(),
     ownerId: user.id,
     ownerFirstName: user.firstName || 'Rider',
+    rideId: trackingRide?.id || '',
+    rideRoute: trackingRoute,
     trustedEmail,
     viewerTokenHash: hashToken(viewerToken),
     viewerAccessExpiresAt: Date.now() + 1000 * 60 * 60 * 8,
@@ -1420,6 +1465,7 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     id: trip.id,
     trustedEmail: trip.trustedEmail,
     status: trip.status,
+    rideRoute: trip.rideRoute || null,
     viewerUrl,
     message: trustedEmail
       ? 'Secure tracking invite sent. You can also copy this trip link and share it yourself.'
@@ -1502,7 +1548,7 @@ app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
 });
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
-  const { origin, destination, originLat, originLng, destinationLat, destinationLng, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, estimatedDurationMinutes, notes } = req.body;
+  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, estimatedDurationMinutes, notes } = req.body;
   if (!origin || !destination || !date || !time || !riderCount || willingToPay === undefined) {
     return res.status(400).json({ error: 'Missing trip request information' });
   }
@@ -1523,6 +1569,11 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
   const parsedOriginLng = parseOptionalLongitude(originLng);
   const parsedDestinationLat = parseOptionalLatitude(destinationLat);
   const parsedDestinationLng = parseOptionalLongitude(destinationLng);
+  const parsedPickupRadiusMiles = parseRadiusMiles(pickupRadiusMiles);
+  const parsedDropoffRadiusMiles = parseRadiusMiles(dropoffRadiusMiles);
+  if (parsedPickupRadiusMiles === null || parsedDropoffRadiusMiles === null) {
+    return res.status(400).json({ error: 'Radius must be between 0 and 100 miles' });
+  }
   if ((!hasBlankCoordinate(originLat) && parsedOriginLat === null)
     || (!hasBlankCoordinate(originLng) && parsedOriginLng === null)
     || (!hasBlankCoordinate(destinationLat) && parsedDestinationLat === null)
@@ -1554,6 +1605,8 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     originLng: parsedOriginLng,
     destinationLat: parsedDestinationLat,
     destinationLng: parsedDestinationLng,
+    pickupRadiusMiles: parsedPickupRadiusMiles,
+    dropoffRadiusMiles: parsedDropoffRadiusMiles,
     date,
     time,
     riderCount: riderCountNumber,
@@ -1662,6 +1715,8 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
     originLng: request.originLng ?? null,
     destinationLat: request.destinationLat ?? null,
     destinationLng: request.destinationLng ?? null,
+    pickupRadiusMiles: request.pickupRadiusMiles || 0,
+    dropoffRadiusMiles: request.dropoffRadiusMiles || 0,
     distanceMiles: calculateDistanceMiles(request.originLat, request.originLng, request.destinationLat, request.destinationLng),
     date: request.date,
     time: request.time,
@@ -1700,7 +1755,7 @@ app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 });
 
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
-  const { origin, destination, originLat, originLng, destinationLat, destinationLng, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, seatsAvailable, price, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, notes } = req.body;
+  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, seatsAvailable, price, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, notes } = req.body;
   const vehicleSeatCount = normalizeVehicleSeatCount(req.body.vehicleSeatCount);
   const availableSeatIds = normalizeSeatIds(req.body.availableSeatIds, vehicleSeatCount);
   if (!origin || !destination || !date || !time || price === undefined || !carMaker || !carModel || !carColor || !licensePlate || originLat === undefined || originLng === undefined || destinationLat === undefined || destinationLng === undefined) {
@@ -1720,6 +1775,11 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   const parsedOriginLng = parseLongitude(originLng);
   const parsedDestinationLat = parseLatitude(destinationLat);
   const parsedDestinationLng = parseLongitude(destinationLng);
+  const parsedPickupRadiusMiles = parseRadiusMiles(pickupRadiusMiles);
+  const parsedDropoffRadiusMiles = parseRadiusMiles(dropoffRadiusMiles);
+  if (parsedPickupRadiusMiles === null || parsedDropoffRadiusMiles === null) {
+    return res.status(400).json({ error: 'Radius must be between 0 and 100 miles' });
+  }
   if ([parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng].some((value) => value === null)) {
     return res.status(400).json({ error: 'Enter valid pickup and drop-off coordinates' });
   }
@@ -1758,6 +1818,8 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     originLng: parsedOriginLng,
     destinationLat: parsedDestinationLat,
     destinationLng: parsedDestinationLng,
+    pickupRadiusMiles: parsedPickupRadiusMiles,
+    dropoffRadiusMiles: parsedDropoffRadiusMiles,
     distanceMiles: calculateDistanceMiles(parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng),
     date,
     time,
