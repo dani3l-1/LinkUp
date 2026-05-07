@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260506-tracking-route" />
+    <link rel="stylesheet" href="styles.css?v=20260507-release-notes-newest-first" />
   </head>
   <body>
     <div id="ride-transition" class="ride-transition hidden" aria-hidden="true">
@@ -172,7 +172,7 @@
             <div class="cart-header">
               <div>
                 <h3>Profile</h3>
-                <p>Manage your account and driver payout details.</p>
+                <p>Manage your account, payout details, policies, and release notes.</p>
               </div>
               <button id="profile-back-home" type="button">Return to browse rides</button>
             </div>
@@ -182,6 +182,7 @@
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payment">Payment method</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payouts">Driver payouts</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="release-notes">Release notes</button>
               </aside>
               <div class="profile-content">
                 <div id="profile-info-panel" class="profile-panel" data-profile-panel="info">
@@ -321,6 +322,47 @@
                     <div id="policy-error" class="error-message"></div>
                   </form>
                 </div>
+                <div id="profile-release-notes-panel" class="profile-panel hidden" data-profile-panel="release-notes">
+                  <div class="release-note-card release-note-single">
+                    <div class="release-note-feed" aria-label="Release notes newest first">
+                      <section class="release-note-entry">
+                        <div class="release-note-version">v2026.05.3</div>
+                        <div class="release-note-features">
+                          <h4>Features</h4>
+                          <ul>
+                            <li>Release notes now show the newest version at the top.</li>
+                            <li>Older versions stay in the same box below the current version.</li>
+                          </ul>
+                        </div>
+                      </section>
+                      <section class="release-note-entry">
+                        <div class="release-note-version">v2026.05.2</div>
+                        <div class="release-note-features">
+                          <h4>Features</h4>
+                          <ul>
+                            <li>Added a reset filters button for browse rides.</li>
+                            <li>Moved Sort by into the available rides results box.</li>
+                            <li>Clarified rider walking radius and driver detour radius.</li>
+                            <li>Stopped map clicks from changing pickup or drop-off locations.</li>
+                            <li>Fixed maps treating blank coordinates as location 0,0.</li>
+                          </ul>
+                        </div>
+                      </section>
+                      <section class="release-note-entry">
+                        <div class="release-note-version">v2026.05.1</div>
+                        <div class="release-note-features">
+                          <h4>Features</h4>
+                          <ul>
+                            <li>Added Track My Trip route sharing with rider location on the same map.</li>
+                            <li>Added policy agreement flow for Terms of Service and Privacy Notice updates.</li>
+                            <li>Added profile payment method and driver payout sections.</li>
+                            <li>Added requested rides, ride history, chat, driver ratings, and seat reservations.</li>
+                          </ul>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </div>
                 <div id="profile-payouts-panel" class="profile-panel hidden" data-profile-panel="payouts">
                   <form id="driver-payout-form" class="profile-form payout-guide">
                     <div>
@@ -400,14 +442,6 @@
                     <label>Date <input type="date" id="ride-filter-date" /></label>
                     <label>Min seats <input type="number" id="ride-filter-seats" min="1" max="5" placeholder="1" /></label>
                     <label>Max price ($) <input type="number" id="ride-filter-max-price" min="0.50" step="0.01" placeholder="Any" /></label>
-                    <label>Sort by
-                      <select id="ride-sort">
-                        <option value="soonest">Soonest departure</option>
-                        <option value="price-low">Lowest price</option>
-                        <option value="price-high">Highest price</option>
-                        <option value="seats-high">Most seats</option>
-                      </select>
-                    </label>
                   </div>
                   <div class="browse-checkbox-row">
                     <label class="checkbox-label ride-filter">
@@ -419,6 +453,7 @@
                       Same gender drivers only
                     </label>
                   </div>
+                  <button id="reset-ride-filters" class="reset-filters-button" type="button">Reset filters</button>
                   <div id="browse-map-hint" class="selected-location browse-map-hint browse-map-hint-inline hidden"></div>
                 </section>
               </div>
@@ -430,7 +465,17 @@
               </div>
 
               <article class="card browse-results-card">
-                <h3 id="browse-results-title">Choose a role to start</h3>
+                <div class="browse-results-header">
+                  <h3 id="browse-results-title">Choose a role to start</h3>
+                  <label class="browse-sort-control">Sort by
+                    <select id="ride-sort">
+                      <option value="soonest">Soonest departure</option>
+                      <option value="price-low">Lowest price</option>
+                      <option value="price-high">Highest price</option>
+                      <option value="seats-high">Most seats</option>
+                    </select>
+                  </label>
+                </div>
                 <div id="rides-list">Loading rides…</div>
               </article>
 
@@ -442,7 +487,7 @@
             <div class="cart-header">
               <div>
                 <h3>Request a ride</h3>
-                <p>Tell drivers where you need to go and what you are willing to pay.</p>
+                <p>Tell drivers where you need to go, what you will pay, and how far you can walk to meet or finish the ride.</p>
               </div>
               <button id="request-ride-back-home" type="button">Return to browse rides</button>
             </div>
@@ -472,8 +517,8 @@
                     <div id="request-origin-map" class="map-container route-map"></div>
                   </div>
                   <div class="radius-preference-grid">
-                    <label>Pick-up flexibility radius (mi) <input type="number" id="request-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
-                    <label>Drop-off flexibility radius (mi) <input type="number" id="request-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Max walk to pick-up (mi) <input type="number" id="request-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Max walk from drop-off (mi) <input type="number" id="request-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
                   </div>
                   <label>Date <input type="date" id="request-date" required /></label>
                   <label>Departure time <input type="time" id="request-time" required /></label>
@@ -495,7 +540,7 @@
             <div class="cart-header">
               <div>
                 <h3>List a ride</h3>
-                <p>Post your pick-up point, destination, seats, and price.</p>
+                <p>Post your route, seats, price, and how far you are willing to drive for rider pickup and drop-off.</p>
               </div>
               <button id="list-ride-back-home" type="button">Return to browse rides</button>
             </div>
@@ -530,8 +575,8 @@
                   </div>
 
                   <div class="radius-preference-grid">
-                    <label>Pick-up flexibility radius (mi) <input type="number" id="offer-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
-                    <label>Drop-off flexibility radius (mi) <input type="number" id="offer-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Max pickup detour driving radius (mi) <input type="number" id="offer-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Max drop-off detour driving radius (mi) <input type="number" id="offer-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
                   </div>
 
                   <label>Date <input type="date" id="ride-date" required /></label>
@@ -762,6 +807,6 @@
       </footer>
     </div>
 
-    <script src="app.js?v=20260506-tracking-route"></script>
+    <script src="app.js?v=20260507-release-notes-newest-first"></script>
   </body>
 </html>

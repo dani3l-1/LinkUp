@@ -318,6 +318,7 @@ const rideFilterDateInput = document.getElementById('ride-filter-date');
 const rideFilterSeatsInput = document.getElementById('ride-filter-seats');
 const rideFilterMaxPriceInput = document.getElementById('ride-filter-max-price');
 const rideSortSelect = document.getElementById('ride-sort');
+const resetRideFiltersButton = document.getElementById('reset-ride-filters');
 const driverSeatLayout = document.getElementById('driver-seat-layout');
 const selectedSeatCount = document.getElementById('selected-seat-count');
 const vehicleSeatCountSelect = document.getElementById('vehicle-seat-count');
@@ -342,23 +343,30 @@ const VEHICLE_SEAT_LAYOUTS = {
   7: ['front_passenger', 'back_left', 'back_middle', 'back_right', 'third_left', 'third_right'],
 };
 
+let _googleMapsPromise = null;
+
 async function loadGoogleMapsAPI() {
-  try {
-    if (window.google?.maps) return;
-    const response = await fetch('/api/config/google-maps-key');
-    const config = await response.json();
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${config.apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-    return new Promise((resolve) => {
-      script.onload = resolve;
-      script.onerror = resolve;
-    });
-  } catch (error) {
-    console.error('Failed to load Google Maps API:', error);
-  }
+  if (window.google?.maps) return;
+  if (_googleMapsPromise) return _googleMapsPromise;
+  _googleMapsPromise = (async () => {
+    try {
+      const response = await fetch('/api/config/google-maps-key');
+      if (!response.ok) throw new Error('Failed to fetch Maps key: ' + response.status);
+      const config = await response.json();
+      if (!config.apiKey) throw new Error('No API key returned');
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${config.apiKey}&libraries=places`;
+      document.head.appendChild(script);
+      await new Promise((resolve, reject) => {
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Google Maps script failed to load'));
+      });
+    } catch (error) {
+      _googleMapsPromise = null;
+      console.error('Failed to load Google Maps API:', error);
+    }
+  })();
+  return _googleMapsPromise;
 }
 
 function initializeOriginMap() {
@@ -374,30 +382,32 @@ function initializeOriginMap() {
     fullscreenControl: false,
   });
   originMarker = new google.maps.Marker({ map: originMap, position: center, icon: makeOriginIcon() });
+  originSearchInput?.addEventListener('input', () => clearOfferLocationCoordinates('origin'));
+  wireTypedLocationLookup(originSearchInput, (result) => updateOriginLocation(result.name, result.lat, result.lng));
   originAutocomplete = new google.maps.places.Autocomplete(originSearchInput, { componentRestrictions: { country: 'us' } });
   originAutocomplete.addListener('place_changed', () => {
     const place = originAutocomplete.getPlace();
-    if (place.geometry) updateOriginLocation(place.name, place.geometry.location.lat(), place.geometry.location.lng());
-  });
-  originMapDiv.addEventListener('click', () => {
-    const lat = originMap.getCenter().lat();
-    const lng = originMap.getCenter().lng();
-    updateOriginLocation(`Location (${lat.toFixed(3)}, ${lng.toFixed(3)})`, lat, lng);
+    if (place.geometry) updateOriginLocation(place.name || originSearchInput.value, place.geometry.location.lat(), place.geometry.location.lng());
   });
 }
 
 function initializeDestinationMap() {
+  destinationSearchInput?.addEventListener('input', () => clearOfferLocationCoordinates('destination'));
+  wireTypedLocationLookup(destinationSearchInput, (result) => updateDestinationLocation(result.name, result.lat, result.lng));
   destinationAutocomplete = new google.maps.places.Autocomplete(destinationSearchInput, { componentRestrictions: { country: 'us' } });
   destinationAutocomplete.addListener('place_changed', () => {
     const place = destinationAutocomplete.getPlace();
-    if (place.geometry) updateDestinationLocation(place.name, place.geometry.location.lat(), place.geometry.location.lng());
+    if (place.geometry) updateDestinationLocation(place.name || destinationSearchInput.value, place.geometry.location.lat(), place.geometry.location.lng());
   });
 }
 
 
 function getLatLngFromInputs(latId, lngId) {
-  const lat = Number(document.getElementById(latId)?.value);
-  const lng = Number(document.getElementById(lngId)?.value);
+  const latValue = document.getElementById(latId)?.value;
+  const lngValue = document.getElementById(lngId)?.value;
+  if (latValue === undefined || lngValue === undefined || latValue === '' || lngValue === '') return null;
+  const lat = Number(latValue);
+  const lng = Number(lngValue);
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
@@ -553,10 +563,12 @@ function setRadiusLocation(input, place) {
 function initializeRadiusAutocomplete() {
   if (!window.google?.maps?.places) return;
   if (pickupRadiusLocationInput && !pickupRadiusAutocomplete) {
+    wireTypedLocationLookup(pickupRadiusLocationInput, (result) => setRadiusLocationFromGeocode(pickupRadiusLocationInput, result));
     pickupRadiusAutocomplete = new google.maps.places.Autocomplete(pickupRadiusLocationInput, { componentRestrictions: { country: 'us' } });
     pickupRadiusAutocomplete.addListener('place_changed', () => setRadiusLocation(pickupRadiusLocationInput, pickupRadiusAutocomplete.getPlace()));
   }
   if (dropoffRadiusLocationInput && !dropoffRadiusAutocomplete) {
+    wireTypedLocationLookup(dropoffRadiusLocationInput, (result) => setRadiusLocationFromGeocode(dropoffRadiusLocationInput, result));
     dropoffRadiusAutocomplete = new google.maps.places.Autocomplete(dropoffRadiusLocationInput, { componentRestrictions: { country: 'us' } });
     dropoffRadiusAutocomplete.addListener('place_changed', () => setRadiusLocation(dropoffRadiusLocationInput, dropoffRadiusAutocomplete.getPlace()));
   }
@@ -594,6 +606,49 @@ function geocodeAddress(address) {
   });
 }
 
+async function lookupTypedLocation(input, onResolved) {
+  const query = input?.value?.trim();
+  if (!query) return null;
+  await loadGoogleMapsAPI();
+  const result = await geocodeAddress(query);
+  if (result) onResolved(result);
+  return result;
+}
+
+function wireTypedLocationLookup(input, onResolved) {
+  if (!input || input.dataset.lookupWired === 'true') return;
+  input.dataset.lookupWired = 'true';
+  const lookup = () => lookupTypedLocation(input, onResolved);
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    lookup();
+  });
+  input.addEventListener('blur', () => lookup());
+}
+
+function clearOfferLocationCoordinates(kind) {
+  const lat = document.getElementById(kind + '-lat');
+  const lng = document.getElementById(kind + '-lng');
+  const hidden = document.getElementById(kind);
+  const selected = document.getElementById(kind + '-selected');
+  if (lat) lat.value = '';
+  if (lng) lng.value = '';
+  if (hidden) hidden.value = '';
+  if (selected) {
+    selected.textContent = '';
+    selected.classList.remove('active');
+  }
+}
+
+function setRadiusLocationFromGeocode(input, result) {
+  if (!input || !result) return;
+  input.value = result.name;
+  input.dataset.lat = String(result.lat);
+  input.dataset.lng = String(result.lng);
+  refreshActiveBrowse();
+}
+
 async function ensureRequestCoordinates() {
   await loadGoogleMapsAPI();
   initializeRequestAutocomplete();
@@ -622,11 +677,6 @@ function initializeRequestMaps() {
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
     requestOriginMarker = new google.maps.Marker({ map: requestOriginMap, position: center, icon: makeOriginIcon(), title: 'Pick-up' });
-    requestOriginMapDiv.addEventListener('click', () => {
-      const lat = requestOriginMap.getCenter().lat();
-      const lng = requestOriginMap.getCenter().lng();
-      updateRequestOriginLocation('Location (' + lat.toFixed(3) + ', ' + lng.toFixed(3) + ')', lat, lng);
-    });
   }
 }
 
@@ -637,6 +687,8 @@ function initializeRequestAutocomplete() {
   const requestDestinationInput = document.getElementById('request-destination');
   requestOriginInput?.addEventListener('input', () => clearRequestLocationCoordinates('origin'));
   requestDestinationInput?.addEventListener('input', () => clearRequestLocationCoordinates('destination'));
+  wireTypedLocationLookup(requestOriginInput, (result) => updateRequestOriginLocation(result.name, result.lat, result.lng));
+  wireTypedLocationLookup(requestDestinationInput, (result) => updateRequestDestinationLocation(result.name, result.lat, result.lng));
   if (requestOriginInput && !requestOriginAutocomplete) {
     requestOriginAutocomplete = new google.maps.places.Autocomplete(requestOriginInput, { componentRestrictions: { country: 'us' } });
     requestOriginAutocomplete.addListener('place_changed', () => {
@@ -1262,6 +1314,7 @@ function restoreAppRoute() {
     else if (route === 'profile-payment') showProfilePage('payment');
     else if (route === 'profile-payouts') showProfilePage('payouts');
     else if (route === 'profile-policies') showProfilePage('policies');
+    else if (route === 'profile-release-notes') showProfilePage('release-notes');
     else if (route === 'profile') showProfilePage('info');
     else if (route === 'browse-driver') {
       showDashboardHome();
@@ -2114,7 +2167,7 @@ function updateBrowseRadiusMap(items = []) {
     if (!browsePickupMarker) browsePickupMarker = new google.maps.Marker({ map, icon: makeOriginIcon(), title: browseRole === 'driver' ? 'Your willing pickup area' : 'Your pickup area' });
     browsePickupMarker.setMap(map);
     browsePickupMarker.setPosition(pickupCenter);
-    browsePickupMarker.setTitle(browseRole === 'driver' ? 'Your willing pickup area' : 'Your pickup area');
+    browsePickupMarker.setTitle(browseRole === 'driver' ? 'Driver pickup detour area' : 'How far you will walk to pickup');
   } else if (browsePickupMarker) {
     browsePickupMarker.setMap(null);
   }
@@ -2124,7 +2177,7 @@ function updateBrowseRadiusMap(items = []) {
     if (!browseDropoffMarker) browseDropoffMarker = new google.maps.Marker({ map, icon: makeDestinationIcon(), title: browseRole === 'driver' ? 'Your willing drop-off area' : 'Your desired destination' });
     browseDropoffMarker.setMap(map);
     browseDropoffMarker.setPosition(dropoffCenter);
-    browseDropoffMarker.setTitle(browseRole === 'driver' ? 'Your willing drop-off area' : 'Your desired destination');
+    browseDropoffMarker.setTitle(browseRole === 'driver' ? 'Driver drop-off detour area' : 'How far you will walk from drop-off');
   } else if (browseDropoffMarker) {
     browseDropoffMarker.setMap(null);
   }
@@ -2155,12 +2208,12 @@ function updateBrowseRadiusMap(items = []) {
   let hintText = '';
   if (sortedItems.length) {
     if (browseRole === 'rider') {
-      hintText = '⊙ your pickup · ◎ your destination · pins A B C… = rides by nearest drop-off · purple = ride routes';
+      hintText = 'Teal circle = how far you will walk to pickup · Blue circle = how far you will walk from drop-off · pins A B C… = rides';
     } else {
-      hintText = '⊙ your pickup radius · ◎ your drop-off radius · pins A B C… = rider requests · purple = requested routes';
+      hintText = 'Teal circle = pickup detour you will drive · Blue circle = drop-off detour you will drive · pins A B C… = rider requests';
     }
   } else if (hasPickupRadius || hasDropoffRadius) {
-    hintText = 'Teal circle = pickup radius · Blue circle = drop-off radius';
+    hintText = browseRole === 'driver' ? 'Teal circle = pickup detour you will drive · Blue circle = drop-off detour you will drive' : 'Teal circle = how far you will walk to pickup · Blue circle = how far you will walk from drop-off';
   }
   if (browseMapHintPanel) browseMapHintPanel.textContent = hintText;
   if (browseMapHint) {
@@ -2244,11 +2297,14 @@ function sortVisibleRides(rides) {
 }
 
 
-function getFlexRadiusMarkup(item) {
+function getFlexRadiusMarkup(item, mode = 'driver') {
   const pickup = Number(item.pickupRadiusMiles || 0);
   const dropoff = Number(item.dropoffRadiusMiles || 0);
   if (!(pickup > 0) && !(dropoff > 0)) return '';
-  return '<div><strong>Flex radius:</strong> Pickup ' + esc(pickup > 0 ? formatMiles(pickup) : 'Exact') + ' · Drop-off ' + esc(dropoff > 0 ? formatMiles(dropoff) : 'Exact') + '</div>';
+  const label = mode === 'rider' ? 'Walking radius' : 'Driver detour radius';
+  const pickupLabel = mode === 'rider' ? 'To pickup ' : 'Pickup detour ';
+  const dropoffLabel = mode === 'rider' ? 'From drop-off ' : 'Drop-off detour ';
+  return '<div><strong>' + label + ':</strong> ' + pickupLabel + esc(pickup > 0 ? formatMiles(pickup) : 'Exact') + ' · ' + dropoffLabel + esc(dropoff > 0 ? formatMiles(dropoff) : 'Exact') + '</div>';
 }
 
 function esc(str) {
@@ -2263,7 +2319,7 @@ function renderRideCard(ride) {
   if (pinInfo) {
     const pinBadge = document.createElement('div');
     pinBadge.className = 'browse-ride-pin-badge';
-    const pickupPart = pinInfo.pickupDistance !== null && pinInfo.pickupDistance !== undefined ? formatMiles(pinInfo.pickupDistance) + ' from your pickup' : '';
+    const pickupPart = pinInfo.pickupDistance !== null && pinInfo.pickupDistance !== undefined ? formatMiles(pinInfo.pickupDistance) + ' from your pickup point' : '';
     const dropoffPart = pinInfo.dropoffDistance !== null && pinInfo.dropoffDistance !== undefined ? formatMiles(pinInfo.dropoffDistance) + ' from your destination' : '';
     const distParts = [pickupPart, dropoffPart].filter(Boolean).join(' · ');
     pinBadge.innerHTML = '<span class="request-pin-label">' + esc(pinInfo.label) + '</span><span>Pin ' + esc(pinInfo.label) + (distParts ? ' · ' + esc(distParts) : '') + '</span>';
@@ -2279,7 +2335,7 @@ function renderRideCard(ride) {
     <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
     <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
     <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>
-    ${getFlexRadiusMarkup(ride)}
+    ${getFlexRadiusMarkup(ride, 'driver')}
     ${getCoordinateMarkup(ride)}
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
@@ -2625,8 +2681,8 @@ function buildRequestSummary(request) {
   if (pinInfo) {
     const pinBadge = document.createElement('div');
     pinBadge.className = 'browse-ride-pin-badge';
-    const pickupPart = pinInfo.pickupDistance !== null && pinInfo.pickupDistance !== undefined ? formatMiles(pinInfo.pickupDistance) + ' from your pickup radius' : '';
-    const dropoffPart = pinInfo.dropoffDistance !== null && pinInfo.dropoffDistance !== undefined ? formatMiles(pinInfo.dropoffDistance) + ' from your drop-off radius' : '';
+    const pickupPart = pinInfo.pickupDistance !== null && pinInfo.pickupDistance !== undefined ? formatMiles(pinInfo.pickupDistance) + ' from your pickup detour center' : '';
+    const dropoffPart = pinInfo.dropoffDistance !== null && pinInfo.dropoffDistance !== undefined ? formatMiles(pinInfo.dropoffDistance) + ' from your drop-off detour center' : '';
     const distParts = [pickupPart, dropoffPart].filter(Boolean).join(' · ');
     pinBadge.innerHTML = '<span class="request-pin-label">' + esc(pinInfo.label) + '</span><span>Pin ' + esc(pinInfo.label) + (distParts ? ' · ' + esc(distParts) : '') + '</span>';
     container.appendChild(pinBadge);
@@ -2643,7 +2699,7 @@ function buildRequestSummary(request) {
     <div><strong>Rider:</strong> ${esc(request.riderFirstName || 'Student')} ${esc(request.riderLastName || '')}</div>
     <div><strong>School:</strong> ${esc(request.university || 'Unknown school')}</div>
     <div><strong>Preference:</strong> ${request.sameGenderDriverOnly ? 'Same gender driver only' : 'Open to all drivers'}</div>
-    ${getFlexRadiusMarkup(request)}
+    ${getFlexRadiusMarkup(request, 'rider')}
     ${getCoordinateMarkup(request)}
     <div><strong>Requested time:</strong> ${esc(requestTime)}</div>
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(request.estimatedDurationMinutes))}</div>
@@ -2876,6 +2932,7 @@ function clearBrowseFilters() {
   rideFilterDateInput.value = '';
   rideFilterSeatsInput.value = '';
   rideFilterMaxPriceInput.value = '';
+  rideSortSelect.value = 'soonest';
   pickupRadiusLocationInput.value = '';
   dropoffRadiusLocationInput.value = '';
   delete pickupRadiusLocationInput.dataset.lat;
@@ -2925,15 +2982,15 @@ function showRiderBrowse() {
     }, 100);
   });
   browseTitle.textContent = 'Browse available rides';
-  browseSubtitle.textContent = 'Search, filter, and sort driver seat offers from the LinkUp college network.';
+  browseSubtitle.textContent = 'Find rides by how far you are willing to walk to the pickup and from the drop-off.';
   browseSearchLabel.firstChild.textContent = 'Search destination or meetup';
-  pickupLocationLabel.firstChild.textContent = 'Your pick-up area ';
-  pickupRadiusLabel.firstChild.textContent = 'Pick-up radius (mi) ';
-  dropoffLocationLabel.firstChild.textContent = 'Your drop-off area ';
-  dropoffRadiusLabel.firstChild.textContent = 'Drop-off radius (mi) ';
+  pickupLocationLabel.firstChild.textContent = 'Where you are starting from ';
+  pickupRadiusLabel.firstChild.textContent = 'Max walk to pick-up (mi) ';
+  dropoffLocationLabel.firstChild.textContent = 'Your final destination area ';
+  dropoffRadiusLabel.firstChild.textContent = 'Max walk from drop-off (mi) ';
   rideSearchInput.placeholder = 'Where do you want to go?';
-  pickupRadiusLocationInput.placeholder = 'Where can you be picked up?';
-  dropoffRadiusLocationInput.placeholder = 'Where do you want to be dropped off?';
+  pickupRadiusLocationInput.placeholder = 'Where are you starting from?';
+  dropoffRadiusLocationInput.placeholder = 'Where is your final destination?';
   browseControls.classList.remove('hidden');
   browseResultsTitle.textContent = 'Available rides';
   loadRides();
@@ -2953,15 +3010,15 @@ function showDriverBrowse() {
     }, 100);
   });
   browseTitle.textContent = 'Browse requested rides';
-  browseSubtitle.textContent = 'Review student ride requests from the LinkUp college network.';
+  browseSubtitle.textContent = 'Find rider requests by how far you are willing to drive for pickup and drop-off.';
   browseSearchLabel.firstChild.textContent = 'Search requested route';
-  pickupLocationLabel.firstChild.textContent = 'Your willing pick-up area ';
-  pickupRadiusLabel.firstChild.textContent = 'Willing pick-up radius (mi) ';
-  dropoffLocationLabel.firstChild.textContent = 'Your willing drop-off area ';
-  dropoffRadiusLabel.firstChild.textContent = 'Willing drop-off radius (mi) ';
+  pickupLocationLabel.firstChild.textContent = 'Pickup detour center ';
+  pickupRadiusLabel.firstChild.textContent = 'Max drive to pick up rider (mi) ';
+  dropoffLocationLabel.firstChild.textContent = 'Drop-off detour center ';
+  dropoffRadiusLabel.firstChild.textContent = 'Max drive to drop off rider (mi) ';
   rideSearchInput.placeholder = 'Search rider request';
-  pickupRadiusLocationInput.placeholder = 'Where are you willing to pick up?';
-  dropoffRadiusLocationInput.placeholder = 'Where are you willing to drop off?';
+  pickupRadiusLocationInput.placeholder = 'Where can you drive to pick up riders?';
+  dropoffRadiusLocationInput.placeholder = 'Where can you drive to drop riders off?';
   browseControls.classList.remove('hidden');
   browseResultsTitle.textContent = 'Requested rides';
   loadRideRequests();
@@ -3351,6 +3408,10 @@ function refreshActiveBrowse() {
   });
 });
 rideSortSelect.addEventListener('change', () => refreshActiveBrowse());
+resetRideFiltersButton?.addEventListener('click', () => {
+  clearBrowseFilters();
+  refreshActiveBrowse();
+});
 [offerPickupRadiusInput, offerDropoffRadiusInput].forEach((input) => input?.addEventListener('input', updateOfferRouteMap));
 [requestPickupRadiusInput, requestDropoffRadiusInput].forEach((input) => input?.addEventListener('input', updateRequestRouteMap));
 

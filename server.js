@@ -1415,7 +1415,10 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting
-app.get('/api/config/google-maps-key', requireAuth, (req, res) => {
+app.get('/api/config/google-maps-key', (req, res) => {
+  if (!GOOGLE_MAPS_API_KEY) {
+    return res.status(503).json({ error: 'Google Maps API key is not configured' });
+  }
   res.json({ apiKey: GOOGLE_MAPS_API_KEY });
 });
 
