@@ -21,8 +21,8 @@ if (!SESSION_SECRET) {
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
-const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.1';
-const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.1';
+const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.8';
+const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.8';
 const CAR_SEATS = [
   { id: 'front_passenger', label: 'Front passenger' },
   { id: 'back_left', label: 'Back left' },
@@ -621,8 +621,22 @@ function userNeedsPolicyConsent(user) {
   return user.termsVersion !== REQUIRED_TERMS_VERSION || user.privacyVersion !== REQUIRED_PRIVACY_VERSION;
 }
 
+function getMissingRequiredSettings(user) {
+  const missing = [];
+  if (!String(user.firstName || '').trim()) missing.push({ key: 'firstName', label: 'First name', profileTab: 'info' });
+  if (!String(user.lastName || '').trim()) missing.push({ key: 'lastName', label: 'Last name', profileTab: 'info' });
+  if (!String(user.birthday || '').trim()) missing.push({ key: 'birthday', label: 'Birthday', profileTab: 'info' });
+  if (!normalizeGender(user.gender)) missing.push({ key: 'gender', label: 'Gender', profileTab: 'info' });
+  return missing;
+}
+
+function userNeedsRequiredSettings(user) {
+  return getMissingRequiredSettings(user).length > 0;
+}
+
 function publicUser(user) {
   const fallbackName = user.name || user.email.split('@')[0];
+  const missingRequiredSettings = getMissingRequiredSettings(user);
   return {
     id: user.id,
     firstName: user.firstName || fallbackName,
@@ -644,6 +658,8 @@ function publicUser(user) {
     requiredTermsVersion: REQUIRED_TERMS_VERSION,
     requiredPrivacyVersion: REQUIRED_PRIVACY_VERSION,
     requiresPolicyConsent: userNeedsPolicyConsent(user),
+    missingRequiredSettings,
+    requiresRequiredSettings: missingRequiredSettings.length > 0,
   };
 }
 
@@ -693,10 +709,18 @@ function requireServiceAccess(req, res, next) {
   }
   if (userNeedsPolicyConsent(user)) {
     return res.status(403).json({
-      error: 'Please review and agree to the latest Terms of Service and Privacy Notice in your profile before using LinkUp services.',
+      error: 'Please review and agree to the latest Terms and Conditions and Privacy Notice in your profile before using LinkUp services.',
       code: 'POLICY_CONSENT_REQUIRED',
       requiredTermsVersion: REQUIRED_TERMS_VERSION,
       requiredPrivacyVersion: REQUIRED_PRIVACY_VERSION,
+    });
+  }
+  const missingRequiredSettings = getMissingRequiredSettings(user);
+  if (missingRequiredSettings.length) {
+    return res.status(403).json({
+      error: 'Please complete your required profile settings before using LinkUp ride services: ' + missingRequiredSettings.map((setting) => setting.label).join(', ') + '.',
+      code: 'REQUIRED_SETTINGS_INCOMPLETE',
+      missingRequiredSettings,
     });
   }
   next();
@@ -907,7 +931,7 @@ app.post('/api/auth/signup', async (req, res) => {
     return res.status(400).json({ error: 'All fields are required' });
   }
   if (req.body.termsAccepted !== true || req.body.privacyAccepted !== true) {
-    return res.status(400).json({ error: 'You must agree to the Terms of Service and Privacy Policy before creating an account' });
+    return res.status(400).json({ error: 'You must agree to the Terms and Conditions and Privacy Notice before creating an account' });
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -1172,8 +1196,20 @@ app.put('/api/profile', requireAuth, (req, res) => {
   const requestedGender = req.body.gender === undefined ? user.gender || '' : normalizeGender(req.body.gender);
   const requestedEmail = req.body.email === undefined ? user.email : normalizeEmail(req.body.email);
 
-  if (requestedBirthday !== (user.birthday || '') || requestedGender !== (user.gender || '') || requestedEmail !== user.email) {
+  if (requestedEmail !== user.email) {
     return res.status(400).json({ error: 'Birthday, gender, and university email cannot be changed in profile settings' });
+  }
+  if (user.birthday && requestedBirthday !== user.birthday) {
+    return res.status(400).json({ error: 'Birthday cannot be changed in profile settings' });
+  }
+  if (user.gender && requestedGender !== user.gender) {
+    return res.status(400).json({ error: 'Gender cannot be changed in profile settings' });
+  }
+  if (!requestedBirthday) {
+    return res.status(400).json({ error: 'Birthday is required' });
+  }
+  if (!requestedGender) {
+    return res.status(400).json({ error: 'Gender is required' });
   }
 
   const nameChanged = firstName !== (user.firstName || '') || middleName !== (user.middleName || '') || lastName !== (user.lastName || '');
@@ -1190,6 +1226,8 @@ app.put('/api/profile', requireAuth, (req, res) => {
     user.lastName = lastName;
     user.nameLastChangedAt = new Date().toISOString();
   }
+  if (!user.birthday) user.birthday = requestedBirthday;
+  if (!user.gender) user.gender = requestedGender;
   user.updatedAt = new Date().toISOString();
 
   (db.rides || []).forEach((ride) => {
@@ -1230,7 +1268,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
 
 app.put('/api/profile/policies', requireAuth, (req, res) => {
   if (req.body.termsAccepted !== true || req.body.privacyAccepted !== true) {
-    return res.status(400).json({ error: 'You must agree to the latest Terms of Service and Privacy Notice' });
+    return res.status(400).json({ error: 'You must agree to the latest Terms and Conditions and Privacy Notice' });
   }
 
   const db = normalizeUserAccess(loadDb());
@@ -1251,7 +1289,7 @@ app.put('/api/profile/policies', requireAuth, (req, res) => {
   res.json(publicUser(user));
 });
 
-app.put('/api/profile/payment-method', requireAuth, requireServiceAccess, (req, res) => {
+app.put('/api/profile/payment-method', requireAuth, (req, res) => {
   const paymentValidation = validatePayment({
     name: req.body.name,
     cardNumber: req.body.cardNumber,
@@ -1856,7 +1894,7 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
   const { rideId } = req.params;
   const seatId = String(req.body.seatId || '').trim();
   if (req.body.termsAccepted !== true) {
-    return res.status(400).json({ error: 'You must agree to the Terms of Service before joining this ride' });
+    return res.status(400).json({ error: 'You must agree to the Terms and Conditions before joining this ride' });
   }
 
   const db = loadDb();
@@ -2004,7 +2042,7 @@ function reserveCartRides(db, student, cartEntries) {
   const ridesToReserve = [];
   for (const entry of cartEntries) {
     if (!entry.termsAcceptedAt) {
-      return { error: 'Please agree to the Terms of Service again before checkout' };
+      return { error: 'Please agree to the Terms and Conditions again before checkout' };
     }
     const ride = db.rides.find((r) => r.id === entry.rideId);
     const reserveError = canStudentReserveRide(student, ride, entry.seatId, db);
@@ -2083,7 +2121,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
 
   const checkoutRides = [];
   for (const entry of cartEntries) {
-    if (!entry.termsAcceptedAt) return res.status(400).json({ error: 'Please agree to the Terms of Service again before checkout' });
+    if (!entry.termsAcceptedAt) return res.status(400).json({ error: 'Please agree to the Terms and Conditions again before checkout' });
     const ride = db.rides.find((r) => r.id === entry.rideId);
     const reserveError = canStudentReserveRide(student, ride, entry.seatId, db);
     if (reserveError) return res.status(400).json({ error: reserveError });
@@ -2153,7 +2191,7 @@ app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   const { rideId } = req.params;
   const seatId = String(req.body.seatId || '').trim();
   if (req.body.termsAccepted !== true) {
-    return res.status(400).json({ error: 'You must agree to the Terms of Service before adding this ride' });
+    return res.status(400).json({ error: 'You must agree to the Terms and Conditions before adding this ride' });
   }
   const db = loadDb();
   const student = db.users.find((u) => u.id === req.session.userId);

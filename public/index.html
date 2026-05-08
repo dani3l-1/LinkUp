@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="styles.css?v=20260507-release-notes-newest-first" />
   </head>
   <body>
+    <a href="#main-content" class="skip-link">Skip to content</a>
+    <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
     <div id="ride-transition" class="ride-transition hidden" aria-hidden="true">
       <div class="ride-transition-map">
         <div class="ride-transition-road"></div>
@@ -26,7 +28,7 @@
         </div>
       </header>
 
-      <main>
+      <main id="main-content">
 
         <!-- ── Auth ──────────────────────────────────────────── -->
         <section id="auth-section" class="card">
@@ -75,11 +77,11 @@
             </div>
             <label class="checkbox-label terms-agreement signup-consent">
               <input type="checkbox" id="signup-terms-agree" required />
-              I agree to LinkUp's Terms of Service.
+              I agree to LinkUp's Terms and Conditions.
             </label>
             <label class="checkbox-label terms-agreement signup-consent">
               <input type="checkbox" id="signup-privacy-agree" required />
-              I agree to LinkUp's Privacy Policy.
+              I agree to LinkUp's Privacy Notice.
             </label>
             <button type="submit">Create Account</button>
             <div id="signup-error" class="error-message"></div>
@@ -197,11 +199,13 @@
                           <option value="">Select gender</option>
                           <option value="male">Male</option>
                           <option value="female">Female</option>
+                          <option value="nonbinary">Non-binary</option>
+                          <option value="prefer-not-to-say">Prefer not to say</option>
                         </select>
                       </label>
                       <label>University Email <input type="email" id="profile-email" disabled /></label>
                     </div>
-                    <p class="profile-note">Birthday, gender, and university email cannot be changed. Name changes are limited to once every 6 months.</p>
+                    <p class="profile-note">Birthday and gender can be added if missing, then cannot be changed. University email cannot be changed. Name changes are limited to once every 6 months.</p>
                     <button type="submit">Save Profile</button>
                     <div id="profile-message" class="success-message"></div>
                     <div id="profile-error" class="error-message"></div>
@@ -239,14 +243,14 @@
                       </div>
                       <div id="policy-version-summary" class="payout-note"></div>
                       <div class="policy-release-actions">
-                        <button id="policy-terms-button" type="button">View Terms of Service</button>
-                        <button id="policy-privacy-button" type="button">View Privacy Policy</button>
+                        <button id="policy-terms-button" type="button">View Terms and Conditions</button>
+                        <button id="policy-privacy-button" type="button">View Privacy Notice</button>
                         <button id="policy-collapse-button" type="button" class="hidden">Back to policy agreement</button>
                       </div>
                       <div id="policy-scrollbox" class="policy-scrollbox" tabindex="0" aria-label="Latest LinkUp policy updates">
                         <section>
                           <h5>Service access</h5>
-                          <p>LinkUp ride services require an approved university account, verified email, and agreement to the latest Terms of Service and Privacy Notice.</p>
+                          <p>LinkUp ride services require an approved university account, verified email, and agreement to the latest Terms and Conditions and Privacy Notice.</p>
                         </section>
                         <section>
                           <h5>Ride safety</h5>
@@ -262,41 +266,47 @@
                         </section>
                         <section>
                           <h5>Privacy notice</h5>
-                          <p>LinkUp uses account, university, ride, chat, payment summary, payout, and location-related information to run the service. Sensitive details should be limited to what is needed for the app to function.</p>
+                          <p>LinkUp uses account, university, ride, session, usage, device, payment summary, payout, and manually entered ride-location information to run the service, protect users, process rides, and support legal compliance.</p>
                         </section>
                         <section class="policy-full-only policy-terms-full">
-                          <h5>Terms of Service</h5>
-                          <p>These Terms are a starter template for LinkUp and should be reviewed by a qualified attorney before real users, payments, or public launch.</p>
-                          <h5>Service role</h5>
-                          <p>LinkUp is a student ride marketplace that helps users offer, request, reserve, and coordinate rides. LinkUp is not the driver, transportation carrier, insurer, or employer of drivers.</p>
-                          <h5>User responsibilities</h5>
-                          <p>Users must provide accurate information, use their own university email, obey applicable laws, respect other users, and avoid unsafe, fraudulent, harassing, or illegal conduct.</p>
+                          <h5>Terms and Conditions</h5>
+                          <p>Effective Date: May 8, 2026. By accessing or using LinkUp, you agree to be bound by these Terms and Conditions. If you do not agree, you may not access or use the Service.</p>
+                          <h5>Eligibility</h5>
+                          <p>You must be a currently enrolled student, faculty member, or staff at an accredited university or higher education institution, use a valid university email address, be at least 18 years old, and keep your account information accurate.</p>
+                          <h5>Nature of the Service</h5>
+                          <p>LinkUp is a peer-to-peer ride coordination platform only. It does not provide transportation services, employ drivers, own vehicles, operate as a taxi service, or act as a common carrier.</p>
                           <h5>Driver responsibilities</h5>
-                          <p>Drivers are responsible for legal driving eligibility, safe operation, accurate ride details, vehicle condition, insurance, license plate accuracy, honoring paid seats, and complying with all laws and school rules.</p>
-                          <h5>Rider responsibilities</h5>
-                          <p>Riders are responsible for choosing rides carefully, arriving on time, paying required amounts, respecting drivers and other riders, and using safety tools when appropriate.</p>
-                          <h5>Payments and payouts</h5>
-                          <p>Driver-set ride prices may include LinkUp commission. Payment and payout flows must use approved payment providers before production. LinkUp may withhold or reverse payouts for fraud, disputes, cancellations, or safety issues.</p>
-                          <h5>Safety and liability</h5>
-                          <p>Rides involve real-world risk. Users agree to use the service at their own risk to the fullest extent allowed by law. LinkUp should obtain legal and insurance advice before public launch.</p>
-                          <h5>Account limits</h5>
-                          <p>LinkUp may suspend accounts, remove listings, disable chats, or restrict access to protect users, enforce these Terms, or comply with law.</p>
+                          <p>Drivers must hold a valid license, use a roadworthy, registered, adequately insured vehicle, comply with traffic laws, avoid impaired driving, verify insurance coverage for ride-sharing or carpooling, and treat passengers with respect.</p>
+                          <h5>Passenger responsibilities</h5>
+                          <p>Passengers acknowledge rides are offered by private individuals, behave safely and respectfully, accept that drivers may cancel or refuse rides at their discretion, and arrive at the agreed pickup location on time.</p>
+                          <h5>All user responsibilities</h5>
+                          <p>Users must not use the App unlawfully, post false or fraudulent ride listings, harass or harm others, bypass security features, impersonate others, solicit commercial transportation, harvest personal data, introduce harmful code, or scrape the Service.</p>
+                          <h5>Payments, fees, and cost-sharing</h5>
+                          <p>Payments are voluntary cost-sharing contributions, not commercial fares. LinkUp may facilitate driver payouts after ride completion, less any service commission. Payment and payout details are processed by third-party payment processors and are not stored as full card, CVV, bank account, or routing numbers by LinkUp.</p>
+                          <h5>Liability, warranties, and indemnification</h5>
+                          <p>LinkUp limits liability to the maximum extent permitted by law, provides the Service "as is" and "as available," and requires users to indemnify LinkUp for claims connected with their use of the Service, violation of the Terms, third-party rights, rides offered or joined, or submitted content.</p>
+                          <h5>Termination and disputes</h5>
+                          <p>LinkUp may suspend or terminate accounts at any time. The Terms are governed by the laws of England and Wales or, for U.S.-based users, the laws of the state in which LinkUp is registered. Disputes first go to good-faith negotiation and, if unresolved after 30 days, binding arbitration or courts of competent jurisdiction at LinkUp's election.</p>
+                          <h5>Contact</h5>
+                          <p>For questions about these Terms, contact ridewlinkup@gmail.com.</p>
                         </section>
                         <section class="policy-full-only policy-privacy-full">
-                          <h5>Privacy Policy</h5>
-                          <p>This Privacy Policy explains how LinkUp collects, uses, protects, and deletes information in this student ride-sharing prototype. Have a qualified attorney review this before launch.</p>
-                          <h5>Information we collect</h5>
-                          <p>We collect account details, university email verification details, ride and request details, approximate and exact trip coordinates, reserved seats, ride chats, driver ratings, live trip tracking locations, vehicle details, masked payment method details, and driver payout contact details.</p>
-                          <h5>How we use information</h5>
-                          <p>We use information to verify student access, match riders and drivers, reserve seats, process payments, support safety features, send account emails, show ride history, prevent abuse, and operate the service.</p>
-                          <h5>Sensitive information</h5>
-                          <p>License plates are intended to be visible only to confirmed riders. Live location is intended for active trip safety sharing. Payment cards and payout bank details should be handled by Stripe in production, not stored directly by LinkUp.</p>
-                          <h5>Retention</h5>
-                          <p>LinkUp should keep sensitive data only as long as needed for safety, payments, dispute handling, legal compliance, and app operations. Users should be able to request account or data deletion before production launch.</p>
-                          <h5>Security</h5>
-                          <p>We use password hashing, session cookies, access checks, rate limits, safer response headers, and limited storage of payment data. No system is perfectly secure, and production launch requires a real database, HTTPS, monitoring, backups, and incident response procedures.</p>
-                          <h5>Contact</h5>
-                          <p>For privacy questions or deletion requests, contact the LinkUp operator at the support email listed by the app owner.</p>
+                          <h5>Privacy Notice</h5>
+                          <p>Effective Date: May 8, 2026. This Privacy Notice explains how LinkUp collects, uses, stores, and shares personal data when you use the LinkUp application and related services.</p>
+                          <h5>Data we collect</h5>
+                          <p>We collect account information, profile payment and payout summaries, ride data, communications, session data, usage data, and device/browser information. Passwords are stored as cryptographic hashes, never in plain text.</p>
+                          <h5>Data we do not collect</h5>
+                          <p>We do not store full payment card numbers, CVV codes, bank account numbers, or routing numbers. We do not collect real-time GPS location from your device, biometric data, government-issued ID, or GDPR Article 9 sensitive personal data.</p>
+                          <h5>How we use data</h5>
+                          <p>We use personal data for account creation and authentication, matching riders with rides, driver payouts, security, fraud prevention, rate-limiting, service improvement, and legal compliance. We do not use data for automated decision-making or profiling with legal or similarly significant effects without explicit consent.</p>
+                          <h5>Data sharing</h5>
+                          <p>We do not sell personal data. We may share limited data with other verified users, payment processors, hosting/security/analytics service providers, legal authorities where required, or a successor entity in a business transfer, subject to appropriate protections.</p>
+                          <h5>Retention and security</h5>
+                          <p>We retain data while accounts are active or as needed for the Service, legal obligations, security, dispute resolution, and payout processing. We use bcrypt or equivalent password hashing, secure session-cookie settings, HTTPS, rate limits, request-size restrictions, and secure response headers.</p>
+                          <h5>Cookies and rights</h5>
+                          <p>LinkUp uses strictly necessary session cookies and does not use advertising cookies, third-party tracking pixels, or behavioural analytics cookies. Depending on location, users may have rights to access, rectify, delete, restrict, port, object to processing, withdraw consent, and exercise CCPA rights.</p>
+                          <h5>Contact and complaints</h5>
+                          <p>To exercise privacy rights or ask questions, contact ridewlinkup@gmail.com.</p>
                         </section>
                         <section>
                           <h5>Required profile features</h5>
@@ -304,14 +314,14 @@
                         </section>
                         <section>
                           <h5>Ready to continue</h5>
-                          <p>You have reached the end of the update notes. Check both boxes below to confirm that you agree to the latest Terms of Service and Privacy Notice.</p>
+                          <p>You have reached the end of the update notes. Check both boxes below to confirm that you agree to the latest Terms and Conditions and Privacy Notice.</p>
                         </section>
                       </div>
                       <p id="policy-scroll-hint" class="policy-scroll-hint">Scroll to the bottom to unlock the agreement button.</p>
                     </div>
                     <label class="checkbox-label terms-agreement">
                       <input type="checkbox" id="profile-terms-agree" required />
-                      I agree to the latest LinkUp Terms of Service.
+                      I agree to the latest LinkUp Terms and Conditions.
                     </label>
                     <label class="checkbox-label terms-agreement">
                       <input type="checkbox" id="profile-privacy-agree" required />
@@ -325,6 +335,28 @@
                 <div id="profile-release-notes-panel" class="profile-panel hidden" data-profile-panel="release-notes">
                   <div class="release-note-card release-note-single">
                     <div class="release-note-feed" aria-label="Release notes newest first">
+                      <section class="release-note-entry">
+                        <div class="release-note-version">v2026.05.9</div>
+                        <div class="release-note-features">
+                          <h4>Policy and profile access</h4>
+                          <ul>
+                            <li>Added a required identity-settings gate for missing name, birthday, or gender before ride services unlock.</li>
+                            <li>Allowed legacy accounts to add missing birthday or gender once, then lock those fields.</li>
+                            <li>Removed default payment method from required settings so riders can use services without saving a card first.</li>
+                            <li>Improved policy and required-settings routing so users are sent to the exact Profile tab they need.</li>
+                          </ul>
+                        </div>
+                      </section>
+                      <section class="release-note-entry">
+                        <div class="release-note-version">v2026.05.8</div>
+                        <div class="release-note-features">
+                          <h4>Policy update</h4>
+                          <ul>
+                            <li>Updated LinkUp's Terms and Conditions and Privacy Notice with the May 8, 2026 versions.</li>
+                            <li>Existing users must review and accept the latest policies before using ride services.</li>
+                          </ul>
+                        </div>
+                      </section>
                       <section class="release-note-entry">
                         <div class="release-note-version">v2026.05.3</div>
                         <div class="release-note-features">
@@ -354,7 +386,7 @@
                           <h4>Features</h4>
                           <ul>
                             <li>Added Track My Trip route sharing with rider location on the same map.</li>
-                            <li>Added policy agreement flow for Terms of Service and Privacy Notice updates.</li>
+                            <li>Added policy agreement flow for Terms and Conditions and Privacy Notice updates.</li>
                             <li>Added profile payment method and driver payout sections.</li>
                             <li>Added requested rides, ride history, chat, driver ratings, and seat reservations.</li>
                           </ul>
@@ -732,52 +764,191 @@
         <section id="privacy-page" class="card legal-page hidden">
           <div class="cart-header">
             <div>
-              <h3>Privacy Policy</h3>
-              <p>Last updated: May 5, 2026</p>
+              <h3>Privacy Notice</h3>
+              <p>Effective Date: May 8, 2026</p>
             </div>
             <button class="legal-back" type="button">Return to browse rides</button>
           </div>
           <div class="legal-content">
-            <p>This Privacy Policy explains how LinkUp collects, uses, protects, and deletes information in this student ride-sharing prototype. Have a qualified attorney review this before launch.</p>
-            <h4>Information we collect</h4>
-            <p>We collect account details, university email verification details, ride and request details, approximate and exact trip coordinates, reserved seats, ride chats, driver ratings, live trip tracking locations, vehicle details, masked payment method details, and driver payout contact details.</p>
-            <h4>How we use information</h4>
-            <p>We use information to verify student access, match riders and drivers, reserve seats, process payments, support safety features, send account emails, show ride history, prevent abuse, and operate the service.</p>
-            <h4>Sensitive information</h4>
-            <p>License plates are intended to be visible only to confirmed riders. Live location is intended for active trip safety sharing. Payment cards and payout bank details should be handled by Stripe in production, not stored directly by LinkUp.</p>
-            <h4>Retention</h4>
-            <p>LinkUp should keep sensitive data only as long as needed for safety, payments, dispute handling, legal compliance, and app operations. Users should be able to request account or data deletion before production launch.</p>
-            <h4>Security</h4>
-            <p>We use password hashing, session cookies, access checks, rate limits, safer response headers, and limited storage of payment data. No system is perfectly secure, and production launch requires a real database, HTTPS, monitoring, backups, and incident response procedures.</p>
-            <h4>Contact</h4>
-            <p>For privacy questions or deletion requests, contact the LinkUp operator at the support email listed by the app owner.</p>
+            <h4>1. Introduction</h4>
+            <p>This Privacy Notice explains how LinkUp ("we," "us," "our") collects, uses, stores, and shares your personal data when you use the LinkUp application and related services. We are committed to protecting your privacy and handling your data in accordance with applicable data protection laws, including the UK GDPR / EU GDPR and, where applicable, the California Consumer Privacy Act (CCPA).</p>
+            <p>Please read this Notice carefully. By using the App, you acknowledge you have read and understood how we handle your data.</p>
+            <h4>2. Data We Collect</h4>
+            <h4>2.1 Data You Provide</h4>
+            <ul>
+              <li>Account information: name, university email address, password stored as a cryptographic hash - never in plain text.</li>
+              <li>Profile information: payout method/contact details saved by drivers; masked payment card details saved by passengers.</li>
+              <li>Ride data: pickup and drop-off location coordinates, travel date and time, available seats, and any notes attached to a listing.</li>
+              <li>Communications: messages or support requests you send to us.</li>
+            </ul>
+            <h4>2.2 Data Collected Automatically</h4>
+            <ul>
+              <li>Session data: authentication session tokens and cookies necessary to keep you logged in.</li>
+              <li>Usage data: pages visited, features used, timestamps, and IP address used for security and rate-limiting purposes.</li>
+              <li>Device and browser information: browser type, operating system, and similar technical identifiers.</li>
+            </ul>
+            <h4>2.3 Data We Do NOT Collect</h4>
+            <ul>
+              <li>We do not store full payment card numbers, CVV codes, bank account numbers, or routing numbers.</li>
+              <li>We do not collect real-time GPS location from your device. Location data is entered manually by users when posting a ride.</li>
+              <li>We do not collect biometric data, government-issued ID, or sensitive personal data as defined under GDPR Article 9.</li>
+            </ul>
+            <h4>3. How We Use Your Data</h4>
+            <p>We process your personal data for the following purposes and lawful bases:</p>
+            <ul>
+              <li>Account creation and authentication - necessary to perform the contract with you.</li>
+              <li>Matching riders with available rides - necessary to provide the core service.</li>
+              <li>Facilitating driver payouts - necessary to perform the contract with drivers.</li>
+              <li>Security, fraud prevention, and rate-limiting - based on our legitimate interests in protecting the platform and its users.</li>
+              <li>Improving the Service - based on our legitimate interests in improving functionality and user experience, using aggregated, de-identified data where possible.</li>
+              <li>Legal compliance - where required by applicable law.</li>
+            </ul>
+            <p>We will not use your data for automated decision-making or profiling that produces legal or similarly significant effects without your explicit consent.</p>
+            <h4>4. Data Sharing</h4>
+            <p>We do not sell your personal data to third parties. We may share your data in the following limited circumstances:</p>
+            <ul>
+              <li>With other users: your display name and ride details, including pickup/drop-off area, date, seats, and notes, are visible to other verified university users on the platform so that rides can be coordinated.</li>
+              <li>With payment processors: payout details and masked card information are shared with our third-party payment processor(s) solely to process transactions. These processors are contractually bound to handle your data securely and in compliance with applicable law.</li>
+              <li>With service providers: we may share data with hosting providers, security services, and analytics tools that help us operate the App, under strict data processing agreements.</li>
+              <li>For legal reasons: we may disclose your data if required by law, court order, or government authority, or if we believe disclosure is necessary to protect our rights, your safety, or the safety of others.</li>
+              <li>In a business transfer: if LinkUp is acquired or merges with another entity, your data may be transferred as part of that transaction, subject to equivalent privacy protections.</li>
+            </ul>
+            <h4>5. Data Retention</h4>
+            <p>We retain your personal data for as long as your account is active or as needed to provide the Service. You may request deletion of your account and associated data at any time. We may retain certain data for longer periods where required by law or for legitimate security purposes, such as logs relevant to fraud investigations.</p>
+            <p>Ride history data is retained for a reasonable period to allow dispute resolution and payout processing, after which it is deleted or anonymised.</p>
+            <h4>6. Data Security</h4>
+            <p>We implement appropriate technical and organisational measures to protect your personal data, including:</p>
+            <ul>
+              <li>Passwords stored using bcrypt or equivalent cryptographic hashing.</li>
+              <li>Session cookies configured with HttpOnly, Secure, and SameSite=Strict flags.</li>
+              <li>HTTPS encryption for all data in transit.</li>
+              <li>Rate limiting and request-size restrictions to mitigate abuse.</li>
+              <li>Secure response headers to reduce common web vulnerabilities.</li>
+            </ul>
+            <p>However, no system is perfectly secure. We cannot guarantee absolute security of your data. In the event of a data breach that poses a high risk to your rights and freedoms, we will notify you and relevant authorities in accordance with applicable law.</p>
+            <h4>7. Cookies and Tracking</h4>
+            <p>LinkUp uses strictly necessary session cookies to maintain your authenticated session. We do not use advertising cookies, third-party tracking pixels, or behavioural analytics cookies. You can disable cookies in your browser settings, but doing so will prevent you from remaining logged in.</p>
+            <h4>8. Your Rights</h4>
+            <p>Depending on your location, you may have the following rights regarding your personal data:</p>
+            <ul>
+              <li>Right of access: to receive a copy of the personal data we hold about you.</li>
+              <li>Right to rectification: to correct inaccurate or incomplete data.</li>
+              <li>Right to erasure ("right to be forgotten"): to request deletion of your data, subject to legal retention obligations.</li>
+              <li>Right to restriction: to restrict how we process your data in certain circumstances.</li>
+              <li>Right to data portability: to receive your data in a structured, machine-readable format.</li>
+              <li>Right to object: to object to processing based on legitimate interests.</li>
+              <li>Right to withdraw consent: where processing is based on consent, you may withdraw it at any time without affecting the lawfulness of prior processing.</li>
+              <li>CCPA rights for California residents: the right to know, delete, and opt out of the sale of personal information. We do not sell personal information.</li>
+            </ul>
+            <p>To exercise any of these rights, please contact us at: ridewlinkup@gmail.com. We will respond within 30 days or within the timeframe required by applicable law.</p>
+            <h4>9. Children's Privacy</h4>
+            <p>The Service is not directed at individuals under the age of 18. We do not knowingly collect personal data from minors. If you believe we have inadvertently collected such data, please contact us immediately and we will delete it.</p>
+            <h4>10. International Transfers</h4>
+            <p>If you are located in the UK or European Economic Area (EEA), your data may be transferred to and processed in countries outside the UK/EEA. Where such transfers occur, we ensure appropriate safeguards are in place, such as Standard Contractual Clauses, in accordance with applicable data protection law.</p>
+            <h4>11. Changes to This Notice</h4>
+            <p>We may update this Privacy Notice from time to time. We will notify you of material changes by posting a notice in the App or by email. The date at the top of this document indicates when it was last revised. Continued use of the Service after changes take effect constitutes your acceptance of the updated Notice.</p>
+            <h4>12. Contact and Complaints</h4>
+            <p>If you have questions, concerns, or complaints about how we handle your personal data, please contact our Data Controller: ridewlinkup@gmail.com.</p>
+            <p>For users in the UK/EEA: you have the right to lodge a complaint with your local supervisory authority, such as the Information Commissioner's Office (ICO) in the UK at ico.org.uk.</p>
           </div>
         </section>
 
         <section id="terms-page" class="card legal-page hidden">
           <div class="cart-header">
             <div>
-              <h3>Terms of Service</h3>
-              <p>Last updated: May 5, 2026</p>
+              <h3>Terms and Conditions</h3>
+              <p>Effective Date: May 8, 2026</p>
             </div>
             <button class="legal-back" type="button">Return to browse rides</button>
           </div>
           <div class="legal-content">
-            <p>These Terms are a starter template for LinkUp and should be reviewed by a qualified attorney before real users, payments, or public launch.</p>
-            <h4>Service role</h4>
-            <p>LinkUp is a student ride marketplace that helps users offer, request, reserve, and coordinate rides. LinkUp is not the driver, transportation carrier, insurer, or employer of drivers.</p>
-            <h4>User responsibilities</h4>
-            <p>Users must provide accurate information, use their own university email, obey applicable laws, respect other users, and avoid unsafe, fraudulent, harassing, or illegal conduct.</p>
-            <h4>Driver responsibilities</h4>
-            <p>Drivers are responsible for legal driving eligibility, safe operation, accurate ride details, vehicle condition, insurance, license plate accuracy, honoring paid seats, and complying with all laws and school rules.</p>
-            <h4>Rider responsibilities</h4>
-            <p>Riders are responsible for choosing rides carefully, arriving on time, paying required amounts, respecting drivers and other riders, and using safety tools when appropriate.</p>
-            <h4>Payments and payouts</h4>
-            <p>Driver-set ride prices may include LinkUp commission. Payment and payout flows must use approved payment providers before production. LinkUp may withhold or reverse payouts for fraud, disputes, cancellations, or safety issues.</p>
-            <h4>Safety and liability</h4>
-            <p>Rides involve real-world risk. Users agree to use the service at their own risk to the fullest extent allowed by law. LinkUp should obtain legal and insurance advice before public launch.</p>
-            <h4>Account limits</h4>
-            <p>LinkUp may suspend accounts, remove listings, disable chats, or restrict access to protect users, enforce these Terms, or comply with law.</p>
+            <h4>1. Agreement to Terms</h4>
+            <p>By accessing or using LinkUp ("the App," "the Service," "we," "us," or "our"), you agree to be bound by these Terms and Conditions ("Terms"). If you do not agree to these Terms, you may not access or use the Service. These Terms constitute a legally binding agreement between you and LinkUp.</p>
+            <h4>2. Eligibility</h4>
+            <h4>2.1 University Affiliation</h4>
+            <p>You must be a currently enrolled student, faculty member, or staff at an accredited university or higher education institution to use LinkUp. Registration requires a valid university email address, such as .edu, .ac.uk, or an equivalent institutional domain.</p>
+            <h4>2.2 Age Requirement</h4>
+            <p>You must be at least 18 years of age to use the Service. By using the App, you represent and warrant that you meet this requirement.</p>
+            <h4>2.3 Account Accuracy</h4>
+            <p>You agree to provide accurate, current, and complete information during registration and to update such information to keep it accurate. LinkUp reserves the right to suspend or terminate accounts using invalid or misrepresented credentials.</p>
+            <h4>3. Nature of the Service - No Common Carrier</h4>
+            <p>LinkUp is a peer-to-peer ride coordination platform only. We do not provide transportation services, employ drivers, own vehicles, or operate as a transportation company, taxi service, or common carrier. We act solely as a technology intermediary connecting students who wish to share rides.</p>
+            <p>RIDES ARRANGED THROUGH LINKUP ARE OFFERED BY PRIVATE INDIVIDUALS ON A VOLUNTARY, COST-SHARING BASIS. LINKUP IS NOT A TRANSPORTATION PROVIDER AND ASSUMES NO RESPONSIBILITY FOR THE SAFETY, QUALITY, OR TIMELINESS OF ANY RIDE.</p>
+            <h4>4. User Responsibilities</h4>
+            <h4>4.1 Drivers</h4>
+            <ul>
+              <li>You must hold a valid driver's license for the jurisdiction in which you drive.</li>
+              <li>Your vehicle must be roadworthy, legally registered, and adequately insured at all times.</li>
+              <li>You must comply with all applicable traffic laws and road regulations.</li>
+              <li>You must not drive under the influence of alcohol, drugs, or any substance that impairs your ability to operate a vehicle.</li>
+              <li>You are solely responsible for verifying that your personal auto insurance policy covers ride-sharing or carpooling arrangements. LinkUp does not provide any insurance coverage.</li>
+              <li>You agree to treat all passengers with respect and dignity.</li>
+            </ul>
+            <h4>4.2 Passengers</h4>
+            <ul>
+              <li>You acknowledge that rides are offered by private individuals and are not commercial transportation services.</li>
+              <li>You agree to behave safely and respectfully toward drivers and fellow passengers.</li>
+              <li>You accept that the driver has the right to cancel or refuse a ride at their discretion.</li>
+              <li>You are responsible for being at the agreed pickup location at the agreed time.</li>
+            </ul>
+            <h4>4.3 All Users</h4>
+            <ul>
+              <li>You must not use the App for any unlawful purpose or in violation of these Terms.</li>
+              <li>You must not post false, misleading, or fraudulent ride listings.</li>
+              <li>You must not harass, threaten, or harm other users in any way.</li>
+              <li>You must not attempt to circumvent the App's security features or access systems you are not authorised to use.</li>
+            </ul>
+            <h4>5. Payments, Fees, and Cost-Sharing</h4>
+            <p>Any payment made through or in connection with LinkUp represents a voluntary cost-sharing contribution, such as fuel or tolls, from passenger to driver. It is not a commercial fare.</p>
+            <p>LinkUp may facilitate payout to drivers upon completion of a ride, less any applicable service commission, using payout details saved in the driver's profile. Drivers are solely responsible for ensuring their payout information is accurate. LinkUp is not liable for misdirected payments resulting from incorrect payout details.</p>
+            <p>LinkUp does not store full payment card numbers, CVV codes, bank account numbers, or routing numbers. Any payment method saved to your profile is stored in masked form and processed via a third-party payment processor. You agree to that processor's terms and privacy policy.</p>
+            <p>LinkUp reserves the right to modify its commission structure or fee policy at any time. Continued use of the Service following notice of such changes constitutes acceptance.</p>
+            <h4>6. Limitation of Liability</h4>
+            <p>TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW:</p>
+            <ul>
+              <li>LINKUP, ITS OFFICERS, DIRECTORS, EMPLOYEES, AGENTS, AND AFFILIATES SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO YOUR USE OF THE SERVICE.</li>
+              <li>THIS INCLUDES, WITHOUT LIMITATION, DAMAGES FOR PERSONAL INJURY, PROPERTY DAMAGE, LOSS OF DATA, LOSS OF REVENUE OR PROFITS, OR ANY OTHER LOSS, WHETHER BASED IN CONTRACT, TORT, STRICT LIABILITY, OR OTHERWISE.</li>
+              <li>LINKUP'S TOTAL CUMULATIVE LIABILITY TO YOU FOR ANY CLAIM ARISING FROM OR RELATED TO THESE TERMS OR THE SERVICE SHALL NOT EXCEED THE GREATER OF (A) THE TOTAL AMOUNT YOU PAID TO LINKUP IN THE SIX (6) MONTHS PRECEDING THE CLAIM, OR (B) &pound;50 / $50 USD.</li>
+            </ul>
+            <p>Some jurisdictions do not allow the exclusion or limitation of liability for certain types of damages. In such jurisdictions, our liability is limited to the fullest extent permitted by law.</p>
+            <h4>7. Disclaimer of Warranties</h4>
+            <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.</p>
+            <p>WE DO NOT WARRANT THAT (A) THE SERVICE WILL BE UNINTERRUPTED OR ERROR-FREE; (B) ANY RIDE WILL BE COMPLETED SAFELY OR ON TIME; (C) OTHER USERS WILL BEHAVE RESPONSIBLY; OR (D) THE SERVICE WILL MEET YOUR REQUIREMENTS.</p>
+            <h4>8. Indemnification</h4>
+            <p>You agree to indemnify, defend, and hold harmless LinkUp and its officers, directors, employees, and agents from and against any claims, liabilities, damages, losses, costs, or expenses, including reasonable legal fees, arising out of or in any way connected with:</p>
+            <ul>
+              <li>Your use of or inability to use the Service.</li>
+              <li>Your violation of these Terms.</li>
+              <li>Your violation of any third-party right, including any privacy or intellectual property right.</li>
+              <li>Any accident, injury, property damage, or loss arising from a ride you offered or participated in.</li>
+              <li>Any content you submit, post, or transmit through the Service.</li>
+            </ul>
+            <h4>9. Prohibited Conduct</h4>
+            <p>You agree not to:</p>
+            <ul>
+              <li>Impersonate any person or entity or misrepresent your affiliation with any person or entity.</li>
+              <li>Use the App to solicit commercial transportation services or operate as an unlicensed taxi or minicab service.</li>
+              <li>Use the App for any illegal purpose, including drug trafficking, smuggling, or exploitation.</li>
+              <li>Collect or harvest any personally identifiable information from the Service without consent.</li>
+              <li>Introduce any virus, malware, or harmful code to the Service.</li>
+              <li>Scrape, crawl, or systematically extract data from the Service.</li>
+            </ul>
+            <h4>10. Termination</h4>
+            <p>LinkUp reserves the right to suspend or terminate your account and access to the Service at any time, with or without notice, for any reason, including but not limited to a violation of these Terms. You may terminate your account at any time by contacting us.</p>
+            <p>Upon termination, your right to use the Service ceases immediately. Sections 5-12 of these Terms survive termination.</p>
+            <h4>11. Governing Law and Dispute Resolution</h4>
+            <p>These Terms shall be governed by and construed in accordance with the laws of England and Wales or, if you are based in the United States, the laws of the state in which LinkUp is registered, without regard to conflict of law principles.</p>
+            <p>Any dispute arising under or relating to these Terms or your use of the Service shall first be submitted to good-faith negotiation. If unresolved after 30 days, disputes shall be submitted to binding arbitration or the courts of competent jurisdiction in the governing territory, at LinkUp's election.</p>
+            <h4>12. General Provisions</h4>
+            <ul>
+              <li>Entire Agreement: These Terms, together with the Privacy Notice, constitute the entire agreement between you and LinkUp.</li>
+              <li>Severability: If any provision of these Terms is found to be unenforceable, the remaining provisions remain in full force.</li>
+              <li>Waiver: Failure to enforce any provision shall not constitute a waiver of that provision.</li>
+              <li>Assignment: You may not assign your rights or obligations under these Terms without our prior written consent. We may assign our rights freely.</li>
+              <li>Changes: We may update these Terms at any time. Continued use of the Service after notice of changes constitutes acceptance.</li>
+            </ul>
+            <h4>13. Contact</h4>
+            <p>For questions about these Terms, please contact us at: legal@linkup.app</p>
           </div>
         </section>
 
@@ -801,12 +972,12 @@
 
       </main>
       <footer class="app-footer">
-        <button id="privacy-link" type="button" class="text-button">Privacy Policy</button>
+        <button id="privacy-link" type="button" class="text-button">Privacy Notice</button>
         <span>•</span>
-        <button id="terms-link" type="button" class="text-button">Terms of Service</button>
+        <button id="terms-link" type="button" class="text-button">Terms and Conditions</button>
       </footer>
     </div>
 
-    <script src="app.js?v=20260507-release-notes-newest-first"></script>
+    <script src="app.js?v=20260508-identity-required-only"></script>
   </body>
 </html>

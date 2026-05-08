@@ -1,3 +1,35 @@
+// ── Toast notification system ───────────────────────────────────
+const toastContainer = document.getElementById('toast-container');
+
+function showToast(message, type = 'info', duration = 3800) {
+  if (!toastContainer) return;
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  toast.innerHTML = `<span aria-hidden="true">${icon}</span><span>${message}</span>`;
+  toastContainer.appendChild(toast);
+  const remove = () => {
+    toast.classList.add('removing');
+    toast.addEventListener('animationend', () => toast.remove(), { once: true });
+  };
+  const timer = setTimeout(remove, duration);
+  toast.addEventListener('click', () => { clearTimeout(timer); remove(); });
+}
+
+// ── Button loading helper ───────────────────────────────────────
+function setButtonLoading(button, loading) {
+  if (!button) return;
+  if (loading) {
+    button.dataset.originalText = button.textContent;
+    button.classList.add('btn-loading');
+    button.disabled = true;
+  } else {
+    button.classList.remove('btn-loading');
+    button.disabled = false;
+    if (button.dataset.originalText) button.textContent = button.dataset.originalText;
+  }
+}
+
 const rideTransition = document.getElementById('ride-transition');
 const authSection = document.getElementById('auth-section');
 const dashboard = document.getElementById('dashboard');
@@ -193,6 +225,7 @@ let sharedTrackingPollId = null;
 let currentVehicleSeatCount = 5;
 let driverAvailableSeatIds = new Set();
 let isRestoringRoute = false;
+let legalReturnRoute = '';
 
 function getAppRoute() {
   return decodeURIComponent(window.location.hash.replace(/^#/, '')).trim();
@@ -206,6 +239,10 @@ function setAppRoute(route) {
 
 function clearAppRoute() {
   window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+}
+
+function isLegalRoute(route) {
+  return route === 'privacy' || route === 'terms';
 }
 
 function profileRouteForTab(tabName = 'info') {
@@ -736,7 +773,28 @@ function validatePasswordRequirements(password) {
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, options);
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) {
+    const error = new Error(data.error || 'Request failed');
+    Object.assign(error, data);
+    if (data.code === 'POLICY_CONSENT_REQUIRED' && currentUser) {
+      currentUser = {
+        ...currentUser,
+        requiresPolicyConsent: true,
+        requiredTermsVersion: data.requiredTermsVersion || currentUser.requiredTermsVersion,
+        requiredPrivacyVersion: data.requiredPrivacyVersion || currentUser.requiredPrivacyVersion,
+      };
+      showPolicyConsentRequired();
+    }
+    if (data.code === 'REQUIRED_SETTINGS_INCOMPLETE' && currentUser) {
+      currentUser = {
+        ...currentUser,
+        requiresRequiredSettings: true,
+        missingRequiredSettings: data.missingRequiredSettings || currentUser.missingRequiredSettings || [],
+      };
+      showRequiredSettingsRequired();
+    }
+    throw error;
+  }
   return data;
 }
 
@@ -757,6 +815,14 @@ function hideLegalPages() {
 }
 
 function showLegalPage(pageName) {
+  if (!isRestoringRoute) {
+    const currentRoute = getAppRoute();
+    if (currentRoute && !isLegalRoute(currentRoute)) {
+      legalReturnRoute = currentRoute;
+    } else if (!legalReturnRoute && browseRole) {
+      legalReturnRoute = 'browse-' + browseRole;
+    }
+  }
   setAppRoute(pageName);
   authSection.classList.add('hidden');
   dashboard.classList.add('hidden');
@@ -791,6 +857,23 @@ function showAuthSection() {
   sharedTrackPage?.classList.add('hidden');
   cartRideIds = new Set();
   currentUser = null;
+}
+
+function showDashboardShell(user = currentUser) {
+  if (!user) return;
+  hideLegalPages();
+  sharedTrackPage.classList.add('hidden');
+  siteLogo.src = 'assets/images/LinkUp-wordmark.png';
+  siteLogo.alt = 'LinkUp';
+  siteLogo.setAttribute('role', 'button');
+  siteLogo.setAttribute('aria-label', 'Go to home');
+  siteLogo.tabIndex = 0;
+  document.body.classList.add('dashboard-mode');
+  headerLeftActions.classList.remove('hidden');
+  headerActions.classList.remove('hidden');
+  authSection.classList.add('hidden');
+  dashboard.classList.remove('hidden');
+  updateUserHeader(user);
 }
 
 function showAuthForm(formId) {
@@ -902,16 +985,42 @@ function clearProfileMessages() {
 }
 
 function fillProfileForm(user) {
+  const birthdayInput = document.getElementById('profile-birthday');
+  const genderInput = document.getElementById('profile-gender');
   document.getElementById('profile-first-name').value = user.firstName || '';
   document.getElementById('profile-middle-name').value = user.middleName || '';
   document.getElementById('profile-last-name').value = user.lastName || '';
-  document.getElementById('profile-birthday').value = user.birthday || '';
-  document.getElementById('profile-gender').value = user.gender || '';
+  birthdayInput.value = user.birthday || '';
+  genderInput.value = user.gender || '';
   document.getElementById('profile-email').value = user.email || '';
+  birthdayInput.disabled = Boolean(user.birthday);
+  genderInput.disabled = Boolean(user.gender);
 }
 
 function userNeedsPolicyConsent(user) {
   return Boolean(user?.requiresPolicyConsent);
+}
+
+function userNeedsRequiredSettings(user) {
+  return Boolean(user?.requiresRequiredSettings);
+}
+
+function getMissingRequiredSettings(user = currentUser) {
+  return Array.isArray(user?.missingRequiredSettings) ? user.missingRequiredSettings : [];
+}
+
+function getRequiredSettingsTab(user = currentUser) {
+  const missing = getMissingRequiredSettings(user);
+  const identityMissing = missing.some((setting) => setting.profileTab === 'info');
+  if (identityMissing) return 'info';
+  const firstMissing = missing.find((setting) => setting.profileTab);
+  return firstMissing?.profileTab || 'payment';
+}
+
+function getRequiredSettingsMessage(user = currentUser) {
+  const missing = getMissingRequiredSettings(user);
+  if (!missing.length) return '';
+  return 'Complete these required settings before using LinkUp ride services: ' + missing.map((setting) => setting.label).join(', ') + '.';
 }
 
 function clearPolicyMessages() {
@@ -1190,8 +1299,21 @@ function showProfilePage(tabName = 'info') {
 function showPolicyConsentRequired() {
   setAppRoute('profile-policies');
   showProfilePage('policies');
-  policyError.textContent = 'Please agree to the latest Terms of Service and Privacy Notice before using LinkUp services.';
+  policyError.textContent = 'Please agree to the latest Terms and Conditions and Privacy Notice before using LinkUp services.';
   policyError.classList.add('show');
+}
+
+function showRequiredSettingsRequired(prefixMessage = '') {
+  const tabName = getRequiredSettingsTab(currentUser);
+  showProfilePage(tabName);
+  const message = [prefixMessage, getRequiredSettingsMessage(currentUser)].filter(Boolean).join(' ');
+  if (tabName === 'payment') {
+    defaultPaymentError.textContent = message;
+    defaultPaymentError.classList.add('show');
+  } else {
+    profileError.textContent = message;
+    profileError.classList.add('show');
+  }
 }
 
 function showDashboardHome() {
@@ -1205,9 +1327,39 @@ function showDashboardHome() {
     showPolicyConsentRequired();
     return;
   }
+  if (userNeedsRequiredSettings(currentUser)) {
+    showRequiredSettingsRequired();
+    return;
+  }
   hideDashboardPages();
   dashboardHome.classList.remove('hidden');
   renderBrowseRoleChoice();
+}
+
+function returnToBrowseRides() {
+  const roleToRestore = browseRole;
+  showDashboardShell();
+  showDashboardHome();
+  if (roleToRestore === 'driver') showDriverBrowse();
+  else if (roleToRestore === 'rider') showRiderBrowse();
+}
+
+function returnFromLegalPage() {
+  if (!currentUser) {
+    showAuthSection();
+    return;
+  }
+
+  const routeToRestore = legalReturnRoute;
+  legalReturnRoute = '';
+  if (routeToRestore && !isLegalRoute(routeToRestore)) {
+    showDashboardShell();
+    setAppRoute(routeToRestore);
+    restoreAppRoute();
+    return;
+  }
+
+  returnToBrowseRides();
 }
 
 function showWaitlistPage(user) {
@@ -1287,6 +1439,10 @@ function ensureServiceAccess() {
     showPolicyConsentRequired();
     return false;
   }
+  if (userNeedsRequiredSettings(currentUser)) {
+    showRequiredSettingsRequired();
+    return false;
+  }
   return true;
 }
 
@@ -1351,6 +1507,10 @@ function showDashboard(user) {
   }
   if (userNeedsPolicyConsent(user)) {
     showPolicyConsentRequired();
+    return;
+  }
+  if (userNeedsRequiredSettings(user)) {
+    showRequiredSettingsRequired();
     return;
   }
   loadCart();
@@ -2388,7 +2548,7 @@ function renderRideCard(ride) {
     riderTermsCheckbox.type = 'checkbox';
     riderTermsLabel.append(
       riderTermsCheckbox,
-      document.createTextNode(' I agree to LinkUp\'s Terms of Service for this ride.')
+      document.createTextNode(' I agree to LinkUp\'s Terms and Conditions for this ride.')
     );
     card.appendChild(riderTermsLabel);
 
@@ -2396,7 +2556,7 @@ function renderRideCard(ride) {
       cardError.textContent = '';
       cardError.classList.remove('show');
       if (!riderTermsCheckbox.checked) {
-        cardError.textContent = 'You must agree to the Terms of Service before adding this ride.';
+        cardError.textContent = 'You must agree to the Terms and Conditions before adding this ride.';
         cardError.classList.add('show');
         return;
       }
@@ -3496,7 +3656,7 @@ signupForm.addEventListener('submit', async (event) => {
   const termsAccepted = document.getElementById('signup-terms-agree').checked;
   const privacyAccepted = document.getElementById('signup-privacy-agree').checked;
   if (!termsAccepted || !privacyAccepted) {
-    signupError.textContent = 'You must agree to the Terms of Service and Privacy Policy before creating an account.';
+    signupError.textContent = 'You must agree to the Terms and Conditions and Privacy Notice before creating an account.';
     signupError.classList.add('show');
     return;
   }
@@ -3601,7 +3761,7 @@ offerForm.addEventListener('submit', async (event) => {
 });
 
 requestRideButton.addEventListener('click', () => showRequestRidePage());
-requestRideBackHomeButton.addEventListener('click', () => showDashboardHome());
+requestRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 requestRideForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearRequestRideMessages();
@@ -3662,26 +3822,23 @@ requestRideForm.addEventListener('submit', async (event) => {
   }
 });
 listRideButton.addEventListener('click', () => showListRidePage());
-listRideBackHomeButton.addEventListener('click', () => showDashboardHome());
+listRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 chatButton.addEventListener('click', () => showChatPage());
-chatBackHomeButton.addEventListener('click', () => showDashboardHome());
+chatBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 cartButton.addEventListener('click', () => showCartPage());
 yourRidesButton.addEventListener('click', () => showYourRidesPage());
 yourRidesCurrentTab.addEventListener('click', () => { setYourRidesView('current'); loadYourRides(); });
 yourRidesRequestsTab.addEventListener('click', () => { setYourRidesView('requests'); loadYourRides(); });
 yourRidesHistoryTab.addEventListener('click', () => { setYourRidesView('history'); loadYourRides(); });
-yourRidesBackHomeButton.addEventListener('click', () => showDashboardHome());
+yourRidesBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 leaderboardButton.addEventListener('click', () => showLeaderboardPage());
-leaderboardBackHomeButton.addEventListener('click', () => showDashboardHome());
+leaderboardBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 profileButton.addEventListener('click', () => showProfilePage());
-profileBackHomeButton.addEventListener('click', () => showDashboardHome());
+profileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 privacyLink.addEventListener('click', () => showLegalPage('privacy'));
 termsLink.addEventListener('click', () => showLegalPage('terms'));
 legalBackButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    if (currentUser) showDashboard(currentUser);
-    else showAuthSection();
-  });
+  button.addEventListener('click', () => returnFromLegalPage());
 });
 profileSidebarButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -3718,7 +3875,7 @@ policyConsentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearPolicyMessages();
   if (!userNeedsPolicyConsent(currentUser)) {
-    policyMessage.textContent = 'You already accepted the current Terms of Service and Privacy Notice.';
+    policyMessage.textContent = 'You already accepted the current Terms and Conditions and Privacy Notice.';
     policyMessage.classList.add('show');
     fillPolicyConsentForm(currentUser || {});
     return;
@@ -3746,8 +3903,14 @@ policyConsentForm.addEventListener('submit', async (event) => {
     });
     fillPolicyConsentForm(currentUser);
     updateUserHeader(currentUser);
-    policyMessage.textContent = 'Policy agreement saved. You can now use LinkUp services.';
+    policyMessage.textContent = currentUser.requiresRequiredSettings
+      ? 'Policy agreement saved. Complete the remaining required profile settings to use LinkUp ride services.'
+      : 'Policy agreement saved. You can now use LinkUp services.';
     policyMessage.classList.add('show');
+    if (currentUser.requiresRequiredSettings) {
+      showRequiredSettingsRequired('Profile saved.');
+      return;
+    }
     loadCart();
   } catch (err) {
     policyError.textContent = err.message;
@@ -3773,11 +3936,11 @@ driverPayoutForm.addEventListener('submit', async (event) => {
   }
 });
 trackTripButton.addEventListener('click', () => showTrackTripPage());
-trackBackHomeButton.addEventListener('click', () => showDashboardHome());
+trackBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
 startTrackingButton.addEventListener('click', () => startTripTracking());
 stopTrackingButton.addEventListener('click', () => stopTripTracking());
-continueShoppingButton.addEventListener('click', () => showDashboardHome());
+continueShoppingButton.addEventListener('click', () => returnToBrowseRides());
 siteLogo.addEventListener('click', () => {
   if (document.body.classList.contains('dashboard-mode')) showDashboardHome();
 });
@@ -3796,14 +3959,21 @@ profileForm.addEventListener('submit', async (event) => {
     firstName: document.getElementById('profile-first-name').value.trim(),
     middleName: document.getElementById('profile-middle-name').value.trim(),
     lastName: document.getElementById('profile-last-name').value.trim(),
-
+    birthday: document.getElementById('profile-birthday').value,
+    gender: document.getElementById('profile-gender').value,
   };
   try {
     currentUser = await fetchJson('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     updateUserHeader(currentUser);
     fillProfileForm(currentUser);
-    profileMessage.textContent = 'Profile updated. You can change your name again in 6 months.';
+    profileMessage.textContent = currentUser.requiresRequiredSettings
+      ? 'Profile updated. Complete the remaining required settings to use ride services.'
+      : 'Profile updated. You can now use LinkUp ride services.';
     profileMessage.classList.add('show');
+    if (currentUser.requiresRequiredSettings) {
+      showRequiredSettingsRequired();
+      return;
+    }
     if (currentUser.serviceApproved) {
       loadRides();
       loadProfile();
@@ -3823,7 +3993,7 @@ checkoutCartButton.addEventListener('click', () => {
   }
   showPaymentPage();
 });
-paymentBackToCartButton.addEventListener('click', () => showCartPage());
+paymentBackToCartButton.addEventListener('click', () => returnToBrowseRides());
 document.getElementById('pay-cart').addEventListener('click', async () => {
   clearCartMessages();
   try {
