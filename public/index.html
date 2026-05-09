@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260507-release-notes-newest-first" />
+    <link rel="stylesheet" href="styles.css?v=20260509-tracking-map-fallback" />
   </head>
   <body>
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -336,6 +336,18 @@
                   <div class="release-note-card release-note-single">
                     <div class="release-note-feed" aria-label="Release notes newest first">
                       <section class="release-note-entry">
+                        <div class="release-note-version">v2026.05.9</div>
+                        <div class="release-note-features">
+                          <h4>Live tracking and route stability</h4>
+                          <ul>
+                            <li>Improved trip tracking so trusted viewers can see live location updates and route context when a ride route is available.</li>
+                            <li>Restored a visible live-location fallback pin and Google Maps link when the embedded map is still loading or unavailable.</li>
+                            <li>Allowed trusted-person invite emails to be added or resent after location sharing has already started.</li>
+                            <li>Hardened location lookup to avoid ambiguous out-of-region routes and keep ride maps focused on supported school regions.</li>
+                          </ul>
+                        </div>
+                      </section>
+                      <section class="release-note-entry">
                         <div class="release-note-version">v2026.05.8.1</div>
                         <div class="release-note-features">
                           <h4>Policy and profile access</h4>
@@ -559,7 +571,7 @@
                 </div>
                 <label class="checkbox-label"><input type="checkbox" id="request-share-ride" /> I am willing to share this ride with other riders</label>
                 <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
-                <label>Notes <input type="text" id="request-notes" placeholder="Luggage, timing flexibility, pickup details..." /></label>
+                <label>Notes <input type="text" id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." /></label>
                 <button type="submit">Post request</button>
                 <div id="request-ride-message" class="success-message"></div>
                 <div id="request-ride-error" class="error-message"></div>
@@ -638,7 +650,7 @@
                     <input type="hidden" id="seats" value="0" required />
                   </div>
                   <label>Price per seat ($) <input type="number" id="ride-price" min="0.50" step="0.01" placeholder="5.00" required /></label>
-                  <label>Notes <input type="text" id="notes" placeholder="Music OK, study-friendly, etc." /></label>
+                  <label>Notes <input type="text" id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." /></label>
                   <label class="checkbox-label terms-agreement">
                     <input type="checkbox" id="ride-terms-agree" required />
                     I agree to LinkUp's driver terms and conditions, including safe driving, accurate ride details, and honoring reserved seats.
@@ -678,6 +690,7 @@
                   Trusted person's email optional
                   <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" />
                 </label>
+                <button id="send-tracking-invite" class="copy-tracking-link hidden" type="button">Send invite</button>
                 <p class="tracking-note">Start sharing to create a secure trip URL made for this rider. Copy it and send it to people you trust. The link expires when sharing stops.</p>
                 <button id="copy-tracking-link" class="copy-tracking-link hidden" type="button">Copy tracking link</button>
                 <div id="tracking-message" class="success-message"></div>
@@ -978,6 +991,6 @@
       </footer>
     </div>
 
-    <script src="app.js?v=20260508-identity-required-only"></script>
+    <script src="app.js?v=20260509-tracking-map-fallback"></script>
   </body>
 </html>

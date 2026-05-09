@@ -836,10 +836,14 @@ function getTrackingRideRoute(ride) {
   };
 }
 
+function isRideTrackableForUser(ride, userId) {
+  return ride.driverId === userId || (ride.passengers || []).some((passenger) => passenger.studentId === userId);
+}
+
 function findTrackableRideForUser(db, userId) {
   const now = Date.now();
   return (db.rides || [])
-    .filter((ride) => (ride.passengers || []).some((passenger) => passenger.studentId === userId))
+    .filter((ride) => isRideTrackableForUser(ride, userId))
     .map((ride) => ({ ride, interval: getTripInterval(ride) }))
     .filter((entry) => entry.interval.end >= now - 30 * 60 * 1000)
     .sort((a, b) => {
@@ -848,6 +852,18 @@ function findTrackableRideForUser(db, userId) {
       if (aActive !== bActive) return aActive ? -1 : 1;
       return Math.abs(a.interval.start - now) - Math.abs(b.interval.start - now);
     })[0]?.ride || null;
+}
+
+function refreshTrackingTripRoute(db, trip) {
+  if (!trip || trip.rideRoute) return false;
+  const ride = trip.rideId
+    ? (db.rides || []).find((entry) => entry.id === trip.rideId && isRideTrackableForUser(entry, trip.ownerId))
+    : findTrackableRideForUser(db, trip.ownerId);
+  const route = getTrackingRideRoute(ride);
+  if (!route) return false;
+  trip.rideId = ride.id;
+  trip.rideRoute = route;
+  return true;
 }
 
 function getCardBrand(cardDigits) {
@@ -1485,6 +1501,7 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     rideRoute: trackingRoute,
     trustedEmail,
     viewerTokenHash: hashToken(viewerToken),
+    viewerUrl,
     viewerAccessExpiresAt: Date.now() + 1000 * 60 * 60 * 8,
     status: 'active',
     locations: [],
@@ -1511,6 +1528,47 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     message: trustedEmail
       ? 'Secure tracking invite sent. You can also copy this trip link and share it yourself.'
       : 'Secure tracking link created. Copy it and send it to anyone you trust.',
+  });
+});
+
+app.put('/api/trips/track/:tripId/trusted-email', requireAuth, requireServiceAccess, (req, res) => {
+  const { tripId } = req.params;
+  const trustedEmail = normalizeEmail(req.body.trustedEmail);
+
+  if (!trustedEmail) {
+    return res.status(400).json({ error: 'Enter a trusted email to send an invite' });
+  }
+
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (trustedEmail === user.email) {
+    return res.status(400).json({ error: "Enter someone else's email for trip tracking" });
+  }
+
+  const trip = getTrackingTrips(db).find((entry) => entry.id === tripId && entry.ownerId === req.session.userId);
+  if (!trip || trip.status !== 'active') {
+    return res.status(404).json({ error: 'Active tracking trip not found' });
+  }
+
+  trip.trustedEmail = trustedEmail;
+  trip.updatedAt = new Date().toISOString();
+  saveDb(db);
+
+  if (!trip.viewerUrl) {
+    return res.status(400).json({ error: 'This tracking trip was started before invite updates were supported. Copy the tracking link and send it manually, or restart sharing.' });
+  }
+  sendAuthEmail(
+    trustedEmail,
+    user.firstName + ' invited you to track their LinkUp trip',
+    'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + trip.viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp'
+  );
+
+  res.json({
+    trustedEmail: trip.trustedEmail,
+    message: 'Tracking invite sent to ' + trustedEmail + '.',
   });
 });
 
@@ -1545,6 +1603,7 @@ app.post('/api/trips/track/:tripId/location', requireAuth, requireServiceAccess,
   trip.locations = (trip.locations || []).slice(-99);
   trip.locations.push(location);
   trip.lastLocation = location;
+  refreshTrackingTripRoute(db, trip);
   trip.updatedAt = location.recordedAt;
   saveDb(db);
 
@@ -1579,6 +1638,11 @@ app.get('/api/track/:viewerToken', (req, res) => {
     return res.status(410).json({ error: 'This tracking link has expired' });
   }
 
+  const routeWasAdded = refreshTrackingTripRoute(db, trip);
+  if (routeWasAdded) {
+    trip.updatedAt = new Date().toISOString();
+    saveDb(db);
+  }
   res.json(publicTrackingTrip(trip));
 });
 

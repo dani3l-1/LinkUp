@@ -597,6 +597,14 @@ button:disabled::before { display: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   backdrop-filter: blur(12px);
+  flex-wrap: wrap;
+}
+
+.top-row > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .top-row h2 {
@@ -1012,6 +1020,10 @@ button:disabled::before { display: none; }
   color: var(--text-primary);
   margin-bottom: 0.7rem;
   display: block;
+  /* Prevent long origin→destination strings from breaking layout */
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .ride-details {
@@ -1023,7 +1035,13 @@ button:disabled::before { display: none; }
   color: var(--text-secondary);
 }
 
-.ride-details > div { color: var(--text-secondary); }
+.ride-details > div {
+  color: var(--text-secondary);
+  /* Prevent long values (addresses, notes) from overflowing the grid cell */
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
 .ride-details strong { color: var(--text-primary); }
 
 .ride-card button:not(.seat-rect) {
@@ -1062,12 +1080,23 @@ button:disabled::before { display: none; }
   border-bottom: 1px solid var(--border);
 }
 
+.cart-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 .cart-header h3 {
   font-size: 1.1rem;
   color: var(--text-primary);
+  overflow-wrap: break-word;
 }
 
-.cart-header p { font-size: 0.875rem; }
+.cart-header p {
+  font-size: 0.875rem;
+  overflow-wrap: break-word;
+}
 
 .cart-header button {
   width: auto;
@@ -1089,6 +1118,12 @@ button:disabled::before { display: none; }
   background: rgba(62,207,207,0.04);
   color: var(--text-secondary);
   font-size: 0.86rem;
+}
+
+.cart-item-detail > div {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .cart-item-detail strong { color: var(--text-primary); }
@@ -1559,7 +1594,7 @@ button:disabled::before { display: none; }
 .seat-manifest-seat       { color: var(--text-primary); font-weight: 700; }
 .seat-manifest-rider,
 .seat-manifest-empty,
-.seat-manifest-unavailable { color: var(--text-secondary); font-size: 0.84rem; text-align: right; }
+.seat-manifest-unavailable { color: var(--text-secondary); font-size: 0.84rem; text-align: right; overflow-wrap: break-word; word-break: break-word; min-width: 0; }
 .seat-manifest-empty,
 .seat-manifest-unavailable { color: var(--text-muted); }
 .seat-manifest-unavailable { text-decoration: line-through; opacity: 0.7; }
@@ -1603,6 +1638,8 @@ button:disabled::before { display: none; }
   color: var(--text-muted);
   padding: 0.4rem 0;
   min-height: 1.2rem;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .selected-location.active {
@@ -1684,6 +1721,51 @@ button:disabled::before { display: none; }
   font-size: 0.9rem;
   overflow: hidden;
   box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+.tracking-fallback-pin {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--accent);
+  transform: rotate(-45deg);
+  box-shadow: 0 0 0 8px rgba(62,207,207,0.18), 0 10px 30px rgba(62,207,207,0.35);
+}
+
+.tracking-fallback-pin::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background: #071111;
+}
+
+.tracking-fallback-content {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.tracking-fallback-content span {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tracking-fallback-content strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.tracking-fallback-content a {
+  color: var(--blue);
+  text-underline-offset: 3px;
 }
 
 .map-link {
@@ -2378,6 +2460,10 @@ article.card h3 {
   border-color: var(--border);
   border-radius: var(--radius-md);
   font-size: 0.82rem;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .chat-ride-button.active {
@@ -2400,7 +2486,11 @@ article.card h3 {
   background: none;
 }
 
-.chat-ride-details h4 { margin-bottom: 0.7rem; }
+.chat-ride-details h4 {
+  margin-bottom: 0.7rem;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
 
 .chat-ride-detail-grid {
   display: grid;
@@ -2408,6 +2498,12 @@ article.card h3 {
   gap: 0.4rem 1rem;
   color: var(--text-secondary);
   font-size: 0.86rem;
+}
+
+.chat-ride-detail-grid > div {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .chat-ride-detail-grid strong { color: var(--text-primary); }
@@ -3066,13 +3162,16 @@ article.card h3 {
 
 
 .browse-ride-pin-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.65rem;
   margin-bottom: 0.85rem;
   color: var(--text-secondary);
   font-size: 0.86rem;
   font-weight: 700;
+  flex-wrap: wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 

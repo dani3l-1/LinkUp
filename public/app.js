@@ -127,6 +127,7 @@ const trackBackHomeButton = document.getElementById('track-back-home');
 const startTrackingButton = document.getElementById('start-tracking');
 const stopTrackingButton = document.getElementById('stop-tracking');
 const copyTrackingLinkButton = document.getElementById('copy-tracking-link');
+const sendTrackingInviteButton = document.getElementById('send-tracking-invite');
 const trackingStatus = document.getElementById('tracking-status');
 const trackingDriverInfo = document.getElementById('tracking-driver-info');
 const trackingDriverDetails = document.getElementById('tracking-driver-details');
@@ -213,6 +214,10 @@ let trackingRouteLine = null;
 let trackingRouteKey = '';
 let trackingOriginMarker = null;
 let trackingDestinationMarker = null;
+let lastTrackingLocation = null;
+let lastTrackingLocations = [];
+let lastTrackingRideRoute = null;
+let trackingMapLoadPending = false;
 let sharedTrackingMap = null;
 let sharedTrackingMarker = null;
 let sharedTrackingPath = null;
@@ -380,6 +385,40 @@ const VEHICLE_SEAT_LAYOUTS = {
   7: ['front_passenger', 'back_left', 'back_middle', 'back_right', 'third_left', 'third_right'],
 };
 
+const KNOWN_LOCATION_ALIASES = new Map([
+  ['ucla', { name: 'University of California, Los Angeles', lat: 34.06892, lng: -118.44518 }],
+  ['uc los angeles', { name: 'University of California, Los Angeles', lat: 34.06892, lng: -118.44518 }],
+  ['university of california los angeles', { name: 'University of California, Los Angeles', lat: 34.06892, lng: -118.44518 }],
+  ['uci', { name: 'University of California, Irvine', lat: 33.64050, lng: -117.84430 }],
+  ['uc irvine', { name: 'University of California, Irvine', lat: 33.64050, lng: -117.84430 }],
+  ['university of california irvine', { name: 'University of California, Irvine', lat: 33.64050, lng: -117.84430 }],
+]);
+
+const LOCATION_REGIONS = {
+  CA: { state: 'CA', minLat: 32.45, maxLat: 42.1, minLng: -124.6, maxLng: -114.0 },
+  ON: { state: 'ON', minLat: 41.6, maxLat: 56.9, minLng: -95.2, maxLng: -74.3 },
+};
+
+const UNIVERSITY_LOCATION_REGIONS = {
+  'berkeley.edu': LOCATION_REGIONS.CA,
+  'ucla.edu': LOCATION_REGIONS.CA,
+  'uci.edu': LOCATION_REGIONS.CA,
+  'ivc.edu': LOCATION_REGIONS.CA,
+  'saddleback.edu': LOCATION_REGIONS.CA,
+  'ucsd.edu': LOCATION_REGIONS.CA,
+  'ucdavis.edu': LOCATION_REGIONS.CA,
+  'ucsb.edu': LOCATION_REGIONS.CA,
+  'ucsc.edu': LOCATION_REGIONS.CA,
+  'ucr.edu': LOCATION_REGIONS.CA,
+  'ucmerced.edu': LOCATION_REGIONS.CA,
+  'usc.edu': LOCATION_REGIONS.CA,
+  'stanford.edu': LOCATION_REGIONS.CA,
+  'caltech.edu': LOCATION_REGIONS.CA,
+  'uwaterloo.ca': LOCATION_REGIONS.ON,
+};
+
+const LIVE_TRACKING_POLL_MS = 5000;
+
 let _googleMapsPromise = null;
 
 async function loadGoogleMapsAPI() {
@@ -426,6 +465,72 @@ function initializeOriginMap() {
     const place = originAutocomplete.getPlace();
     if (place.geometry) updateOriginLocation(place.name || originSearchInput.value, place.geometry.location.lat(), place.geometry.location.lng());
   });
+}
+
+function getLocationAliasKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function getKnownLocationAlias(value) {
+  return KNOWN_LOCATION_ALIASES.get(getLocationAliasKey(value)) || null;
+}
+
+function getSouthernCaliforniaBounds() {
+  if (!window.google?.maps?.LatLngBounds) return null;
+  return new google.maps.LatLngBounds(
+    new google.maps.LatLng(32.45, -119.10),
+    new google.maps.LatLng(34.55, -116.55)
+  );
+}
+
+function getActiveLocationRegion() {
+  return UNIVERSITY_LOCATION_REGIONS[String(currentUser?.universityDomain || '').toLowerCase()] || LOCATION_REGIONS.CA;
+}
+
+function isCoordinateInRegion(location, region) {
+  if (!location || !region) return false;
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  return Number.isFinite(lat)
+    && Number.isFinite(lng)
+    && lat >= region.minLat
+    && lat <= region.maxLat
+    && lng >= region.minLng
+    && lng <= region.maxLng;
+}
+
+function getResultState(result) {
+  const state = (result.address_components || []).find((part) => part.types?.includes('administrative_area_level_1'));
+  return state?.short_name || '';
+}
+
+function queryHasExplicitRegion(query) {
+  return /,\s*[A-Z]{2}\b/i.test(query) || /\b(?:california|ca|colorado|co|ontario|on|arizona|az|nevada|nv|oregon|or|washington|wa)\b/i.test(query);
+}
+
+function normalizeGeocodeResult(result, fallbackName) {
+  const location = result.geometry.location;
+  return {
+    name: result.formatted_address || fallbackName,
+    lat: location.lat(),
+    lng: location.lng(),
+  };
+}
+
+function chooseGeocodeResult(query, results) {
+  if (!results?.length) return null;
+  const region = getActiveLocationRegion();
+  const regionalResult = results.find((result) => {
+    if (!result.geometry?.location) return false;
+    const candidate = {
+      lat: result.geometry.location.lat(),
+      lng: result.geometry.location.lng(),
+    };
+    return getResultState(result) === region.state || isCoordinateInRegion(candidate, region);
+  });
+  if (regionalResult) return normalizeGeocodeResult(regionalResult, query);
+  if (queryHasExplicitRegion(query)) return normalizeGeocodeResult(results[0], query);
+  return null;
 }
 
 function initializeDestinationMap() {
@@ -623,24 +728,45 @@ function clearRequestLocationCoordinates(kind) {
 
 function geocodeAddress(address) {
   return new Promise((resolve) => {
+    const knownLocation = getKnownLocationAlias(address);
+    if (knownLocation) {
+      resolve(knownLocation);
+      return;
+    }
     if (!address || !window.google?.maps?.Geocoder) {
       resolve(null);
       return;
     }
     const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ address, componentRestrictions: { country: 'US' } }, (results, status) => {
+    const request = {
+      address,
+      bounds: getSouthernCaliforniaBounds(),
+      componentRestrictions: { country: 'US' },
+      region: 'US',
+    };
+    geocoder.geocode(request, (results, status) => {
       if (status !== 'OK' || !results?.[0]?.geometry) {
         resolve(null);
         return;
       }
-      const location = results[0].geometry.location;
-      resolve({
-        name: results[0].formatted_address || address,
-        lat: location.lat(),
-        lng: location.lng(),
-      });
+      resolve(chooseGeocodeResult(address, results));
     });
   });
+}
+
+function showLocationLookupError(input, message) {
+  const id = input?.id || '';
+  const selectedId = {
+    'origin-search': 'origin-selected',
+    'destination-search': 'destination-selected',
+    'request-origin': 'request-origin-selected',
+    'request-destination': 'request-destination-selected',
+  }[id];
+  const selected = document.getElementById(selectedId);
+  if (selected) {
+    selected.textContent = message;
+    selected.classList.add('active');
+  }
 }
 
 async function lookupTypedLocation(input, onResolved) {
@@ -648,7 +774,11 @@ async function lookupTypedLocation(input, onResolved) {
   if (!query) return null;
   await loadGoogleMapsAPI();
   const result = await geocodeAddress(query);
-  if (result) onResolved(result);
+  if (result) {
+    onResolved(result);
+  } else {
+    showLocationLookupError(input, 'Choose a more specific location from suggestions. LinkUp ignored an ambiguous out-of-region match.');
+  }
   return result;
 }
 
@@ -1428,6 +1558,11 @@ function showTrackTripPage() {
   clearTrackingMessages();
   hideDashboardPages();
   trackTripPage.classList.remove('hidden');
+  loadGoogleMapsAPI().then(() => {
+    if (lastTrackingLocation) {
+      updateTrackingMap(lastTrackingLocation, lastTrackingLocations, lastTrackingRideRoute);
+    }
+  });
 }
 
 function ensureServiceAccess() {
@@ -1539,6 +1674,7 @@ function resetTrackingPage() {
   trackingRecipientEmail.value = '';
   activeTrackingViewerUrl = '';
   copyTrackingLinkButton?.classList.add('hidden');
+  sendTrackingInviteButton?.classList.add('hidden');
   setTrackingActive(false);
   trackingLastUpdate.textContent = 'No location shared yet.';
   trackingMapDiv.textContent = '';
@@ -1716,6 +1852,34 @@ function getRouteKey(route) {
   return points ? [points.origin.lat, points.origin.lng, points.destination.lat, points.destination.lng].join(',') : '';
 }
 
+function getTrackingMapUrl(route, location = null) {
+  const points = getRoutePoints(route);
+  if (points) {
+    const destination = points.destination.lat + ',' + points.destination.lng;
+    const origin = location && Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng))
+      ? Number(location.lat) + ',' + Number(location.lng)
+      : points.origin.lat + ',' + points.origin.lng;
+    return 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination) + '&travelmode=driving';
+  }
+  if (location && Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng))) {
+    return 'https://www.google.com/maps?q=' + location.lat + ',' + location.lng;
+  }
+  return '#';
+}
+
+function renderTrackingMapFallback(container, position, label = 'Current location') {
+  if (!container || !position || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return;
+  const url = getTrackingMapUrl(null, position);
+  container.innerHTML = `
+    <div class="tracking-fallback-pin" aria-hidden="true"></div>
+    <div class="tracking-fallback-content">
+      <span>${label}</span>
+      <strong>${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}</strong>
+      <a href="${url}" target="_blank" rel="noopener">Open location in Google Maps</a>
+    </div>
+  `;
+}
+
 function clearRouteOverlay(state) {
   if (state.renderer.current) state.renderer.current.setMap(null);
   if (state.line.current) state.line.current.setMap(null);
@@ -1791,9 +1955,19 @@ function updateTrackingMap(location, pathLocations = [], rideRoute = null) {
   if (!location) return;
   const position = { lat: Number(location.lat), lng: Number(location.lng) };
   if (!window.google?.maps || !trackingMapDiv) {
-    trackingMapDiv.textContent = position.lat.toFixed(5) + ', ' + position.lng.toFixed(5);
+    renderTrackingMapFallback(trackingMapDiv, position, 'Your live location');
+    if (!trackingMapLoadPending) {
+      trackingMapLoadPending = true;
+      loadGoogleMapsAPI().then(() => {
+        trackingMapLoadPending = false;
+        if (window.google?.maps && lastTrackingLocation) {
+          updateTrackingMap(lastTrackingLocation, lastTrackingLocations, lastTrackingRideRoute);
+        }
+      });
+    }
     return;
   }
+  trackingMapLoadPending = false;
 
   if (!trackingMap) {
     trackingMap = new google.maps.Map(trackingMapDiv, {
@@ -1821,6 +1995,9 @@ function updateTrackingMap(location, pathLocations = [], rideRoute = null) {
 
 function updateTrackingUi(location, locations = [], rideRoute = null) {
   if (!location) return;
+  lastTrackingLocation = location;
+  lastTrackingLocations = locations || [];
+  lastTrackingRideRoute = rideRoute || null;
   updateTrackingMap(location, locations, rideRoute);
   const accuracy = location.accuracy ? ' within about ' + Math.round(location.accuracy) + ' meters' : '';
   trackingLastUpdate.textContent = 'Last update: ' + formatTrackingTime(location.recordedAt) + accuracy;
@@ -1830,6 +2007,8 @@ function setTrackingActive(isActive) {
   startTrackingButton.disabled = isActive;
   stopTrackingButton.disabled = !isActive;
   trackingStatus.textContent = isActive ? 'Location sharing is on.' : 'Location sharing is off.';
+  trackingRecipientEmail.disabled = false;
+  sendTrackingInviteButton?.classList.toggle('hidden', !isActive);
 }
 
 async function sendTrackingLocation(position) {
@@ -1865,7 +2044,6 @@ async function startTripTracking() {
     copyTrackingLinkButton?.classList.toggle('hidden', !activeTrackingViewerUrl);
     updateTrackingDriverInfo();
     setTrackingActive(true);
-    trackingRecipientEmail.disabled = true;
     trackingMessage.textContent = data.rideRoute
       ? (data.message || 'Invite sent. Keep this page open while riding.')
       : 'Tracking started, but no active reserved ride route was found to draw yet.';
@@ -1881,6 +2059,34 @@ async function startTripTracking() {
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
+  } catch (err) {
+    trackingError.textContent = err.message;
+    trackingError.classList.add('show');
+  }
+}
+
+async function sendTrackingInvite() {
+  clearTrackingMessages();
+  if (!activeTrackingTripId) {
+    trackingError.textContent = 'Start sharing first, then enter a trusted email.';
+    trackingError.classList.add('show');
+    return;
+  }
+  const trustedEmail = trackingRecipientEmail.value.trim();
+  if (!trustedEmail) {
+    trackingError.textContent = 'Enter a trusted email to send an invite.';
+    trackingError.classList.add('show');
+    return;
+  }
+  try {
+    const data = await fetchJson('/api/trips/track/' + activeTrackingTripId + '/trusted-email', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trustedEmail }),
+    });
+    trackingRecipientEmail.value = data.trustedEmail || trustedEmail;
+    trackingMessage.textContent = data.message || 'Tracking invite sent.';
+    trackingMessage.classList.add('show');
   } catch (err) {
     trackingError.textContent = err.message;
     trackingError.classList.add('show');
@@ -1935,25 +2141,42 @@ async function stopTripTracking() {
 }
 
 function updateSharedTrackingMap(location, pathLocations = [], rideRoute = null) {
-  if (!location) return;
-  const position = { lat: Number(location.lat), lng: Number(location.lng) };
-  if (!window.google?.maps || !sharedTrackMapDiv) {
-    sharedTrackMapDiv.textContent = position.lat.toFixed(5) + ', ' + position.lng.toFixed(5);
+  const routePoints = getRoutePoints(rideRoute);
+  const position = location ? { lat: Number(location.lat), lng: Number(location.lng) } : null;
+  const hasPosition = position && Number.isFinite(position.lat) && Number.isFinite(position.lng);
+  if (!hasPosition && !routePoints) {
+    if (sharedTrackMapDiv) sharedTrackMapDiv.textContent = 'Waiting for live location...';
     return;
   }
+  if (!window.google?.maps || !sharedTrackMapDiv) {
+    if (hasPosition) {
+      renderTrackingMapFallback(sharedTrackMapDiv, position, 'Shared live location');
+    } else {
+      sharedTrackMapDiv.textContent = 'Route: ' + (rideRoute?.origin || 'Pick-up') + ' to ' + (rideRoute?.destination || 'Drop-off');
+    }
+    return;
+  }
+  const center = hasPosition ? position : {
+    lat: (routePoints.origin.lat + routePoints.destination.lat) / 2,
+    lng: (routePoints.origin.lng + routePoints.destination.lng) / 2,
+  };
 
   if (!sharedTrackingMap) {
     sharedTrackingMap = new google.maps.Map(sharedTrackMapDiv, {
-      zoom: 15, center: position,
+      zoom: hasPosition ? 15 : 10, center,
       styles: UBER_MAP_STYLES,
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
-    sharedTrackingMarker = new google.maps.Marker({ map: sharedTrackingMap, position, icon: makeCarIcon(), title: 'Current rider location' });
     sharedTrackingPath = new google.maps.Polyline({ map: sharedTrackingMap, path: [], strokeColor: '#8fb8ff', strokeOpacity: 0.9, strokeWeight: 4 });
-  } else {
+  } else if (hasPosition) {
+    sharedTrackingMap.setCenter(position);
+  }
+  if (hasPosition && !sharedTrackingMarker) {
+    sharedTrackingMarker = new google.maps.Marker({ map: sharedTrackingMap, position, icon: makeCarIcon(), title: 'Current rider location' });
+  } else if (hasPosition) {
     sharedTrackingMarker.setPosition(position);
   }
-  const routePoints = drawTrackingRouteOverlay(sharedTrackingMap, rideRoute, {
+  const drawnRoutePoints = drawTrackingRouteOverlay(sharedTrackingMap, rideRoute, {
     renderer: { get current() { return sharedTrackingRouteRenderer; }, set current(value) { sharedTrackingRouteRenderer = value; } },
     line: { get current() { return sharedTrackingRouteLine; }, set current(value) { sharedTrackingRouteLine = value; } },
     originMarker: { get current() { return sharedTrackingOriginMarker; }, set current(value) { sharedTrackingOriginMarker = value; } },
@@ -1961,9 +2184,15 @@ function updateSharedTrackingMap(location, pathLocations = [], rideRoute = null)
     key: { get current() { return sharedTrackingRouteKey; }, set current(value) { sharedTrackingRouteKey = value; } },
   });
   if (sharedTrackingPath) {
-    sharedTrackingPath.setPath(pathLocations.map((entry) => ({ lat: Number(entry.lat), lng: Number(entry.lng) })));
+    const path = pathLocations
+      .map((entry) => ({ lat: Number(entry.lat), lng: Number(entry.lng) }))
+      .filter((entry) => Number.isFinite(entry.lat) && Number.isFinite(entry.lng));
+    if (hasPosition && !path.some((entry) => entry.lat === position.lat && entry.lng === position.lng)) {
+      path.push(position);
+    }
+    sharedTrackingPath.setPath(path);
   }
-  fitTrackingMapToTrip(sharedTrackingMap, position, routePoints, pathLocations);
+  fitTrackingMapToTrip(sharedTrackingMap, hasPosition ? position : null, drawnRoutePoints, pathLocations);
 }
 
 async function loadSharedTrackingPage(viewerToken) {
@@ -1972,22 +2201,36 @@ async function loadSharedTrackingPage(viewerToken) {
   dashboard.classList.add('hidden');
   sharedTrackPage.classList.remove('hidden');
   document.body.classList.remove('dashboard-mode');
+  if (sharedTrackingPollId) {
+    clearInterval(sharedTrackingPollId);
+    sharedTrackingPollId = null;
+  }
 
   const refresh = async () => {
     try {
       const trip = await fetchJson('/api/track/' + viewerToken);
       sharedTrackTitle.textContent = trip.ownerFirstName + '\'s live trip location';
-      sharedTrackStatus.textContent = trip.status === 'active' ? 'Location sharing is active.' : 'Location sharing has stopped.';
+      sharedTrackStatus.textContent = trip.status === 'active'
+        ? 'Location sharing is active and updates every few seconds.'
+        : 'Location sharing has stopped.';
       sharedTrackError.classList.remove('show');
       if (!trip.lastLocation) {
-        sharedTrackDetails.textContent = 'Waiting for the rider to share their first location.';
+        updateSharedTrackingMap(null, [], trip.rideRoute || null);
+        sharedTrackDetails.textContent = trip.rideRoute
+          ? 'Route: ' + trip.rideRoute.origin + ' to ' + trip.rideRoute.destination + '. Waiting for the first live location update.'
+          : 'Waiting for the rider to share their first location.';
+        const routeUrl = getTrackingMapUrl(trip.rideRoute || null);
+        sharedTrackMapLink.href = routeUrl;
+        sharedTrackMapLink.textContent = trip.rideRoute ? 'Open route in Google Maps' : 'Open in Google Maps';
+        sharedTrackMapLink.classList.toggle('hidden', routeUrl === '#');
         return;
       }
       const location = trip.lastLocation;
       updateSharedTrackingMap(location, trip.locations || [], trip.rideRoute || null);
       const routeLabel = trip.rideRoute ? ' · Route: ' + trip.rideRoute.origin + ' to ' + trip.rideRoute.destination : '';
       sharedTrackDetails.textContent = 'Last update: ' + formatTrackingTime(location.recordedAt) + routeLabel;
-      sharedTrackMapLink.href = 'https://www.google.com/maps?q=' + location.lat + ',' + location.lng;
+      sharedTrackMapLink.href = getTrackingMapUrl(null, location);
+      sharedTrackMapLink.textContent = 'Open location in Google Maps';
       sharedTrackMapLink.classList.remove('hidden');
     } catch (err) {
       sharedTrackStatus.textContent = 'Location sharing unavailable.';
@@ -2002,7 +2245,7 @@ async function loadSharedTrackingPage(viewerToken) {
 
   await loadGoogleMapsAPI();
   await refresh();
-  sharedTrackingPollId = setInterval(refresh, 5000);
+  sharedTrackingPollId = setInterval(refresh, LIVE_TRACKING_POLL_MS);
 }
 function formatCents(cents) {
   return '$' + ((cents || 0) / 100).toFixed(2);
@@ -2086,7 +2329,9 @@ function formatRideDateTime(ride) {
 }
 
 function getRideStartTime(ride) {
-  return new Date(ride.date + 'T' + (ride.time || '00:00')).getTime();
+  if (!ride?.date) return 0;
+  const ts = new Date(ride.date + 'T' + (ride.time || '00:00')).getTime();
+  return Number.isFinite(ts) ? ts : 0;
 }
 
 function getCoordinateFromText(value) {
@@ -2576,7 +2821,7 @@ function renderRideCard(ride) {
   const riders = document.createElement('div');
   riders.style.marginTop = '0.8rem';
   riders.style.fontSize = '0.95rem';
-  riders.textContent = `Passengers: ${ride.passengers.length}`;
+  riders.textContent = `Passengers: ${(ride.passengers || []).length}`;
   card.appendChild(riders);
   return card;
 }
@@ -2997,7 +3242,7 @@ function buildRideSummary(ride, options = {}) {
       <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
       <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
       ${getVehicleDetailMarkup(ride)}
-      <div><strong>Passengers:</strong> ${esc(ride.passengers.length)}</div>
+      <div><strong>Passengers:</strong> ${esc((ride.passengers || []).length)}</div>
     </div>
   `;
   if (ride.seatingChartUnavailable) {
@@ -3735,6 +3980,10 @@ offerForm.addEventListener('submit', async (event) => {
     alert('All ride fields are required. Please select both locations.');
     return;
   }
+  if (Number(price) < 0.5) {
+    alert('Price per seat must be at least $0.50.');
+    return;
+  }
   if (sameGenderOnly && !canMatchSameGender(currentUser.gender, currentUser.gender)) {
     alert('Choose a gender on your account before offering same gender only rides.');
     return;
@@ -3938,6 +4187,7 @@ driverPayoutForm.addEventListener('submit', async (event) => {
 trackTripButton.addEventListener('click', () => showTrackTripPage());
 trackBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
+sendTrackingInviteButton?.addEventListener('click', () => sendTrackingInvite());
 startTrackingButton.addEventListener('click', () => startTripTracking());
 stopTrackingButton.addEventListener('click', () => stopTripTracking());
 continueShoppingButton.addEventListener('click', () => returnToBrowseRides());
