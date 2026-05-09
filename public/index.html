@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260509-tracking-map-fallback" />
+    <link rel="stylesheet" href="styles.css?v=20260509-release-note-spacing" />
   </head>
   <body>
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -345,6 +345,12 @@
                             <li>Allowed trusted-person invite emails to be added or resent after location sharing has already started.</li>
                             <li>Hardened location lookup to avoid ambiguous out-of-region routes and keep ride maps focused on supported school regions.</li>
                           </ul>
+                          <h4>Bug fixes</h4>
+                          <ul>
+                            <li>Fixed Track My Trip getting stuck on plain coordinates when Google Maps loaded after the first location update.</li>
+                            <li>Fixed missing route data for eligible tracking sessions by refreshing the ride route when a location update or shared tracking link is opened.</li>
+                            <li>Fixed ambiguous campus searches that could choose an out-of-region route instead of a supported school-area result.</li>
+                          </ul>
                         </div>
                       </section>
                       <section class="release-note-entry">
@@ -357,6 +363,12 @@
                             <li>Removed default payment method from required settings so riders can use services without saving a card first.</li>
                             <li>Improved policy and required-settings routing so users are sent to the exact Profile tab they need.</li>
                           </ul>
+                          <h4>Bug fixes</h4>
+                          <ul>
+                            <li>Fixed gender updates for accounts that still needed to complete required identity settings.</li>
+                            <li>Fixed the access gate so payment method is optional while identity and policy requirements remain enforced.</li>
+                            <li>Fixed policy/profile routing loops that could leave users on the wrong Profile panel.</li>
+                          </ul>
                         </div>
                       </section>
                       <section class="release-note-entry">
@@ -367,6 +379,11 @@
                             <li>Updated LinkUp's Terms and Conditions and Privacy Notice with the May 8, 2026 versions.</li>
                             <li>Existing users must review and accept the latest policies before using ride services.</li>
                           </ul>
+                          <h4>Bug fixes</h4>
+                          <ul>
+                            <li>Fixed the legal-page Return to Browse Rides button so users can return to the page they were browsing.</li>
+                            <li>Fixed policy acceptance checks so users are prompted again when the required policy version changes.</li>
+                          </ul>
                         </div>
                       </section>
                       <section class="release-note-entry">
@@ -376,6 +393,11 @@
                           <ul>
                             <li>Release notes now show the newest version at the top.</li>
                             <li>Older versions stay in the same box below the current version.</li>
+                          </ul>
+                          <h4>Bug fixes</h4>
+                          <ul>
+                            <li>Fixed release-note ordering so the newest version no longer appears below older entries.</li>
+                            <li>Fixed the release-note panel layout so older entries remain grouped in the same scrollable history.</li>
                           </ul>
                         </div>
                       </section>
@@ -390,6 +412,12 @@
                             <li>Stopped map clicks from changing pickup or drop-off locations.</li>
                             <li>Fixed maps treating blank coordinates as location 0,0.</li>
                           </ul>
+                          <h4>Bug fixes</h4>
+                          <ul>
+                            <li>Fixed blank coordinate fields being interpreted as 0,0 on ride maps.</li>
+                            <li>Fixed accidental pickup or drop-off changes caused by clicking the map while browsing or editing a route.</li>
+                            <li>Fixed browse controls so radius and sorting changes are easier to reset and compare.</li>
+                          </ul>
                         </div>
                       </section>
                       <section class="release-note-entry">
@@ -401,6 +429,12 @@
                             <li>Added policy agreement flow for Terms and Conditions and Privacy Notice updates.</li>
                             <li>Added profile payment method and driver payout sections.</li>
                             <li>Added requested rides, ride history, chat, driver ratings, and seat reservations.</li>
+                          </ul>
+                          <h4>Bug fixes</h4>
+                          <ul>
+                            <li>Fixed early tracking-route display issues by showing rider location and route context on the same map.</li>
+                            <li>Fixed ride-history and seat-reservation visibility so riders can better review current and past trips.</li>
+                            <li>Fixed profile organization by separating payment and payout information into clearer sections.</li>
                           </ul>
                         </div>
                       </section>
@@ -991,6 +1025,6 @@
       </footer>
     </div>
 
-    <script src="app.js?v=20260509-tracking-map-fallback"></script>
+    <script src="app.js?v=20260509-release-notes-bug-fixes"></script>
   </body>
 </html>

@@ -4008,11 +4008,23 @@ textarea:disabled,
   text-transform: uppercase;
 }
 
+.release-note-features h4 + ul {
+  margin-bottom: 0;
+}
+
+.release-note-features ul + h4 {
+  margin-top: 1.15rem;
+}
+
 .release-note-features ul {
   margin: 0;
   padding-left: 1.15rem;
   color: var(--text-secondary);
   line-height: 1.7;
+}
+
+.release-note-features li + li {
+  margin-top: 0.35rem;
 }
 
 
