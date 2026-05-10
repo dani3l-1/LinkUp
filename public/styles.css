@@ -71,7 +71,6 @@ body {
 }
 
 
-
 /* ─── Animations ────────────────────────────────────────────── */
 
 /* Entry: crisp upward reveal with slight blur fade */
@@ -414,22 +413,6 @@ input:not(:placeholder-shown):invalid:not(:focus) {
   box-shadow: 0 0 0 2px rgba(224,90,90,0.08);
 }
 
-/* Input with icon support */
-.input-with-icon {
-  position: relative;
-}
-.input-with-icon .input-icon {
-  position: absolute;
-  left: 0.9rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  pointer-events: none;
-  font-size: 1rem;
-}
-.input-with-icon input {
-  padding-left: 2.6rem;
-}
 
 input::placeholder { color: var(--text-muted); font-size: 0.9rem; }
 
@@ -811,6 +794,58 @@ button:disabled::before { display: none; }
   gap: 0.85rem;
 }
 
+.ride-provider-step {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.ride-provider-choice {
+  display: grid;
+  gap: 0.45rem;
+  min-height: 116px;
+  padding: 1rem;
+  text-align: left;
+  align-content: start;
+}
+
+.ride-provider-choice span {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ride-provider-choice small {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ride-provider-choice.active {
+  border-color: var(--accent);
+  background: rgba(62,207,207,0.14);
+}
+
+.ride-provider-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(62,207,207,0.22);
+  border-radius: var(--radius-md);
+  background: rgba(62,207,207,0.08);
+  color: var(--text-secondary);
+}
+
+.ride-provider-summary button {
+  width: auto;
+  padding: 0.55rem 0.8rem;
+}
+
 .radius-filter-grid,
 .filter-grid {
   display: grid;
@@ -1172,11 +1207,6 @@ button:disabled::before { display: none; }
   box-shadow: 0 6px 28px rgba(62,207,207,0.45);
 }
 
-.payment-note {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.85rem;
-}
 
 .ride-empty-state {
   display: grid;
@@ -1817,11 +1847,6 @@ button:disabled::before { display: none; }
   to { transform: rotate(360deg); }
 }
 
-@keyframes skeleton-shimmer {
-  0%   { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-}
-
 .btn-loading {
   position: relative;
   pointer-events: none;
@@ -1842,31 +1867,6 @@ button:disabled::before { display: none; }
   animation: spin 0.6s linear infinite;
 }
 
-/* Skeleton card */
-.skeleton-card {
-  background: rgba(62,207,207,0.04);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem 1.4rem;
-  overflow: hidden;
-}
-
-.skeleton-line {
-  height: 12px;
-  border-radius: 6px;
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.04) 0px,
-    rgba(62,207,207,0.08) 200px,
-    rgba(255,255,255,0.04) 400px
-  );
-  background-size: 800px 100%;
-  animation: skeleton-shimmer 1.6s ease-in-out infinite;
-  margin-bottom: 0.65rem;
-}
-.skeleton-line.short { width: 55%; }
-.skeleton-line.medium { width: 75%; }
-.skeleton-line.long { width: 100%; }
 
 /* ─── Toast notification system ────────────────────────────── */
 @keyframes toast-in {
@@ -3039,10 +3039,6 @@ article.card h3 {
 }
 
 
-.policy-lockout {
-  border-color: rgba(103, 215, 217, 0.38);
-}
-
 #policy-version-summary {
   margin-bottom: 0.85rem;
 }
@@ -3158,7 +3154,6 @@ article.card h3 {
     max-height: calc(100vh - 285px);
   }
 }
-
 
 
 .browse-ride-pin-badge {
@@ -3415,7 +3410,6 @@ body {
 }
 
 p,
-.muted,
 .selected-location,
 .cart-item-detail,
 .ride-details,
@@ -3428,10 +3422,7 @@ label,
 .radius-filter-grid label,
 .filter-grid label,
 .browse-controls .radius-filter-grid label,
-.browse-controls .filter-grid label,
-.form-note,
-.terms-version,
-.policy-card small {
+.browse-controls .filter-grid label {
   color: #9bc7cf;
 }
 
@@ -3454,9 +3445,7 @@ input[type='time'] {
 }
 
 button,
-.btn,
-.nav-btn,
-.tab-btn {
+.btn {
   color: var(--text-primary);
 }
 
@@ -3470,12 +3459,9 @@ textarea:disabled,
 }
 
 .ride-card p,
-.request-card p,
 #profile-rides p,
 .seat-manifest-unavailable,
-.tracking-status,
-.payment-helper,
-.legal-copy {
+.tracking-status {
   color: var(--text-secondary);
 }
 
@@ -3948,12 +3934,6 @@ textarea:disabled,
 }
 
 
-/* Profile release notes */
-.release-notes-list {
-  display: grid;
-  gap: 1rem;
-}
-
 .release-note-card {
   padding: 1rem;
   border: 1px solid rgba(103, 215, 217, 0.24);
@@ -3961,14 +3941,6 @@ textarea:disabled,
   background: rgba(8, 16, 18, 0.58);
 }
 
-.release-note-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.7rem;
-  color: var(--text-secondary);
-}
 
 .release-note-card h5 {
   margin: 0 0 0.65rem;
@@ -4025,6 +3997,37 @@ textarea:disabled,
 
 .release-note-features li + li {
   margin-top: 0.35rem;
+}
+
+/* Shared ride inline post form */
+.shared-ride-post-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+
+.shared-form-label {
+  font-size: 0.82rem;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.shared-form-seats-input {
+  width: 60px;
+}
+
+.shared-form-price-input {
+  width: 72px;
+}
+
+/* Ride card passenger count */
+.ride-card-passengers {
+  margin-top: 0.65rem;
+  font-size: 0.88rem;
+  color: var(--text-muted);
 }
 
 

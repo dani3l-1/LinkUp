@@ -473,7 +473,7 @@ function withRideMiles(ride, db = null) {
     ...ride,
     distanceMiles,
     totalDistanceMiles: getRideMiles({ ...ride, distanceMiles }),
-    vehicleSeatCount: inferVehicleSeatCount(ride),
+    vehicleSeatCount: ride.seatingChartUnavailable ? 0 : inferVehicleSeatCount(ride),
     seatMap: getRideSeatMap(ride),
     seatsAvailable: getAvailableOpenSeatIds(ride).length,
     driverRatingAverage: driverRating.average,
@@ -1861,13 +1861,26 @@ app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, seatsAvailable, price, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, notes } = req.body;
+  const rideProviderType = ['personal_car', 'rideshare_service'].includes(req.body.rideProviderType) ? req.body.rideProviderType : '';
+  const isRideshareService = rideProviderType === 'rideshare_service';
+  const rideshareService = String(req.body.rideshareService || '').trim();
+  const rideshareSeatCount = Number(req.body.rideshareSeatCount);
   const vehicleSeatCount = normalizeVehicleSeatCount(req.body.vehicleSeatCount);
   const availableSeatIds = normalizeSeatIds(req.body.availableSeatIds, vehicleSeatCount);
-  if (!origin || !destination || !date || !time || price === undefined || !carMaker || !carModel || !carColor || !licensePlate || originLat === undefined || originLng === undefined || destinationLat === undefined || destinationLng === undefined) {
+  if (!origin || !destination || !date || !time || !rideProviderType || price === undefined || originLat === undefined || originLng === undefined || destinationLat === undefined || destinationLng === undefined) {
     return res.status(400).json({ error: 'Missing ride information' });
   }
-  if (!availableSeatIds.length) {
+  if (!isRideshareService && (!carMaker || !carModel || !carColor || !licensePlate)) {
+    return res.status(400).json({ error: 'Personal car rides require vehicle information' });
+  }
+  if (!isRideshareService && !availableSeatIds.length) {
     return res.status(400).json({ error: 'Select at least one available passenger seat' });
+  }
+  if (isRideshareService && !rideshareService) {
+    return res.status(400).json({ error: 'Choose the rideshare service for this ride' });
+  }
+  if (isRideshareService && (!Number.isInteger(rideshareSeatCount) || rideshareSeatCount < 1 || rideshareSeatCount > 7)) {
+    return res.status(400).json({ error: 'Rideshare service rides must have 1 to 7 available rider spots' });
   }
   if (termsAccepted !== true) {
     return res.status(400).json({ error: 'You must agree to the driver terms and conditions before listing a ride' });
@@ -1930,14 +1943,18 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     time,
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
     returnRide: hasReturnRide ? { date: returnDate, time: returnTime } : null,
-    vehicleSeatCount,
-    availableSeatIds,
-    seatsAvailable: availableSeatIds.length,
+    rideProviderType,
+    rideshareService: isRideshareService ? rideshareService : '',
+    seatingChartUnavailable: isRideshareService,
+    sharedSeatCapacity: isRideshareService ? rideshareSeatCount : null,
+    vehicleSeatCount: isRideshareService ? 0 : vehicleSeatCount,
+    availableSeatIds: isRideshareService ? [] : availableSeatIds,
+    seatsAvailable: isRideshareService ? rideshareSeatCount : availableSeatIds.length,
     priceCents,
-    carMaker: String(carMaker).trim(),
-    carModel: String(carModel).trim(),
-    carColor: String(carColor).trim(),
-    licensePlate: String(licensePlate).trim().toUpperCase(),
+    carMaker: isRideshareService ? '' : String(carMaker).trim(),
+    carModel: isRideshareService ? '' : String(carModel).trim(),
+    carColor: isRideshareService ? '' : String(carColor).trim(),
+    licensePlate: isRideshareService ? '' : String(licensePlate).trim().toUpperCase(),
     termsAcceptedAt: new Date().toISOString(),
     notes: notes || '',
     passengers: [],

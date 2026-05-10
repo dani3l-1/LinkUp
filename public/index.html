@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260509-release-note-spacing" />
+    <link rel="stylesheet" href="styles.css?v=20260510-ride-provider-release" />
   </head>
   <body>
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -136,9 +136,9 @@
               <p id="student-university-label"></p>
             </div>
             <div class="top-actions">
-              <button id="request-ride-button" type="button">Request a ride</button>
-              <button id="list-ride-button" type="button">+ List a ride</button>
-              <button id="track-trip-button" type="button">⊙ Track my trip</button>
+              <button id="request-ride-button" type="button">Request ride</button>
+              <button id="list-ride-button" type="button">+ List ride</button>
+              <button id="track-trip-button" type="button">⊙ Track trip</button>
               <button id="your-rides-button" type="button">Your rides</button>
               <button id="leaderboard-button" type="button">Leaderboard</button>
             </div>
@@ -156,7 +156,7 @@
             <div class="cart-header">
               <div>
                 <h3>School Leaderboard</h3>
-                <p>See how many LinkUp users each school has.</p>
+                <p>LinkUp users and miles by school.</p>
               </div>
               <button id="leaderboard-back-home" type="button">Return to browse rides</button>
             </div>
@@ -174,7 +174,7 @@
             <div class="cart-header">
               <div>
                 <h3>Profile</h3>
-                <p>Manage your account, payout details, policies, and release notes.</p>
+                <p>Account, payouts, policies, and release notes.</p>
               </div>
               <button id="profile-back-home" type="button">Return to browse rides</button>
             </div>
@@ -205,7 +205,7 @@
                       </label>
                       <label>University Email <input type="email" id="profile-email" disabled /></label>
                     </div>
-                    <p class="profile-note">Birthday and gender can be added if missing, then cannot be changed. University email cannot be changed. Name changes are limited to once every 6 months.</p>
+                    <p class="profile-note">Birthday and gender can only be set once. University email cannot be changed. Names can be updated once every 6 months.</p>
                     <button type="submit">Save Profile</button>
                     <div id="profile-message" class="success-message"></div>
                     <div id="profile-error" class="error-message"></div>
@@ -219,7 +219,7 @@
                     </div>
                     <div id="default-payment-summary" class="payment-method-summary">No default payment method saved.</div>
                     <div class="payout-note payout-warning">
-                      For this local prototype, LinkUp stores only card brand, last 4 digits, expiration, and billing name. Do not store full card numbers in the local database.
+                      LinkUp stores only card brand, last 4 digits, expiration, and billing name — never your full card number.
                     </div>
                     <div class="profile-grid">
                       <label>Billing name <input type="text" id="default-payment-name" placeholder="Name on card" required /></label>
@@ -336,6 +336,25 @@
                   <div class="release-note-card release-note-single">
                     <div class="release-note-feed" aria-label="Release notes newest first">
                       <section class="release-note-entry">
+                        <div class="release-note-version">v2026.05.10</div>
+                        <div class="release-note-features">
+                          <h4>Ride listing flow</h4>
+                          <ul>
+                            <li>Added a first-step choice for listing type: Personal Car or Rideshare Service.</li>
+                            <li>Personal Car listings keep vehicle details, vehicle layout, and exact passenger seat selection.</li>
+                            <li>Rideshare Service listings remove car details and seat selection, ask for the service name, and use general rider spots.</li>
+                            <li>Updated ride cards, cart items, and profile ride summaries so rideshare-service listings show shared-spot language instead of exact seats.</li>
+                          </ul>
+                          <h4>Bug fixes</h4>
+                          <ul>
+                            <li>Fixed release notes so every version includes a bug-fixes section with cleaner spacing.</li>
+                            <li>Fixed a stylesheet selector typo that could interfere with label color styling.</li>
+                            <li>Fixed driver ride summaries so rideshare-service listings do not show a personal-car seat manifest.</li>
+                            <li>Refined labels to say Personal Car and Rideshare Service without adding extra "ride" wording.</li>
+                          </ul>
+                        </div>
+                      </section>
+                      <section class="release-note-entry">
                         <div class="release-note-version">v2026.05.9</div>
                         <div class="release-note-features">
                           <h4>Live tracking and route stability</h4>
@@ -444,11 +463,11 @@
                 <div id="profile-payouts-panel" class="profile-panel hidden" data-profile-panel="payouts">
                   <form id="driver-payout-form" class="profile-form payout-guide">
                     <div>
-                      <h4>Driver payout information</h4>
-                      <p>Enter the payout details LinkUp should use after a ride is completed and commission is deducted.</p>
+                      <h4>Driver payout</h4>
+                      <p>Where LinkUp sends your earnings after commission.</p>
                     </div>
                     <div class="payout-note payout-warning">
-                      Do not enter raw bank account or routing numbers here. Use a payout email, phone number, handle, or notes for manual payout until Stripe Connect is connected.
+                      Use a payout email, phone, or handle. Do not enter raw bank account or routing numbers.
                     </div>
                     <div class="profile-grid">
                       <label>Legal payout name <input type="text" id="payout-legal-name" placeholder="Name used for payout" required /></label>
@@ -489,11 +508,11 @@
           <div id="dashboard-home">
             <div class="marketplace-header">
               <h3 id="browse-title">Browse rides</h3>
-              <p id="browse-subtitle">Choose whether you are driving or riding today.</p>
+              <p id="browse-subtitle">Are you driving or riding today?</p>
             </div>
 
             <section class="card browse-role-card" id="browse-role-card">
-              <h3>Are you a driver or a rider?</h3>
+              <h3>What's your role?</h3>
               <div class="browse-role-actions">
                 <button id="browse-driver-button" type="button">Driver</button>
                 <button id="browse-rider-button" type="button">Rider</button>
@@ -565,7 +584,7 @@
             <div class="cart-header">
               <div>
                 <h3>Request a ride</h3>
-                <p>Tell drivers where you need to go, what you will pay, and how far you can walk to meet or finish the ride.</p>
+                <p>Post where you need to go, your price, and pickup flexibility.</p>
               </div>
               <button id="request-ride-back-home" type="button">Return to browse rides</button>
             </div>
@@ -618,7 +637,7 @@
             <div class="cart-header">
               <div>
                 <h3>List a ride</h3>
-                <p>Post your route, seats, price, and how far you are willing to drive for rider pickup and drop-off.</p>
+                <p>Post your route, seats, price, and detour flexibility.</p>
               </div>
               <button id="list-ride-back-home" type="button">Return to browse rides</button>
             </div>
@@ -626,7 +645,22 @@
             <div class="grid">
               <article class="card">
                 <h3>Offer a ride</h3>
-                <form id="offer-form">
+                <div id="ride-provider-step" class="ride-provider-step">
+                  <button class="ride-provider-choice" type="button" data-provider-type="personal_car">
+                    <span>Personal Car</span>
+                    <small>Use your own car, add vehicle details, and choose exact passenger seats.</small>
+                  </button>
+                  <button class="ride-provider-choice" type="button" data-provider-type="rideshare_service">
+                    <span>Rideshare Service</span>
+                    <small>Share an Uber, Lyft, or another rideshare. Riders reserve general spots.</small>
+                  </button>
+                </div>
+                <form id="offer-form" class="hidden">
+                  <div class="ride-provider-summary">
+                    <span id="ride-provider-summary-text">Ride type selected</span>
+                    <button id="change-ride-provider" type="button">Change</button>
+                  </div>
+                  <input type="hidden" id="ride-provider-type" required />
                   <div class="location-picker">
                     <label>Pick-up location</label>
                     <input type="text" id="origin-search" placeholder="Search address or landmark…" />
@@ -653,20 +687,26 @@
                   </div>
 
                   <div class="radius-preference-grid">
-                    <label>Max pickup detour driving radius (mi) <input type="number" id="offer-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
-                    <label>Max drop-off detour driving radius (mi) <input type="number" id="offer-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Pickup detour radius (mi) <input type="number" id="offer-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Drop-off detour radius (mi) <input type="number" id="offer-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
                   </div>
 
                   <label>Date <input type="date" id="ride-date" required /></label>
                   <label>Departure time <input type="time" id="ride-time" required /></label>
                   <label class="checkbox-label"><input type="checkbox" id="same-gender-only-ride" /> Same gender riders only</label>
-                  <div class="vehicle-grid">
+                  <div id="rideshare-service-fields" class="vehicle-grid hidden">
+                    <label>Rideshare Service
+                      <input type="text" id="rideshare-service" placeholder="Uber, Lyft, Alto..." />
+                    </label>
+                    <label>Available rider spots <input type="number" id="rideshare-seat-count" min="1" max="7" value="1" /></label>
+                  </div>
+                  <div id="personal-car-fields" class="vehicle-grid hidden">
                     <label>Car maker <input type="text" id="car-maker" placeholder="Tesla" required /></label>
                     <label>Car model <input type="text" id="car-model" placeholder="Model Y" required /></label>
                     <label>Car color <input type="text" id="car-color" placeholder="Dark Gray" required /></label>
                     <label>License plate <input type="text" id="license-plate" placeholder="ABC1234" required /><span class="field-note">License plate will only be visible to riders after they reserve a seat.</span></label>
                   </div>
-                  <label>Vehicle layout
+                  <label id="vehicle-layout-field">Vehicle layout
                     <select id="vehicle-seat-count">
                       <option value="2">2 seater</option>
                       <option value="4">4 seater</option>
@@ -675,7 +715,7 @@
                       <option value="7">7 seater</option>
                     </select>
                   </label>
-                  <div class="seat-picker-block">
+                  <div id="personal-seat-selection" class="seat-picker-block hidden">
                     <div class="seat-picker-header">
                       <label>Available passenger seats</label>
                       <span id="selected-seat-count">0 selected</span>
@@ -687,7 +727,7 @@
                   <label>Notes <input type="text" id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." /></label>
                   <label class="checkbox-label terms-agreement">
                     <input type="checkbox" id="ride-terms-agree" required />
-                    I agree to LinkUp's driver terms and conditions, including safe driving, accurate ride details, and honoring reserved seats.
+                    I agree to LinkUp's Terms and Conditions as a driver.
                   </label>
                   <button type="submit">Post ride</button>
                 </form>
@@ -721,11 +761,11 @@
                   <button id="stop-tracking" type="button" disabled>End trip</button>
                 </div>
                 <label class="tracking-recipient-label">
-                  Trusted person's email optional
+                  Trusted person's email
                   <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" />
                 </label>
                 <button id="send-tracking-invite" class="copy-tracking-link hidden" type="button">Send invite</button>
-                <p class="tracking-note">Start sharing to create a secure trip URL made for this rider. Copy it and send it to people you trust. The link expires when sharing stops.</p>
+                <p class="tracking-note">Share the link with someone you trust. It expires when sharing stops.</p>
                 <button id="copy-tracking-link" class="copy-tracking-link hidden" type="button">Copy tracking link</button>
                 <div id="tracking-message" class="success-message"></div>
                 <div id="tracking-error" class="error-message"></div>
@@ -742,7 +782,7 @@
             <div class="cart-header">
               <div>
                 <h3>Ride chat</h3>
-                <p>Message drivers and confirmed riders for your booked rides.</p>
+                <p>Message drivers and riders on your booked trips.</p>
               </div>
               <button id="chat-back-home" type="button">Return to browse rides</button>
             </div>
@@ -762,14 +802,14 @@
             <div class="cart-header">
               <div>
                 <h3>Your rides</h3>
-                <p>Trips you're driving, trips you reserved, and ride requests you posted.</p>
+                <p>Drives, reservations, and requests.</p>
               </div>
               <button id="your-rides-back-home" type="button">Return to browse rides</button>
             </div>
             <div class="your-rides-tabs">
               <button id="your-rides-current-tab" type="button" class="active">Current rides</button>
               <button id="your-rides-requests-tab" type="button">Requested rides</button>
-              <button id="your-rides-history-tab" type="button">History rides</button>
+              <button id="your-rides-history-tab" type="button">Ride history</button>
             </div>
             <div id="your-rides-list">Loading your reserved rides...</div>
           </section>
@@ -799,7 +839,6 @@
               </div>
               <button id="payment-back-to-cart" type="button">Return to browse rides</button>
             </div>
-            <p class="payment-note">You'll be redirected to Stripe Checkout to pay securely.</p>
             <button type="button" id="pay-cart">Pay with Stripe</button>
             <div id="payment-message" class="success-message"></div>
             <div id="payment-error" class="error-message"></div>
@@ -1025,6 +1064,6 @@
       </footer>
     </div>
 
-    <script src="app.js?v=20260509-release-notes-bug-fixes"></script>
+    <script src="app.js?v=20260510-ride-provider-release"></script>
   </body>
 </html>

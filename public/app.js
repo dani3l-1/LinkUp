@@ -180,7 +180,6 @@ const policyReleaseCard = document.querySelector('.policy-release-card');
 
 let currentUser = null;
 let originMap = null;
-let destinationMap = null;
 let originMarker = null;
 let destinationMarker = null;
 let offerRouteRenderer = null;
@@ -192,7 +191,6 @@ let destinationAutocomplete = null;
 let requestOriginAutocomplete = null;
 let requestDestinationAutocomplete = null;
 let requestOriginMap = null;
-let requestDestinationMap = null;
 let requestOriginMarker = null;
 let requestDestinationMarker = null;
 let requestRouteRenderer = null;
@@ -337,7 +335,6 @@ function makeRideOriginDot() {
 const originSearchInput = document.getElementById('origin-search');
 const originMapDiv = document.getElementById('origin-map');
 const destinationSearchInput = document.getElementById('destination-search');
-const destinationMapDiv = document.getElementById('destination-map');
 const sameGenderOnlyRideCheckbox = document.getElementById('same-gender-only-ride');
 const sameSchoolOnlyFilter = document.getElementById('same-school-only');
 const sameGenderDriversOnlyFilter = document.getElementById('same-gender-drivers-only');
@@ -364,6 +361,17 @@ const resetRideFiltersButton = document.getElementById('reset-ride-filters');
 const driverSeatLayout = document.getElementById('driver-seat-layout');
 const selectedSeatCount = document.getElementById('selected-seat-count');
 const vehicleSeatCountSelect = document.getElementById('vehicle-seat-count');
+const rideProviderTypeSelect = document.getElementById('ride-provider-type');
+const rideProviderStep = document.getElementById('ride-provider-step');
+const rideProviderChoices = document.querySelectorAll('.ride-provider-choice');
+const rideProviderSummaryText = document.getElementById('ride-provider-summary-text');
+const changeRideProviderButton = document.getElementById('change-ride-provider');
+const personalCarFields = document.getElementById('personal-car-fields');
+const personalSeatSelection = document.getElementById('personal-seat-selection');
+const vehicleLayoutField = document.getElementById('vehicle-layout-field');
+const rideshareServiceFields = document.getElementById('rideshare-service-fields');
+const rideshareServiceSelect = document.getElementById('rideshare-service');
+const rideshareSeatCountInput = document.getElementById('rideshare-seat-count');
 const offerPickupRadiusInput = document.getElementById('offer-pickup-radius');
 const offerDropoffRadiusInput = document.getElementById('offer-dropoff-radius');
 const requestPickupRadiusInput = document.getElementById('request-pickup-radius');
@@ -777,7 +785,7 @@ async function lookupTypedLocation(input, onResolved) {
   if (result) {
     onResolved(result);
   } else {
-    showLocationLookupError(input, 'Choose a more specific location from suggestions. LinkUp ignored an ambiguous out-of-region match.');
+    showLocationLookupError(input, 'Location not found. Try a more specific address from the suggestions.');
   }
   return result;
 }
@@ -1232,8 +1240,8 @@ function fillPolicyConsentForm(user) {
     ? 'Required Terms version: ' + termsVersion + ' | Required Privacy Notice version: ' + privacyVersion
     : 'Accepted Terms version: ' + (user.termsVersion || termsVersion) + ' | Accepted Privacy Notice version: ' + (user.privacyVersion || privacyVersion);
   policyRequiredMessage.textContent = needsConsent
-    ? 'A new LinkUp policy or required profile feature is available. Please review and agree before using ride services.'
-    : 'You have accepted the latest required LinkUp policies. No new agreement is needed until LinkUp publishes a required update.';
+    ? 'Review and agree to the latest LinkUp policies to continue.'
+    : 'You\'re up to date. No new agreement needed until LinkUp publishes an update.';
   updatePolicyAgreeButtonState();
 }
 
@@ -1429,7 +1437,7 @@ function showProfilePage(tabName = 'info') {
 function showPolicyConsentRequired() {
   setAppRoute('profile-policies');
   showProfilePage('policies');
-  policyError.textContent = 'Please agree to the latest Terms and Conditions and Privacy Notice before using LinkUp services.';
+  policyError.textContent = 'Please agree to the latest Terms and Privacy Notice to continue.';
   policyError.classList.add('show');
 }
 
@@ -1586,7 +1594,7 @@ function showPaymentPage() {
   clearCartMessages();
   hideDashboardPages();
   paymentPage.classList.remove('hidden');
-  paymentSummary.textContent = `You will pay the driver-set price for ${cartRideIds.size} ride${cartRideIds.size === 1 ? '' : 's'} in your cart.`;
+  paymentSummary.textContent = `${cartRideIds.size} ride${cartRideIds.size === 1 ? '' : 's'} in your cart.`;
 }
 
 function restoreAppRoute() {
@@ -1803,6 +1811,49 @@ function renderDriverSeatLayout() {
   selectedSeatCount.textContent = count + ' selected';
 }
 
+function setRequired(element, required) {
+  if (element) element.required = Boolean(required);
+}
+
+function updateOfferProviderFields() {
+  const providerType = rideProviderTypeSelect?.value || '';
+  const isPersonalCar = providerType === 'personal_car';
+  const isRideshare = providerType === 'rideshare_service';
+  offerForm?.classList.toggle('hidden', !providerType);
+  rideProviderStep?.classList.toggle('hidden', Boolean(providerType));
+  rideProviderChoices.forEach((button) => button.classList.toggle('active', button.dataset.providerType === providerType));
+  if (rideProviderSummaryText) {
+    rideProviderSummaryText.textContent = isPersonalCar
+      ? 'Personal Car'
+      : (isRideshare ? 'Rideshare Service' : 'Ride type selected');
+  }
+  personalCarFields?.classList.toggle('hidden', !isPersonalCar);
+  personalSeatSelection?.classList.toggle('hidden', !isPersonalCar);
+  vehicleLayoutField?.classList.toggle('hidden', !isPersonalCar);
+  rideshareServiceFields?.classList.toggle('hidden', !isRideshare);
+
+  ['car-maker', 'car-model', 'car-color', 'license-plate'].forEach((id) => {
+    setRequired(document.getElementById(id), isPersonalCar);
+  });
+  setRequired(vehicleSeatCountSelect, isPersonalCar);
+  setRequired(document.getElementById('seats'), isPersonalCar);
+  setRequired(rideshareServiceSelect, isRideshare);
+  setRequired(rideshareSeatCountInput, isRideshare);
+}
+
+function chooseOfferProviderType(providerType) {
+  if (!rideProviderTypeSelect) return;
+  rideProviderTypeSelect.value = providerType;
+  if (providerType === 'personal_car') renderDriverSeatLayout();
+  updateOfferProviderFields();
+}
+
+function resetOfferProviderSelection() {
+  if (!rideProviderTypeSelect) return;
+  rideProviderTypeSelect.value = '';
+  updateOfferProviderFields();
+}
+
 function renderRideSeatPicker(ride, actionButton) {
   const wrapper = document.createElement('div');
   wrapper.className = 'ride-seat-picker';
@@ -2006,7 +2057,7 @@ function updateTrackingUi(location, locations = [], rideRoute = null) {
 function setTrackingActive(isActive) {
   startTrackingButton.disabled = isActive;
   stopTrackingButton.disabled = !isActive;
-  trackingStatus.textContent = isActive ? 'Location sharing is on.' : 'Location sharing is off.';
+  trackingStatus.textContent = isActive ? 'Sharing live location.' : 'Location sharing is off.';
   trackingRecipientEmail.disabled = false;
   sendTrackingInviteButton?.classList.toggle('hidden', !isActive);
 }
@@ -2264,7 +2315,7 @@ function formatDriverRating(ride) {
   const count = Number(ride.driverRatingCount || 0);
   const average = Number(ride.driverRatingAverage);
   if (!count || !Number.isFinite(average)) return 'No ratings yet';
-  return average.toFixed(1) + ' out of 5 stars from ' + count + ' rider' + (count === 1 ? '' : 's');
+  return average.toFixed(1) + '★ (' + count + ' rating' + (count === 1 ? '' : 's') + ')';
 }
 
 function formatDuration(minutes) {
@@ -2757,7 +2808,9 @@ function renderRideCard(ride) {
     if (ride.seatingChartUnavailable) {
       const notice = document.createElement('div');
       notice.className = 'seat-picker-hint shared-seat-notice';
-      notice.textContent = 'Seating chart unavailable for this shared requested ride.';
+      notice.textContent = ride.rideProviderType === 'rideshare_service'
+        ? 'Rideshare service — riders reserve general spots.'
+        : 'Seating chart unavailable for this shared ride.';
       card.appendChild(notice);
     } else {
       const readonlyPicker = document.createElement('div');
@@ -2776,14 +2829,16 @@ function renderRideCard(ride) {
     const cardError = document.createElement('div');
     cardError.className = 'error-message';
     if (ride.seatingChartUnavailable) {
-      cartActionButton.textContent = isInCart ? 'In cart' : 'Add shared spot to cart';
+      cartActionButton.textContent = isInCart ? 'In cart' : 'Reserve shared spot';
       cartActionButton.disabled = isInCart || ride.seatsAvailable <= 0;
       const notice = document.createElement('div');
       notice.className = 'seat-picker-hint shared-seat-notice';
-      notice.textContent = 'Seating chart unavailable. You are reserving a general shared ride spot.';
+      notice.textContent = ride.rideProviderType === 'rideshare_service'
+        ? 'Rideshare service — reserving a general rider spot.'
+        : 'Seating chart unavailable — reserving a general shared spot.';
       card.appendChild(notice);
     } else {
-      cartActionButton.textContent = isInCart ? 'In cart' : (selectedSeatId ? 'Add ' + getSeatLabel(selectedSeatId) + ' to cart' : 'Select a seat');
+      cartActionButton.textContent = isInCart ? 'In cart' : (selectedSeatId ? 'Reserve ' + getSeatLabel(selectedSeatId) : 'Select a seat');
       cartActionButton.disabled = isInCart || !selectedSeatId || ride.seatsAvailable <= 0;
       card.appendChild(renderRideSeatPicker(ride, cartActionButton));
     }
@@ -2793,7 +2848,7 @@ function renderRideCard(ride) {
     riderTermsCheckbox.type = 'checkbox';
     riderTermsLabel.append(
       riderTermsCheckbox,
-      document.createTextNode(' I agree to LinkUp\'s Terms and Conditions for this ride.')
+      document.createTextNode(' I agree to LinkUp\'s Terms for this ride.')
     );
     card.appendChild(riderTermsLabel);
 
@@ -2819,9 +2874,9 @@ function renderRideCard(ride) {
     card.appendChild(cardError);
   }
   const riders = document.createElement('div');
-  riders.style.marginTop = '0.8rem';
-  riders.style.fontSize = '0.95rem';
-  riders.textContent = `Passengers: ${(ride.passengers || []).length}`;
+  riders.className = 'ride-card-passengers';
+  const passengerCount = (ride.passengers || []).length;
+  riders.textContent = passengerCount === 0 ? 'No passengers yet' : passengerCount + ' passenger' + (passengerCount === 1 ? '' : 's');
   card.appendChild(riders);
   return card;
 }
@@ -2836,6 +2891,9 @@ function canSeeRideLicensePlate(ride) {
 }
 
 function getVehicleDetailMarkup(ride) {
+  if (ride.rideProviderType === 'rideshare_service') {
+    return `<div><strong>Ride provider:</strong> ${esc(ride.rideshareService || 'Rideshare service')}</div>`;
+  }
   const vehicleName = [ride.carColor, ride.carMaker, ride.carModel].filter(Boolean).join(' ');
   const licenseMarkup = canSeeRideLicensePlate(ride) && ride.licensePlate
     ? `<div><strong>License plate:</strong> ${ride.licensePlate}</div>`
@@ -3149,33 +3207,28 @@ function buildRequestBrowseCard(request) {
     // Inline form instead of window.prompt
     const sharedForm = document.createElement('div');
     sharedForm.className = 'shared-ride-post-form';
-    sharedForm.style.marginTop = '0.6rem';
-    sharedForm.style.display = 'flex';
-    sharedForm.style.flexWrap = 'wrap';
-    sharedForm.style.gap = '0.5rem';
-    sharedForm.style.alignItems = 'center';
 
     const seatsInput = document.createElement('input');
     seatsInput.type = 'number';
     seatsInput.min = '1';
     seatsInput.max = '7';
     seatsInput.value = '1';
-    seatsInput.style.width = '60px';
+    seatsInput.className = 'shared-form-seats-input';
     seatsInput.setAttribute('aria-label', 'Additional shared seats');
     const seatsLabel = document.createElement('label');
     seatsLabel.textContent = 'Seats:';
-    seatsLabel.style.fontSize = '0.9rem';
+    seatsLabel.className = 'shared-form-label';
 
     const priceInput = document.createElement('input');
     priceInput.type = 'number';
     priceInput.min = '0.50';
     priceInput.step = '0.01';
     priceInput.value = ((request.willingToPayCents || 500) / 100).toFixed(2);
-    priceInput.style.width = '70px';
+    priceInput.className = 'shared-form-price-input';
     priceInput.setAttribute('aria-label', 'Price per spot');
     const priceLabel = document.createElement('label');
     priceLabel.textContent = 'Price ($):';
-    priceLabel.style.fontSize = '0.9rem';
+    priceLabel.className = 'shared-form-label';
 
     const postSharedButton = document.createElement('button');
     postSharedButton.type = 'button';
@@ -3218,7 +3271,9 @@ function buildDriverRideSummary(ride) {
   badge.textContent = 'Pinned driving ride';
   container.prepend(badge);
 
-  container.appendChild(buildDriverSeatManifest(ride));
+  if (!ride.seatingChartUnavailable) {
+    container.appendChild(buildDriverSeatManifest(ride));
+  }
   return container;
 }
 
@@ -3248,7 +3303,9 @@ function buildRideSummary(ride, options = {}) {
   if (ride.seatingChartUnavailable) {
     const notice = document.createElement('div');
     notice.className = 'seat-picker-hint shared-seat-notice';
-    notice.textContent = 'Seating chart unavailable for this shared requested ride.';
+    notice.textContent = ride.rideProviderType === 'rideshare_service'
+      ? 'Rideshare service — riders reserve general spots.'
+      : 'Seating chart unavailable for this shared ride.';
     container.appendChild(notice);
   } else {
     const readonlyPicker = document.createElement('div');
@@ -3270,15 +3327,13 @@ function renderCartItem(ride) {
   const detail = document.createElement('div');
   detail.className = 'cart-item-detail';
   detail.innerHTML = `
-    <div><strong>Cart item:</strong> ${esc(ride.origin)} → ${esc(ride.destination)}</div>
-    ${getCoordinateMarkup(ride)}
-    <div><strong>Seat:</strong> ${ride.seatingChartUnavailable ? 'General shared spot' : (ride.selectedSeatId ? esc(getSeatLabel(ride.selectedSeatId)) : 'Selected seat')}</div>
+    <div><strong>Seat:</strong> ${ride.seatingChartUnavailable ? 'General shared spot' : (ride.selectedSeatId ? esc(getSeatLabel(ride.selectedSeatId)) : 'Seat selected')}</div>
     <div><strong>Driver:</strong> ${esc([ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' '))}</div>
     <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
-    <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
+    <div><strong>Rating:</strong> ${esc(formatDriverRating(ride))}</div>
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
-    <div><strong>Item price:</strong> ${esc(formatRidePrice(ride))}</div>
+    <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
   `;
   item.prepend(detail);
 
@@ -3359,7 +3414,7 @@ function setBrowseRole(role) {
 function renderBrowseRoleChoice() {
   setBrowseRole(null);
   browseTitle.textContent = 'Browse rides';
-  browseSubtitle.textContent = 'Choose whether you are driving or riding today.';
+  browseSubtitle.textContent = 'Are you driving or riding today?';
   browseControls.classList.add('hidden');
   browseMapPanel?.classList.add('hidden');
   browseRiderLayout?.classList.remove('rider-active');
@@ -3369,7 +3424,7 @@ function renderBrowseRoleChoice() {
   if (browsePickupMarker) { browsePickupMarker.setMap(null); browsePickupMarker = null; }
   if (browseDropoffMarker) { browseDropoffMarker.setMap(null); browseDropoffMarker = null; }
   browseResultsTitle.textContent = 'Choose a role to start';
-  ridesList.innerHTML = '<p class="browse-start-message">Select Driver to view student ride requests, or Rider to view available seats.</p>';
+  ridesList.innerHTML = '<p class="browse-start-message">Select Driver to see ride requests, or Rider to see available seats.</p>';
 }
 
 function showRiderBrowse() {
@@ -3387,7 +3442,7 @@ function showRiderBrowse() {
     }, 100);
   });
   browseTitle.textContent = 'Browse available rides';
-  browseSubtitle.textContent = 'Find rides by how far you are willing to walk to the pickup and from the drop-off.';
+  browseSubtitle.textContent = 'Find rides near your pickup and drop-off.';
   browseSearchLabel.firstChild.textContent = 'Search destination or meetup';
   pickupLocationLabel.firstChild.textContent = 'Where you are starting from ';
   pickupRadiusLabel.firstChild.textContent = 'Max walk to pick-up (mi) ';
@@ -3415,7 +3470,7 @@ function showDriverBrowse() {
     }, 100);
   });
   browseTitle.textContent = 'Browse requested rides';
-  browseSubtitle.textContent = 'Find rider requests by how far you are willing to drive for pickup and drop-off.';
+  browseSubtitle.textContent = 'Find riders near your route.';
   browseSearchLabel.firstChild.textContent = 'Search requested route';
   pickupLocationLabel.firstChild.textContent = 'Pickup detour center ';
   pickupRadiusLabel.firstChild.textContent = 'Max drive to pick up rider (mi) ';
@@ -3580,7 +3635,7 @@ function buildDriverRatingForm(ride) {
   if (existingRating) {
     const summary = document.createElement('div');
     summary.className = 'driver-rating-summary';
-    summary.innerHTML = '<strong>Your driver rating:</strong> <span>' + existingRating + ' out of 5 stars</span>';
+    summary.innerHTML = '<strong>Your rating:</strong> <span>' + existingRating + ' out of 5</span>';
     summary.appendChild(createStarDisplay(existingRating));
     wrapper.appendChild(summary);
     return wrapper;
@@ -3689,7 +3744,7 @@ async function loadYourRides() {
 
     if (yourRidesView === 'requests') {
       if (!requestedRides.length) {
-        yourRidesList.textContent = 'You have not requested any rides yet.';
+        yourRidesList.textContent = 'No ride requests posted yet.';
         return;
       }
       appendRideSection(yourRidesList, 'Ride requests you posted', requestedRides, (request) => buildRequestSummary(request));
@@ -3698,17 +3753,17 @@ async function loadYourRides() {
 
     if (yourRidesView === 'history') {
       if (!historyRides.length) {
-        yourRidesList.textContent = 'No previous rides yet.';
+        yourRidesList.textContent = 'No past rides yet.';
         return;
       }
-      appendRideSection(yourRidesList, 'History rides', historyRides, (entry) => (
+      appendRideSection(yourRidesList, 'Ride history', historyRides, (entry) => (
         entry.type === 'request' ? buildHistoryRequestCard(entry.request) : buildHistoryRideCard(entry.ride, entry.role)
       ));
       return;
     }
 
     if (!currentDrivingRides.length && !currentReservedRides.length) {
-      yourRidesList.textContent = 'You do not have any current driving or reserved rides.';
+      yourRidesList.textContent = 'No current rides.';
       return;
     }
 
@@ -3719,7 +3774,7 @@ async function loadYourRides() {
       return item;
     });
   } catch (err) {
-    yourRidesList.textContent = 'Unable to load your rides: ' + err.message;
+    yourRidesList.textContent = 'Unable to load your rides.';
   }
 }
 
@@ -3793,7 +3848,12 @@ vehicleSeatCountSelect.addEventListener('change', () => {
   driverAvailableSeatIds = new Set();
   renderDriverSeatLayout();
 });
+rideProviderChoices.forEach((button) => {
+  button.addEventListener('click', () => chooseOfferProviderType(button.dataset.providerType));
+});
+changeRideProviderButton?.addEventListener('click', () => resetOfferProviderSelection());
 renderDriverSeatLayout();
+updateOfferProviderFields();
 browseDriverButton.addEventListener('click', () => showDriverBrowse());
 browseRiderButton.addEventListener('click', () => showRiderBrowse());
 sameGenderDriversOnlyFilter.addEventListener('change', () => refreshActiveBrowse());
@@ -3918,7 +3978,7 @@ signupForm.addEventListener('submit', async (event) => {
         signupError.textContent = '';
         signupError.classList.remove('show');
         showAuthForm('signin-form');
-        signinError.textContent = 'This email is already associated with an account. Please sign in.';
+        signinError.textContent = 'That email already has an account. Sign in below.';
         signinError.classList.add('show');
       }, 900);
     }
@@ -3958,9 +4018,12 @@ offerForm.addEventListener('submit', async (event) => {
   const date = document.getElementById('ride-date').value;
   const time = document.getElementById('ride-time').value;
   const sameGenderOnly = sameGenderOnlyRideCheckbox.checked;
+  const rideProviderType = rideProviderTypeSelect.value;
   const seats = document.getElementById('seats').value;
   const vehicleSeatCount = Number(vehicleSeatCountSelect.value);
   const availableSeatIds = [...driverAvailableSeatIds];
+  const rideshareService = rideshareServiceSelect.value.trim();
+  const rideshareSeatCount = Number(rideshareSeatCountInput.value);
   const price = document.getElementById('ride-price').value;
   const carMaker = document.getElementById('car-maker').value.trim();
   const carModel = document.getElementById('car-model').value.trim();
@@ -3976,20 +4039,58 @@ offerForm.addEventListener('submit', async (event) => {
     date,
     time
   );
-  if (!origin || !destination || !date || !time || !seats || !price || !carMaker || !carModel || !carColor || !licensePlate || !termsAccepted || !availableSeatIds.length) {
-    alert('All ride fields are required. Please select both locations.');
+  if (!origin || !destination || !date || !time || !rideProviderType || !price || !termsAccepted) {
+    showToast('Fill in all required fields and select both locations.', 'error');
+    return;
+  }
+  if (rideProviderType === 'personal_car' && (!seats || !carMaker || !carModel || !carColor || !licensePlate || !availableSeatIds.length)) {
+    showToast('Personal car rides require vehicle details and at least one available seat.', 'error');
+    return;
+  }
+  if (rideProviderType === 'rideshare_service' && (!rideshareService || !Number.isInteger(rideshareSeatCount) || rideshareSeatCount < 1 || rideshareSeatCount > 7)) {
+    showToast('Enter a rideshare service name and 1–7 available spots.', 'error');
     return;
   }
   if (Number(price) < 0.5) {
-    alert('Price per seat must be at least $0.50.');
+    showToast('Price per seat must be at least $0.50.', 'error');
     return;
   }
   if (sameGenderOnly && !canMatchSameGender(currentUser.gender, currentUser.gender)) {
-    alert('Choose a gender on your account before offering same gender only rides.');
+    showToast('Set your gender on your profile before offering same-gender rides.', 'error');
     return;
   }
   try {
-    await fetchJson('/api/rides', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin, destination, originLat: parseFloat(originLat), originLng: parseFloat(originLng), destinationLat: parseFloat(destinationLat), destinationLng: parseFloat(destinationLng), pickupRadiusMiles, dropoffRadiusMiles, date, time, sameGenderOnly, vehicleSeatCount, seatsAvailable: Number(seats), availableSeatIds, price: Number(price), carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, notes }) });
+    await fetchJson('/api/rides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        origin,
+        destination,
+        originLat: parseFloat(originLat),
+        originLng: parseFloat(originLng),
+        destinationLat: parseFloat(destinationLat),
+        destinationLng: parseFloat(destinationLng),
+        pickupRadiusMiles,
+        dropoffRadiusMiles,
+        date,
+        time,
+        sameGenderOnly,
+        rideProviderType,
+        rideshareService,
+        rideshareSeatCount,
+        vehicleSeatCount,
+        seatsAvailable: Number(seats),
+        availableSeatIds,
+        price: Number(price),
+        carMaker,
+        carModel,
+        carColor,
+        licensePlate,
+        termsAccepted,
+        estimatedDurationMinutes,
+        notes,
+      }),
+    });
     offerForm.reset();
     offerPickupRadiusCircle = drawMapFlexCircle(offerPickupRadiusCircle, originMap, null, 0, '#3ecfcf');
     offerDropoffRadiusCircle = drawMapFlexCircle(offerDropoffRadiusCircle, originMap, null, 0, '#4d9ef5');
@@ -3997,6 +4098,7 @@ offerForm.addEventListener('submit', async (event) => {
     vehicleSeatCountSelect.value = '5';
     driverAvailableSeatIds = new Set();
     renderDriverSeatLayout();
+    resetOfferProviderSelection();
     document.getElementById('origin-selected').textContent = '';
     document.getElementById('origin-selected').classList.remove('active');
     document.getElementById('destination-selected').textContent = '';
@@ -4005,7 +4107,7 @@ offerForm.addEventListener('submit', async (event) => {
     loadProfile();
     showDashboardHome();
   } catch (err) {
-    alert(err.message);
+    showToast(err.message, 'error');
   }
 });
 
@@ -4062,7 +4164,7 @@ requestRideForm.addEventListener('submit', async (event) => {
       }
     });
     document.getElementById('request-rider-count').value = '1';
-    requestRideMessage.textContent = 'Ride request posted. Drivers can now see it in your profile activity.';
+    requestRideMessage.textContent = 'Request posted. Drivers can now see it.';
     requestRideMessage.classList.add('show');
     loadProfile();
   } catch (err) {
@@ -4124,7 +4226,7 @@ policyConsentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearPolicyMessages();
   if (!userNeedsPolicyConsent(currentUser)) {
-    policyMessage.textContent = 'You already accepted the current Terms and Conditions and Privacy Notice.';
+    policyMessage.textContent = 'Already up to date.';
     policyMessage.classList.add('show');
     fillPolicyConsentForm(currentUser || {});
     return;
@@ -4153,8 +4255,8 @@ policyConsentForm.addEventListener('submit', async (event) => {
     fillPolicyConsentForm(currentUser);
     updateUserHeader(currentUser);
     policyMessage.textContent = currentUser.requiresRequiredSettings
-      ? 'Policy agreement saved. Complete the remaining required profile settings to use LinkUp ride services.'
-      : 'Policy agreement saved. You can now use LinkUp services.';
+      ? 'Policies saved. Complete your remaining required profile settings.'
+      : 'Policies saved. You\'re all set.';
     policyMessage.classList.add('show');
     if (currentUser.requiresRequiredSettings) {
       showRequiredSettingsRequired('Profile saved.');
@@ -4217,8 +4319,8 @@ profileForm.addEventListener('submit', async (event) => {
     updateUserHeader(currentUser);
     fillProfileForm(currentUser);
     profileMessage.textContent = currentUser.requiresRequiredSettings
-      ? 'Profile updated. Complete the remaining required settings to use ride services.'
-      : 'Profile updated. You can now use LinkUp ride services.';
+      ? 'Profile updated. Complete remaining required settings.'
+      : 'Profile saved.';
     profileMessage.classList.add('show');
     if (currentUser.requiresRequiredSettings) {
       showRequiredSettingsRequired();
@@ -4310,7 +4412,7 @@ if (trackingViewerToken) {
 } else if (checkoutStatus === 'cancel') {
   checkAuth().then(() => {
     showCartPage();
-    cartError.textContent = 'Stripe checkout was canceled.';
+    cartError.textContent = 'Checkout was canceled. Your cart is still saved.';
     cartError.classList.add('show');
     window.history.replaceState({}, document.title, window.location.pathname);
   });
