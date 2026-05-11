@@ -223,6 +223,8 @@ function getEmptyDb() {
     checkoutSessions: [],
     trackingTrips: [],
     rideMessages: {},
+    userReports: [],
+    userBlocks: [],
   };
 }
 
@@ -236,6 +238,8 @@ function normalizeDbShape(db) {
   if (!Array.isArray(normalized.checkoutSessions)) normalized.checkoutSessions = [];
   if (!Array.isArray(normalized.trackingTrips)) normalized.trackingTrips = [];
   if (!normalized.rideMessages || typeof normalized.rideMessages !== 'object' || Array.isArray(normalized.rideMessages)) normalized.rideMessages = {};
+  if (!Array.isArray(normalized.userReports)) normalized.userReports = [];
+  if (!Array.isArray(normalized.userBlocks)) normalized.userBlocks = [];
   return normalized;
 }
 
@@ -506,6 +510,40 @@ function rideForUser(ride, userId, db = null) {
     delete publicRide.licensePlate;
   }
   return publicRide;
+}
+
+function getUserDisplayName(user) {
+  return [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'User';
+}
+
+function canReportUserForRide(ride, reporterId, reportedUserId) {
+  if (!ride || !reporterId || !reportedUserId || reporterId === reportedUserId) return false;
+  const passengerIds = new Set((ride.passengers || []).map((passenger) => passenger.studentId).filter(Boolean));
+  const reporterIsParticipant = ride.driverId === reporterId || passengerIds.has(reporterId);
+  if (ride.driverId === reportedUserId) return true;
+  if (passengerIds.has(reportedUserId)) return reporterIsParticipant;
+  return false;
+}
+
+function isUserBlocked(db, blockerId, blockedId) {
+  return (db.userBlocks || []).some((block) => block.blockerId === blockerId && block.blockedUserId === blockedId);
+}
+
+function areUsersBlocked(db, firstUserId, secondUserId) {
+  if (!firstUserId || !secondUserId || firstUserId === secondUserId) return false;
+  return isUserBlocked(db, firstUserId, secondUserId) || isUserBlocked(db, secondUserId, firstUserId);
+}
+
+function isRideVisibleToUser(db, ride, userId) {
+  if (!ride || !userId) return false;
+  if (ride.driverId === userId) return true;
+  return !areUsersBlocked(db, userId, ride.driverId);
+}
+
+function isRideRequestVisibleToUser(db, request, userId) {
+  if (!request || !userId) return false;
+  if (request.riderId === userId) return true;
+  return !areUsersBlocked(db, userId, request.riderId);
 }
 
 function hashToken(token) {
@@ -912,6 +950,9 @@ function canStudentReserveRide(student, ride, seatId = '', db = null) {
   }
   if (ride.driverId === student.id) {
     return 'You cannot reserve your own ride';
+  }
+  if (db && areUsersBlocked(db, student.id, ride.driverId)) {
+    return 'You cannot reserve rides from a blocked user';
   }
   if (ride.sameGenderOnly && !canMatchSameGender(student.gender, ride.driverGender)) {
     return 'This ride is limited to same-gender riders';
@@ -1649,7 +1690,7 @@ app.get('/api/track/:viewerToken', (req, res) => {
 
 app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
   const db = expireUnclaimedRideRequests(loadDb());
-  res.json(db.rideRequests || []);
+  res.json((db.rideRequests || []).filter((request) => isRideRequestVisibleToUser(db, request, req.session.userId)));
 });
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
@@ -1752,6 +1793,9 @@ app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAcces
   if (request.riderId === driver.id) {
     return res.status(400).json({ error: 'You cannot offer to drive your own request' });
   }
+  if (areUsersBlocked(db, driver.id, request.riderId)) {
+    return res.status(403).json({ error: 'You cannot offer to drive a request from a blocked user' });
+  }
   if (request.sameGenderDriverOnly && !canMatchSameGender(request.riderGender, driver.gender)) {
     return res.status(400).json({ error: 'This rider requested same-gender drivers only' });
   }
@@ -1795,6 +1839,9 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
   }
   if (!request.shareRideWithOthers) {
     return res.status(400).json({ error: 'This rider did not agree to share this ride with others' });
+  }
+  if (areUsersBlocked(db, driver.id, request.riderId)) {
+    return res.status(403).json({ error: 'You cannot post a shared ride for a blocked user' });
   }
   if (!request.driverOffers.some((offer) => offer.driverId === driver.id)) {
     return res.status(400).json({ error: 'Offer to drive this request before posting it as a shared ride' });
@@ -1856,7 +1903,9 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
 
 app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   const db = loadDb();
-  res.json((db.rides || []).map((ride) => rideForUser(ride, req.session.userId, db)));
+  res.json((db.rides || [])
+    .filter((ride) => isRideVisibleToUser(db, ride, req.session.userId))
+    .map((ride) => rideForUser(ride, req.session.userId, db)));
 });
 
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
@@ -2101,10 +2150,76 @@ app.post('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req,
   res.json({ message, messages: db.rideMessages[ride.id] });
 });
 
+app.post('/api/reports', requireAuth, requireServiceAccess, (req, res) => {
+  const reportedUserId = String(req.body.reportedUserId || '').trim();
+  const rideId = String(req.body.rideId || '').trim();
+  const reason = String(req.body.reason || '').trim().slice(0, 80);
+  const details = String(req.body.details || '').trim().slice(0, 1000);
+
+  if (!reportedUserId) {
+    return res.status(400).json({ error: 'Choose a user to report' });
+  }
+  if (!rideId) {
+    return res.status(400).json({ error: 'Choose a ride context before reporting a user' });
+  }
+  if (!reason) {
+    return res.status(400).json({ error: 'Add a short reason for the report' });
+  }
+
+  const db = loadDb();
+  const reporter = (db.users || []).find((user) => user.id === req.session.userId);
+  const reportedUser = (db.users || []).find((user) => user.id === reportedUserId);
+  const ride = (db.rides || []).find((entry) => entry.id === rideId);
+
+  if (!reporter) {
+    return res.status(404).json({ error: 'Reporter not found' });
+  }
+  if (!reportedUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (reporter.id === reportedUser.id) {
+    return res.status(400).json({ error: 'You cannot report yourself' });
+  }
+  if (!ride) {
+    return res.status(404).json({ error: 'Ride not found' });
+  }
+  if (!canReportUserForRide(ride, reporter.id, reportedUser.id)) {
+    return res.status(403).json({ error: 'You can only report users connected to this ride' });
+  }
+
+  db.userReports = db.userReports || [];
+  const report = {
+    id: uuidv4(),
+    reporterId: reporter.id,
+    reporterName: getUserDisplayName(reporter),
+    reporterEmail: reporter.email || '',
+    reportedUserId: reportedUser.id,
+    reportedUserName: getUserDisplayName(reportedUser),
+    reportedUserEmail: reportedUser.email || '',
+    rideId: ride.id,
+    rideOrigin: ride.origin,
+    rideDestination: ride.destination,
+    rideDate: ride.date,
+    rideTime: ride.time,
+    reason,
+    details,
+    status: 'open',
+    createdAt: new Date().toISOString(),
+  };
+  db.userReports.push(report);
+  saveDb(db);
+  res.status(201).json({ message: 'Report submitted. LinkUp will review it.', reportId: report.id });
+});
+
 app.get('/api/cart', requireAuth, requireServiceAccess, (req, res) => {
   const db = loadDb();
   const cartEntries = normalizeCartEntries(db, req.session.userId);
-  const cartRides = cartEntries
+  const visibleCartEntries = cartEntries.filter((entry) => {
+    const ride = db.rides.find((item) => item.id === entry.rideId);
+    return ride && isRideVisibleToUser(db, ride, req.session.userId);
+  });
+  db.carts[req.session.userId] = visibleCartEntries;
+  const cartRides = visibleCartEntries
     .map((entry) => {
       const ride = db.rides.find((item) => item.id === entry.rideId);
       return ride ? { ...rideForUser(ride, req.session.userId, db), selectedSeatId: entry.seatId } : null;
@@ -2315,6 +2430,92 @@ app.delete('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) =>
   saveDb(db);
 
   res.json({ message: 'Ride removed from cart' });
+});
+
+app.post('/api/users/:userId/block', requireAuth, requireServiceAccess, (req, res) => {
+  const blockedUserId = String(req.params.userId || '').trim();
+  const db = loadDb();
+  const blocker = (db.users || []).find((user) => user.id === req.session.userId);
+  const blockedUser = (db.users || []).find((user) => user.id === blockedUserId);
+  if (!blocker) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (!blockedUser) {
+    return res.status(404).json({ error: 'User to block not found' });
+  }
+  if (blocker.id === blockedUser.id) {
+    return res.status(400).json({ error: 'You cannot block yourself' });
+  }
+
+  db.userBlocks = db.userBlocks || [];
+  if (!isUserBlocked(db, blocker.id, blockedUser.id)) {
+    db.userBlocks.push({
+      id: uuidv4(),
+      blockerId: blocker.id,
+      blockedUserId: blockedUser.id,
+      createdAt: new Date().toISOString(),
+    });
+    db.carts = db.carts || {};
+    db.carts[blocker.id] = normalizeCartEntries(db, blocker.id).filter((entry) => {
+      const ride = (db.rides || []).find((item) => item.id === entry.rideId);
+      return !ride || ride.driverId !== blockedUser.id;
+    });
+    saveDb(db);
+  }
+
+  res.json({ message: getUserDisplayName(blockedUser) + ' is blocked.', blocked: true });
+});
+
+app.delete('/api/users/:userId/block', requireAuth, requireServiceAccess, (req, res) => {
+  const blockedUserId = String(req.params.userId || '').trim();
+  const db = loadDb();
+  db.userBlocks = (db.userBlocks || []).filter((block) => !(block.blockerId === req.session.userId && block.blockedUserId === blockedUserId));
+  saveDb(db);
+  res.json({ message: 'User unblocked.', blocked: false });
+});
+
+app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, res) => {
+  const db = expireUnclaimedRideRequests(loadDb());
+  const user = (db.users || []).find((entry) => entry.id === req.params.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const rides = Array.isArray(db.rides) ? db.rides : [];
+  const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
+  const createdRides = rides.filter((ride) => ride.driverId === user.id);
+  const joinedRides = rides.filter((ride) => (ride.passengers || []).some((passenger) => passenger.studentId === user.id));
+  const ratings = createdRides
+    .flatMap((ride) => ride.passengers || [])
+    .map((passenger) => Number(passenger.driverRating))
+    .filter((rating) => Number.isFinite(rating) && rating >= 1 && rating <= 5);
+  const ratingAverage = ratings.length
+    ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10
+    : null;
+  const completedDrivenRides = createdRides.filter((ride) => Date.now() > getTripInterval(ride).end).length;
+  const openRideRequests = rideRequests.filter((request) => request.riderId === user.id && request.status === 'open').length;
+
+  res.json({
+    id: user.id,
+    name: getUserDisplayName(user),
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    university: getUserUniversityDisplay(user),
+    universityDomain: user.universityDomain || getEmailDomain(user.email),
+    memberSince: user.createdAt || null,
+    serviceApproved: user.serviceApproved === true,
+    isCurrentUser: user.id === req.session.userId,
+    isBlockedByCurrentUser: isUserBlocked(db, req.session.userId, user.id),
+    hasBlockedCurrentUser: isUserBlocked(db, user.id, req.session.userId),
+    stats: {
+      ridesOffered: createdRides.length,
+      ridesDrivenCompleted: completedDrivenRides,
+      ridesJoined: joinedRides.length,
+      openRideRequests,
+      driverRatingAverage: ratingAverage,
+      driverRatingCount: ratings.length,
+    },
+  });
 });
 
 app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {

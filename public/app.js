@@ -40,6 +40,9 @@ const signinForm = document.getElementById('signin-form');
 const signupForm = document.getElementById('signup-form');
 const privacyPage = document.getElementById('privacy-page');
 const termsPage = document.getElementById('terms-page');
+const privacyContent = document.getElementById('privacy-content');
+const termsContent = document.getElementById('terms-content');
+const releaseNoteFeed = document.getElementById('release-note-feed');
 const privacyLink = document.getElementById('privacy-link');
 const termsLink = document.getElementById('terms-link');
 const legalBackButtons = document.querySelectorAll('.legal-back');
@@ -93,6 +96,12 @@ const schoolLeaderboardChart = document.getElementById('school-leaderboard-chart
 const milesLeaderboardSummary = document.getElementById('miles-leaderboard-summary');
 const milesLeaderboardChart = document.getElementById('miles-leaderboard-chart');
 const leaderboardError = document.getElementById('leaderboard-error');
+const publicProfilePage = document.getElementById('public-profile-page');
+const publicProfileTitle = document.getElementById('public-profile-title');
+const publicProfileSubtitle = document.getElementById('public-profile-subtitle');
+const publicProfileContent = document.getElementById('public-profile-content');
+const publicProfileError = document.getElementById('public-profile-error');
+const publicProfileBackHomeButton = document.getElementById('public-profile-back-home');
 const profilePage = document.getElementById('profile-page');
 const profileForm = document.getElementById('profile-form');
 const profileBackHomeButton = document.getElementById('profile-back-home');
@@ -250,6 +259,10 @@ function isLegalRoute(route) {
 
 function profileRouteForTab(tabName = 'info') {
   return tabName === 'info' ? 'profile' : 'profile-' + tabName;
+}
+
+function publicProfileRoute(userId) {
+  return 'user-profile-' + userId;
 }
 let browseRole = null;
 let yourRidesView = 'current';
@@ -936,6 +949,121 @@ async function fetchJson(url, options = {}) {
   return data;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
+}
+
+function renderInlineMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+async function loadHtmlFragment(file, target, sourceId) {
+  if (!target) return;
+  try {
+    const response = await fetch(file);
+    if (!response.ok) throw new Error('Failed to load ' + file);
+    const html = await response.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const source = doc.getElementById(sourceId) || doc.body;
+    target.innerHTML = source.innerHTML;
+  } catch (error) {
+    target.innerHTML = '<p class="error-message show">Unable to load document. Please try again later.</p>';
+    console.error('Document load error:', error);
+  }
+}
+
+function renderReleaseNotesMarkdown(markdown, target) {
+  if (!target) return;
+  target.replaceChildren();
+  let currentSection = null;
+  let currentFeatures = null;
+  let currentList = null;
+
+  const ensureSection = () => {
+    if (!currentSection) {
+      currentSection = document.createElement('section');
+      currentSection.className = 'release-note-entry';
+      currentFeatures = document.createElement('div');
+      currentFeatures.className = 'release-note-features';
+      currentSection.appendChild(currentFeatures);
+      target.appendChild(currentSection);
+    }
+    return currentFeatures;
+  };
+
+  markdown.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line || line === '---') {
+      currentList = null;
+      return;
+    }
+    if (line.startsWith('# ')) {
+      currentList = null;
+      return;
+    }
+    if (line.startsWith('## ')) {
+      currentSection = document.createElement('section');
+      currentSection.className = 'release-note-entry';
+      const version = document.createElement('div');
+      version.className = 'release-note-version';
+      version.textContent = line.replace(/^##\s+/, '');
+      currentFeatures = document.createElement('div');
+      currentFeatures.className = 'release-note-features';
+      currentSection.append(version, currentFeatures);
+      target.appendChild(currentSection);
+      currentList = null;
+      return;
+    }
+    if (line.startsWith('### ')) {
+      const heading = document.createElement('h4');
+      heading.textContent = line.replace(/^###\s+/, '');
+      ensureSection().appendChild(heading);
+      currentList = null;
+      return;
+    }
+    if (line.startsWith('- ')) {
+      if (!currentList) {
+        currentList = document.createElement('ul');
+        ensureSection().appendChild(currentList);
+      }
+      const item = document.createElement('li');
+      item.innerHTML = renderInlineMarkdown(line.replace(/^-\s+/, ''));
+      currentList.appendChild(item);
+      return;
+    }
+    const paragraph = document.createElement('p');
+    paragraph.innerHTML = renderInlineMarkdown(line);
+    ensureSection().appendChild(paragraph);
+    currentList = null;
+  });
+}
+
+async function loadReleaseNotes() {
+  if (!releaseNoteFeed) return;
+  try {
+    const response = await fetch('release-notes.md');
+    if (!response.ok) throw new Error('Failed to load release-notes.md');
+    renderReleaseNotesMarkdown(await response.text(), releaseNoteFeed);
+  } catch (error) {
+    releaseNoteFeed.innerHTML = '<p class="error-message show">Unable to load release notes. Please try again later.</p>';
+    console.error('Release notes load error:', error);
+  }
+}
+
+function loadExternalDocuments() {
+  loadHtmlFragment('privacy.html', privacyContent, 'privacy-content');
+  loadHtmlFragment('terms.html', termsContent, 'terms-content');
+  loadReleaseNotes();
+}
+
 async function checkAuth() {
   try {
     currentUser = await fetchJson('/api/auth/me');
@@ -1105,6 +1233,7 @@ function hideDashboardPages() {
   chatPage.classList.add('hidden');
   paymentPage.classList.add('hidden');
   leaderboardPage.classList.add('hidden');
+  publicProfilePage.classList.add('hidden');
   profilePage.classList.add('hidden');
   trackTripPage.classList.add('hidden');
 }
@@ -1420,6 +1549,96 @@ function showLeaderboardPage() {
   loadLeaderboard();
 }
 
+function formatPublicProfileDate(value) {
+  if (!value) return 'Recently joined';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Recently joined';
+  return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+}
+
+function formatPublicRating(profile) {
+  const average = profile?.stats?.driverRatingAverage;
+  const count = profile?.stats?.driverRatingCount || 0;
+  return average ? average.toFixed(1) + ' / 5 from ' + count + ' rating' + (count === 1 ? '' : 's') : 'No driver ratings yet';
+}
+
+async function toggleUserBlock(profile) {
+  if (!profile?.id || profile.isCurrentUser) return;
+  const blocking = !profile.isBlockedByCurrentUser;
+  if (blocking) {
+    const confirmed = window.confirm('Block ' + (profile.name || 'this user') + '? You will not see each other\'s ride listings or ride requests.');
+    if (!confirmed) return;
+  }
+  try {
+    const response = await fetchJson('/api/users/' + encodeURIComponent(profile.id) + '/block', {
+      method: blocking ? 'POST' : 'DELETE',
+    });
+    showToast(response.message || (blocking ? 'User blocked.' : 'User unblocked.'), 'success');
+    await showPublicProfilePage(profile.id);
+    loadRides();
+    loadRideRequests();
+    loadCart();
+  } catch (err) {
+    showToast(err.message || 'Unable to update block setting.', 'error');
+  }
+}
+
+function renderPublicProfile(profile) {
+  const stats = profile.stats || {};
+  publicProfileTitle.textContent = profile.name || 'User profile';
+  publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince)].filter(Boolean).join(' - ');
+  publicProfileContent.innerHTML = `
+    <div class="public-profile-hero">
+      <div class="public-profile-avatar" aria-hidden="true">${esc((profile.firstName || profile.name || 'U').charAt(0).toUpperCase())}</div>
+      <div>
+        <h4>${esc(profile.name || 'LinkUp user')}</h4>
+        <p>${esc(profile.university || profile.universityDomain || 'University rider')}</p>
+        <span class="public-profile-status">${profile.serviceApproved ? 'Verified university network' : 'Waitlist account'}</span>
+      </div>
+    </div>
+    <div class="public-profile-stats">
+      <div><strong>${esc(stats.ridesOffered || 0)}</strong><span>Rides offered</span></div>
+      <div><strong>${esc(stats.ridesDrivenCompleted || 0)}</strong><span>Completed as driver</span></div>
+      <div><strong>${esc(stats.ridesJoined || 0)}</strong><span>Rides joined</span></div>
+      <div><strong>${esc(stats.openRideRequests || 0)}</strong><span>Open ride requests</span></div>
+    </div>
+    <div class="public-profile-rating">
+      <strong>Driver rating</strong>
+      <span>${esc(formatPublicRating(profile))}</span>
+    </div>
+    ${profile.isCurrentUser ? '' : `
+      <div class="public-profile-actions">
+        <button id="public-profile-block-button" type="button" class="${profile.isBlockedByCurrentUser ? 'secondary-action-button' : 'block-user-button'}">
+          ${profile.isBlockedByCurrentUser ? 'Unblock user' : 'Block user'}
+        </button>
+        <p>${profile.isBlockedByCurrentUser ? 'You blocked this user. Your listings and requests are hidden from each other.' : 'Blocking hides your listings and requests from each other.'}</p>
+      </div>
+    `}
+  `;
+  document.getElementById('public-profile-block-button')?.addEventListener('click', () => toggleUserBlock(profile));
+}
+
+async function showPublicProfilePage(userId) {
+  if (!userId) return;
+  setAppRoute(publicProfileRoute(userId));
+  clearCartMessages();
+  hideDashboardPages();
+  publicProfileTitle.textContent = 'User profile';
+  publicProfileSubtitle.textContent = 'Public LinkUp profile and ride stats.';
+  publicProfileContent.textContent = 'Loading profile...';
+  publicProfileError.textContent = '';
+  publicProfileError.classList.remove('show');
+  publicProfilePage.classList.remove('hidden');
+  try {
+    const profile = await fetchJson('/api/users/' + encodeURIComponent(userId) + '/profile');
+    renderPublicProfile(profile);
+  } catch (err) {
+    publicProfileContent.textContent = '';
+    publicProfileError.textContent = err.message || 'Unable to load this profile.';
+    publicProfileError.classList.add('show');
+  }
+}
+
 function showProfilePage(tabName = 'info') {
   setAppRoute(profileRouteForTab(tabName));
   clearCartMessages();
@@ -1590,6 +1809,12 @@ function ensureServiceAccess() {
 }
 
 function showPaymentPage() {
+  if (!cartRideIds.size) {
+    showCartPage();
+    cartError.textContent = 'Your cart is empty. Add a ride before checking out.';
+    cartError.classList.add('show');
+    return;
+  }
   setAppRoute('payment');
   clearCartMessages();
   hideDashboardPages();
@@ -1610,6 +1835,7 @@ function restoreAppRoute() {
     else if (route === 'list-ride') showListRidePage();
     else if (route === 'track-trip') showTrackTripPage();
     else if (route === 'leaderboard') showLeaderboardPage();
+    else if (route.startsWith('user-profile-')) showPublicProfilePage(route.replace(/^user-profile-/, ''));
     else if (route === 'profile-payment') showProfilePage('payment');
     else if (route === 'profile-payouts') showProfilePage('payouts');
     else if (route === 'profile-policies') showProfilePage('policies');
@@ -2119,7 +2345,7 @@ async function startTripTracking() {
 async function sendTrackingInvite() {
   clearTrackingMessages();
   if (!activeTrackingTripId) {
-    trackingError.textContent = 'Start sharing first, then enter a trusted email.';
+    trackingError.textContent = 'No active tracking session. Start sharing your location first.';
     trackingError.classList.add('show');
     return;
   }
@@ -2147,7 +2373,7 @@ async function sendTrackingInvite() {
 async function copyTrackingLink() {
   clearTrackingMessages();
   if (!activeTrackingViewerUrl) {
-    trackingError.textContent = 'Start sharing first to create a tracking link.';
+    trackingError.textContent = 'No tracking link available. Start sharing your location first.';
     trackingError.classList.add('show');
     return;
   }
@@ -2767,6 +2993,59 @@ function esc(str) {
   return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+async function reportUser({ reportedUserId, reportedUserName = 'this user', rideId }) {
+  if (!reportedUserId || !rideId) return;
+  const reason = window.prompt('Why are you reporting ' + reportedUserName + '?');
+  if (reason === null) return;
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    showToast('Add a short reason before submitting a report.', 'error');
+    return;
+  }
+  const details = window.prompt('Add any details LinkUp should review. This is optional.') || '';
+  try {
+    const response = await fetchJson('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reportedUserId,
+        rideId,
+        reason: trimmedReason,
+        details: details.trim(),
+      }),
+    });
+    showToast(response.message || 'Report submitted.', 'success');
+  } catch (err) {
+    showToast(err.message || 'Unable to submit report.', 'error');
+  }
+}
+
+function createReportUserButton({ reportedUserId, reportedUserName, rideId, label = 'Report user' }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'report-user-button';
+  button.textContent = label;
+  button.addEventListener('click', () => {
+    reportUser({ reportedUserId, reportedUserName, rideId });
+  });
+  return button;
+}
+
+function publicProfileLinkMarkup(userId, label) {
+  const name = label || 'LinkUp user';
+  if (!userId) return esc(name);
+  return '<button type="button" class="user-profile-link" data-user-id="' + esc(userId) + '">' + esc(name) + '</button>';
+}
+
+function createPublicProfileLink(userId, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'user-profile-link';
+  button.dataset.userId = userId || '';
+  button.textContent = label || 'LinkUp user';
+  return button;
+}
+
 function renderRideCard(ride) {
   const card = document.createElement('div');
   card.className = 'ride-card';
@@ -2786,8 +3065,9 @@ function renderRideCard(ride) {
   card.appendChild(title);
   const details = document.createElement('div');
   details.className = 'ride-details';
+  const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
   details.innerHTML = `
-    <div><strong>Driver:</strong> ${esc(ride.driverFirstName)} ${esc(ride.driverLastName)}</div>
+    <div><strong>Driver:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
     <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
     <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
     <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>
@@ -2871,6 +3151,12 @@ function renderRideCard(ride) {
       }
     };
     card.appendChild(cartActionButton);
+    card.appendChild(createReportUserButton({
+      reportedUserId: ride.driverId,
+      reportedUserName: [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'the driver',
+      rideId: ride.id,
+      label: 'Report driver',
+    }));
     card.appendChild(cardError);
   }
   const riders = document.createElement('div');
@@ -2947,7 +3233,10 @@ async function loadRideChat(rideId, listElement, errorElement, formElement) {
       item.className = 'chat-message' + (message.senderId === currentUser?.id ? ' mine' : '');
       const meta = document.createElement('div');
       meta.className = 'chat-message-meta';
-      meta.textContent = (message.senderFirstName || 'Student') + ' · ' + (message.senderRole || 'Rider') + ' · ' + formatChatTime(message.createdAt);
+      meta.append(
+        createPublicProfileLink(message.senderId, message.senderFirstName || 'Student'),
+        document.createTextNode(' · ' + (message.senderRole || 'Rider') + ' · ' + formatChatTime(message.createdAt))
+      );
       const textDiv = document.createElement('div');
       textDiv.className = 'chat-message-text';
       textDiv.textContent = message.text;
@@ -2974,7 +3263,7 @@ function createChatRideDetails(ride) {
     <div class="chat-ride-detail-grid">
       <div><strong>Date:</strong> ${esc(new Date(ride.date + 'T00:00:00').toLocaleDateString())}</div>
       <div><strong>Time:</strong> ${esc(formatRideTime(ride.time) || 'Time not set')}</div>
-      <div><strong>Driver:</strong> ${esc(driverName)}</div>
+      <div><strong>Driver:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
       <div><strong>Riders:</strong> ${esc(riderCount)}</div>
       <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
       <div><strong>Your role:</strong> ${esc(getChatRideRole(ride))}</div>
@@ -3099,8 +3388,47 @@ function buildDriverSeatManifest(ride) {
   manifest.className = 'seat-manifest';
   const title = document.createElement('div');
   title.className = 'seat-manifest-title';
-  title.textContent = 'Seat assignments';
+  title.textContent = ride.seatingChartUnavailable ? 'Rider assignments' : 'Seat assignments';
   manifest.appendChild(title);
+
+  if (ride.seatingChartUnavailable) {
+    const list = document.createElement('div');
+    list.className = 'seat-manifest-list';
+    const passengers = ride.passengers || [];
+    if (!passengers.length) {
+      const row = document.createElement('div');
+      row.className = 'seat-manifest-row';
+      row.innerHTML = '<span class="seat-manifest-seat">Riders</span><span class="seat-manifest-empty">No riders yet</span>';
+      list.appendChild(row);
+    }
+    passengers.forEach((passenger, index) => {
+      const row = document.createElement('div');
+      row.className = 'seat-manifest-row';
+
+      const spot = document.createElement('span');
+      spot.className = 'seat-manifest-seat';
+      spot.textContent = 'Spot ' + (index + 1);
+
+      const rider = document.createElement('span');
+      rider.className = 'seat-manifest-rider';
+      const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
+      rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
+      if (passenger.email) rider.appendChild(document.createTextNode(' · ' + passenger.email));
+
+      row.append(spot, rider);
+      if (passenger.studentId && passenger.studentId !== currentUser?.id) {
+        row.appendChild(createReportUserButton({
+          reportedUserId: passenger.studentId,
+          reportedUserName: [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'this rider',
+          rideId: ride.id,
+          label: 'Report rider',
+        }));
+      }
+      list.appendChild(row);
+    });
+    manifest.appendChild(list);
+    return manifest;
+  }
 
   const passengerBySeat = new Map((ride.passengers || [])
     .filter((passenger) => passenger.seatId)
@@ -3122,11 +3450,23 @@ function buildDriverSeatManifest(ride) {
 
     const rider = document.createElement('span');
     rider.className = passenger ? 'seat-manifest-rider' : (isForSale ? 'seat-manifest-empty' : 'seat-manifest-unavailable');
-    rider.textContent = passenger
-      ? [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') + (passenger.email ? ' · ' + passenger.email : '')
-      : (isForSale ? 'Available' : 'Unavailable');
+    if (passenger) {
+      const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
+      rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
+      if (passenger.email) rider.appendChild(document.createTextNode(' · ' + passenger.email));
+    } else {
+      rider.textContent = isForSale ? 'Available' : 'Unavailable';
+    }
 
     row.append(seat, rider);
+    if (passenger?.studentId && passenger.studentId !== currentUser?.id) {
+      row.appendChild(createReportUserButton({
+        reportedUserId: passenger.studentId,
+        reportedUserName: [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'this rider',
+        rideId: ride.id,
+        label: 'Report rider',
+      }));
+    }
     list.appendChild(row);
   });
 
@@ -3156,10 +3496,11 @@ function buildRequestSummary(request) {
   container.appendChild(title);
 
   const requestTime = formatRideDateTime({ date: request.date, time: request.time });
+  const riderName = [request.riderFirstName || 'Student', request.riderLastName || ''].filter(Boolean).join(' ');
   const details = document.createElement('div');
   details.className = 'ride-details';
   details.innerHTML = `
-    <div><strong>Rider:</strong> ${esc(request.riderFirstName || 'Student')} ${esc(request.riderLastName || '')}</div>
+    <div><strong>Rider:</strong> ${publicProfileLinkMarkup(request.riderId, riderName)}</div>
     <div><strong>School:</strong> ${esc(request.university || 'Unknown school')}</div>
     <div><strong>Preference:</strong> ${request.sameGenderDriverOnly ? 'Same gender driver only' : 'Open to all drivers'}</div>
     ${getFlexRadiusMarkup(request, 'rider')}
@@ -3273,18 +3614,21 @@ function buildDriverRideSummary(ride) {
 
   if (!ride.seatingChartUnavailable) {
     container.appendChild(buildDriverSeatManifest(ride));
+  } else if ((ride.passengers || []).length) {
+    container.appendChild(buildDriverSeatManifest(ride));
   }
   return container;
 }
 
 function buildRideSummary(ride, options = {}) {
   const selectedSeatId = getCurrentUserSeatId(ride);
+  const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
   const container = document.createElement('div');
   container.className = 'ride-card';
   container.innerHTML = `
     <h4>${esc(ride.origin)} → ${esc(ride.destination)}</h4>
     <div class="ride-details">
-      <div><strong>Driver:</strong> ${esc([ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver')}</div>
+      <div><strong>Driver:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
       <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
       <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
       <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>
@@ -3317,6 +3661,14 @@ function buildRideSummary(ride, options = {}) {
     readonlyPicker.appendChild(createSeatLayout({ seatMap: ride.seatMap || [], selectedSeatId, ride }));
     container.appendChild(readonlyPicker);
   }
+  if (ride.driverId && ride.driverId !== currentUser?.id) {
+    container.appendChild(createReportUserButton({
+      reportedUserId: ride.driverId,
+      reportedUserName: [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'the driver',
+      rideId: ride.id,
+      label: 'Report driver',
+    }));
+  }
   return container;
 }
 
@@ -3326,9 +3678,10 @@ function renderCartItem(ride) {
 
   const detail = document.createElement('div');
   detail.className = 'cart-item-detail';
+  const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
   detail.innerHTML = `
     <div><strong>Seat:</strong> ${ride.seatingChartUnavailable ? 'General shared spot' : (ride.selectedSeatId ? esc(getSeatLabel(ride.selectedSeatId)) : 'Seat selected')}</div>
-    <div><strong>Driver:</strong> ${esc([ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' '))}</div>
+    <div><strong>Driver:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
     <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
     <div><strong>Rating:</strong> ${esc(formatDriverRating(ride))}</div>
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
@@ -4043,6 +4396,10 @@ offerForm.addEventListener('submit', async (event) => {
     showToast('Fill in all required fields and select both locations.', 'error');
     return;
   }
+  if (!originLat || !originLng || !destinationLat || !destinationLng) {
+    showToast('Select pick-up and drop-off locations from the suggestions so coordinates are set.', 'error');
+    return;
+  }
   if (rideProviderType === 'personal_car' && (!seats || !carMaker || !carModel || !carColor || !licensePlate || !availableSeatIds.length)) {
     showToast('Personal car rides require vehicle details and at least one available seat.', 'error');
     return;
@@ -4055,8 +4412,8 @@ offerForm.addEventListener('submit', async (event) => {
     showToast('Price per seat must be at least $0.50.', 'error');
     return;
   }
-  if (sameGenderOnly && !canMatchSameGender(currentUser.gender, currentUser.gender)) {
-    showToast('Set your gender on your profile before offering same-gender rides.', 'error');
+  if (sameGenderOnly && (!currentUser.gender || currentUser.gender === 'prefer-not-to-say')) {
+    showToast('Set a visible gender on your profile before offering same-gender rides.', 'error');
     return;
   }
   try {
@@ -4184,12 +4541,19 @@ yourRidesHistoryTab.addEventListener('click', () => { setYourRidesView('history'
 yourRidesBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 leaderboardButton.addEventListener('click', () => showLeaderboardPage());
 leaderboardBackHomeButton.addEventListener('click', () => returnToBrowseRides());
+publicProfileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 profileButton.addEventListener('click', () => showProfilePage());
 profileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 privacyLink.addEventListener('click', () => showLegalPage('privacy'));
 termsLink.addEventListener('click', () => showLegalPage('terms'));
 legalBackButtons.forEach((button) => {
   button.addEventListener('click', () => returnFromLegalPage());
+});
+document.addEventListener('click', (event) => {
+  const profileLink = event.target.closest('.user-profile-link');
+  if (!profileLink) return;
+  event.preventDefault();
+  showPublicProfilePage(profileLink.dataset.userId);
 });
 profileSidebarButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -4339,13 +4703,13 @@ profileForm.addEventListener('submit', async (event) => {
 checkoutCartButton.addEventListener('click', () => {
   clearCartMessages();
   if (!cartRideIds.size) {
-    cartError.textContent = 'Your cart is empty';
+    cartError.textContent = 'Your cart is empty.';
     cartError.classList.add('show');
     return;
   }
   showPaymentPage();
 });
-paymentBackToCartButton.addEventListener('click', () => returnToBrowseRides());
+paymentBackToCartButton.addEventListener('click', () => showCartPage());
 document.getElementById('pay-cart').addEventListener('click', async () => {
   clearCartMessages();
   try {
@@ -4396,6 +4760,8 @@ async function completeStripeCheckout(sessionId) {
     paymentError.classList.add('show');
   }
 }
+
+loadExternalDocuments();
 
 const params = new URLSearchParams(window.location.search);
 const resetToken = params.get('resetToken');
