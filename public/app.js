@@ -349,6 +349,7 @@ const originSearchInput = document.getElementById('origin-search');
 const originMapDiv = document.getElementById('origin-map');
 const destinationSearchInput = document.getElementById('destination-search');
 const sameGenderOnlyRideCheckbox = document.getElementById('same-gender-only-ride');
+const sameSchoolOnlyRideCheckbox = document.getElementById('same-school-only-ride');
 const sameSchoolOnlyFilter = document.getElementById('same-school-only');
 const sameGenderDriversOnlyFilter = document.getElementById('same-gender-drivers-only');
 const browseSearchLabel = document.getElementById('browse-search-label');
@@ -2559,8 +2560,15 @@ function getTripEndTime(ride) {
 }
 
 async function estimateRideDurationMinutes(origin, destination, departureDate = '', departureTime = '') {
+  const metrics = await estimateRideMetrics(origin, destination, departureDate, departureTime);
+  return metrics.durationMinutes;
+}
+
+async function estimateRideMetrics(origin, destination, departureDate = '', departureTime = '') {
   await loadGoogleMapsAPI();
-  if (!window.google?.maps?.DistanceMatrixService || !origin || !destination) return null;
+  if (!window.google?.maps?.DistanceMatrixService || !origin || !destination) {
+    return { durationMinutes: null, distanceMiles: null };
+  }
   return new Promise((resolve) => {
     const service = new google.maps.DistanceMatrixService();
     const request = {
@@ -2575,11 +2583,15 @@ async function estimateRideDurationMinutes(origin, destination, departureDate = 
     service.getDistanceMatrix(request, (response, status) => {
       const element = response?.rows?.[0]?.elements?.[0];
       if (status !== 'OK' || element?.status !== 'OK') {
-        resolve(null);
+        resolve({ durationMinutes: null, distanceMiles: null });
         return;
       }
       const seconds = element.duration_in_traffic?.value || element.duration?.value;
-      resolve(seconds ? Math.max(5, Math.ceil(seconds / 60)) : null);
+      const meters = element.distance?.value;
+      resolve({
+        durationMinutes: seconds ? Math.max(5, Math.ceil(seconds / 60)) : null,
+        distanceMiles: meters ? Math.round((meters / 1609.344) * 10) / 10 : null,
+      });
     });
   });
 }
@@ -2940,6 +2952,7 @@ function canMatchSameGender(riderGender, driverGender) {
 
 function canCurrentUserSeeRide(ride) {
   if (sameSchoolOnlyFilter?.checked && ride.university !== currentUser.university) return false;
+  if (ride.sameSchoolOnly && ride.university !== currentUser.university) return false;
   const sameGenderMatch = canMatchSameGender(currentUser.gender, ride.driverGender);
   if (ride.sameGenderOnly && !sameGenderMatch) return false;
   if (sameGenderDriversOnlyFilter.checked && !sameGenderMatch) return false;
@@ -2983,10 +2996,12 @@ function getFlexRadiusMarkup(item, mode = 'driver') {
   const pickup = Number(item.pickupRadiusMiles || 0);
   const dropoff = Number(item.dropoffRadiusMiles || 0);
   if (!(pickup > 0) && !(dropoff > 0)) return '';
-  const label = mode === 'rider' ? 'Walking radius' : 'Driver detour radius';
-  const pickupLabel = mode === 'rider' ? 'To pickup ' : 'Pickup detour ';
-  const dropoffLabel = mode === 'rider' ? 'From drop-off ' : 'Drop-off detour ';
-  return '<div><strong>' + label + ':</strong> ' + pickupLabel + esc(pickup > 0 ? formatMiles(pickup) : 'Exact') + ' · ' + dropoffLabel + esc(dropoff > 0 ? formatMiles(dropoff) : 'Exact') + '</div>';
+  const pickupLabel = mode === 'rider' ? 'Pickup walking radius' : 'Pickup detour radius';
+  const dropoffLabel = mode === 'rider' ? 'Drop-off walking radius' : 'Drop-off detour radius';
+  return [
+    '<div><strong>' + pickupLabel + ':</strong> ' + esc(pickup > 0 ? formatMiles(pickup) : 'Exact') + '</div>',
+    '<div><strong>' + dropoffLabel + ':</strong> ' + esc(dropoff > 0 ? formatMiles(dropoff) : 'Exact') + '</div>',
+  ].join('');
 }
 
 function esc(str) {
@@ -3071,8 +3086,8 @@ function renderRideCard(ride) {
     <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
     <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
     <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>
+    ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school riders only</div>' : ''}
     ${getFlexRadiusMarkup(ride, 'driver')}
-    ${getCoordinateMarkup(ride)}
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
     ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
@@ -3081,7 +3096,7 @@ function renderRideCard(ride) {
     <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
     <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
     ${getVehicleDetailMarkup(ride)}
-    <div><strong>Notes:</strong> ${esc(ride.notes || 'None')}</div>
+    ${ride.notes ? `<div><strong>Notes:</strong> ${esc(ride.notes)}</div>` : ''}
   `;
   card.appendChild(details);
   if (ride.driverId === currentUser.id) {
@@ -3503,8 +3518,8 @@ function buildRequestSummary(request) {
     <div><strong>Rider:</strong> ${publicProfileLinkMarkup(request.riderId, riderName)}</div>
     <div><strong>School:</strong> ${esc(request.university || 'Unknown school')}</div>
     <div><strong>Preference:</strong> ${request.sameGenderDriverOnly ? 'Same gender driver only' : 'Open to all drivers'}</div>
+    ${request.sameSchoolDriverOnly ? '<div><strong>School restriction:</strong> Same school drivers only</div>' : ''}
     ${getFlexRadiusMarkup(request, 'rider')}
-    ${getCoordinateMarkup(request)}
     <div><strong>Requested time:</strong> ${esc(requestTime)}</div>
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(request.estimatedDurationMinutes))}</div>
     <div><strong>Riders:</strong> ${esc(request.riderCount || 1)}</div>
@@ -3512,7 +3527,7 @@ function buildRequestSummary(request) {
     <div><strong>Willing to pay:</strong> ${esc(formatCents(request.willingToPayCents))}</div>
     <div><strong>Status:</strong> ${esc(request.status || 'open')}</div>
     <div><strong>Driver offers:</strong> ${esc((request.driverOffers || []).length)}</div>
-    <div><strong>Notes:</strong> ${esc(request.notes || 'None')}</div>
+    ${request.notes ? `<div><strong>Notes:</strong> ${esc(request.notes)}</div>` : ''}
   `;
   container.appendChild(details);
   return container;
@@ -3632,6 +3647,7 @@ function buildRideSummary(ride, options = {}) {
       <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
       <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
       <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>
+      ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school riders only</div>' : ''}
       ${getCoordinateMarkup(ride)}
       <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
       <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
@@ -3661,7 +3677,7 @@ function buildRideSummary(ride, options = {}) {
     readonlyPicker.appendChild(createSeatLayout({ seatMap: ride.seatMap || [], selectedSeatId, ride }));
     container.appendChild(readonlyPicker);
   }
-  if (ride.driverId && ride.driverId !== currentUser?.id) {
+  if (options.includeReportDriver !== false && ride.driverId && ride.driverId !== currentUser?.id) {
     container.appendChild(createReportUserButton({
       reportedUserId: ride.driverId,
       reportedUserName: [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'the driver',
@@ -3673,8 +3689,15 @@ function buildRideSummary(ride, options = {}) {
 }
 
 function renderCartItem(ride) {
-  const item = buildRideSummary(ride, { includeChat: false });
+  const item = buildRideSummary(ride, { includeChat: false, includeReportDriver: false });
   item.classList.add('cart-item-card');
+  item.dataset.rideId = ride.id;
+
+  // Strip elements that clutter the cart view — the cart-item-detail
+  // strip below already shows all the key info cleanly.
+  ['.ride-details', '.ride-seat-picker', '.seat-picker-block',
+   '.ride-card-passengers', '.shared-seat-notice', '.report-user-button']
+    .forEach(sel => item.querySelectorAll(sel).forEach(el => el.remove()));
 
   const detail = document.createElement('div');
   detail.className = 'cart-item-detail';
@@ -3690,6 +3713,19 @@ function renderCartItem(ride) {
   `;
   item.prepend(detail);
 
+  if (!ride.cartTermsAccepted) {
+    const termsLabel = document.createElement('label');
+    termsLabel.className = 'checkbox-label terms-agreement cart-terms-agreement';
+    termsLabel.append(
+      Object.assign(document.createElement('input'), {
+        type: 'checkbox',
+        className: 'cart-terms-checkbox',
+      }),
+      document.createTextNode(' I agree to LinkUp\'s Terms and Conditions for this ride.')
+    );
+    item.appendChild(termsLabel);
+  }
+
   const removeButton = document.createElement('button');
   removeButton.textContent = 'Remove';
   removeButton.onclick = async () => {
@@ -3704,6 +3740,35 @@ function renderCartItem(ride) {
   };
   item.appendChild(removeButton);
   return item;
+}
+
+async function saveMissingCartTerms() {
+  const missingTermsItems = [...cartItems.querySelectorAll('.cart-item-card')]
+    .filter((item) => item.querySelector('.cart-terms-checkbox'));
+  if (!missingTermsItems.length) return true;
+
+  const uncheckedItem = missingTermsItems.find((item) => !item.querySelector('.cart-terms-checkbox')?.checked);
+  if (uncheckedItem) {
+    cartError.textContent = 'Please agree to the Terms and Conditions for each ride before checkout.';
+    cartError.classList.add('show');
+    return false;
+  }
+
+  for (const item of missingTermsItems) {
+    const rideId = item.dataset.rideId;
+    const ride = [...cartItems.querySelectorAll('.cart-item-card')]
+      .map((card) => card.dataset.rideId === rideId ? card : null)
+      .find(Boolean);
+    const selectedSeatId = selectedSeatByRide.get(rideId) || '';
+    await fetchJson(`/api/cart/${rideId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seatId: selectedSeatId, termsAccepted: true }),
+    });
+    ride?.querySelector('.cart-terms-agreement')?.remove();
+  }
+  await loadCart();
+  return true;
 }
 
 async function loadCart() {
@@ -3907,6 +3972,7 @@ function requestMatchesDriverFilters(request) {
 
 function canCurrentUserSeeRequest(request) {
   if (sameSchoolOnlyFilter?.checked && request.university !== currentUser.university) return false;
+  if (request.sameSchoolDriverOnly && request.university !== currentUser.university) return false;
   if (request.riderId === currentUser.id) return false;
   if (request.sameGenderDriverOnly && !canMatchSameGender(request.riderGender, currentUser.gender)) return false;
   return (request.status || 'open') === 'open';
@@ -4371,6 +4437,7 @@ offerForm.addEventListener('submit', async (event) => {
   const date = document.getElementById('ride-date').value;
   const time = document.getElementById('ride-time').value;
   const sameGenderOnly = sameGenderOnlyRideCheckbox.checked;
+  const sameSchoolOnly = sameSchoolOnlyRideCheckbox.checked;
   const rideProviderType = rideProviderTypeSelect.value;
   const seats = document.getElementById('seats').value;
   const vehicleSeatCount = Number(vehicleSeatCountSelect.value);
@@ -4386,7 +4453,7 @@ offerForm.addEventListener('submit', async (event) => {
   const pickupRadiusMiles = getRadiusInputMiles(offerPickupRadiusInput);
   const dropoffRadiusMiles = getRadiusInputMiles(offerDropoffRadiusInput);
   const notes = document.getElementById('notes').value.trim();
-  const estimatedDurationMinutes = await estimateRideDurationMinutes(
+  const rideMetrics = await estimateRideMetrics(
     { lat: Number(originLat), lng: Number(originLng) },
     { lat: Number(destinationLat), lng: Number(destinationLng) },
     date,
@@ -4432,6 +4499,7 @@ offerForm.addEventListener('submit', async (event) => {
         date,
         time,
         sameGenderOnly,
+        sameSchoolOnly,
         rideProviderType,
         rideshareService,
         rideshareSeatCount,
@@ -4444,7 +4512,8 @@ offerForm.addEventListener('submit', async (event) => {
         carColor,
         licensePlate,
         termsAccepted,
-        estimatedDurationMinutes,
+        estimatedDurationMinutes: rideMetrics.durationMinutes,
+        distanceMiles: rideMetrics.distanceMiles,
         notes,
       }),
     });
@@ -4484,7 +4553,7 @@ requestRideForm.addEventListener('submit', async (event) => {
     destinationLat: document.getElementById('request-destination-lat').value,
     destinationLng: document.getElementById('request-destination-lng').value,
   });
-  const estimatedDurationMinutes = await estimateRideDurationMinutes(
+  const requestRideMetrics = await estimateRideMetrics(
     requestOriginCoordinate,
     requestDestinationCoordinate,
     document.getElementById('request-date').value,
@@ -4503,9 +4572,11 @@ requestRideForm.addEventListener('submit', async (event) => {
     time: document.getElementById('request-time').value,
     riderCount: Number(document.getElementById('request-rider-count').value),
     willingToPay: Number(document.getElementById('request-price').value),
-    estimatedDurationMinutes,
+    estimatedDurationMinutes: requestRideMetrics.durationMinutes,
+    distanceMiles: requestRideMetrics.distanceMiles,
     shareRideWithOthers: document.getElementById('request-share-ride').checked,
     sameGenderDriverOnly: document.getElementById('request-same-gender-driver').checked,
+    sameSchoolDriverOnly: document.getElementById('request-same-school-driver').checked,
     notes: document.getElementById('request-notes').value.trim(),
   };
   try {
@@ -4700,10 +4771,18 @@ profileForm.addEventListener('submit', async (event) => {
   }
 });
 
-checkoutCartButton.addEventListener('click', () => {
+checkoutCartButton.addEventListener('click', async () => {
   clearCartMessages();
   if (!cartRideIds.size) {
     cartError.textContent = 'Your cart is empty.';
+    cartError.classList.add('show');
+    return;
+  }
+  try {
+    const termsReady = await saveMissingCartTerms();
+    if (!termsReady) return;
+  } catch (err) {
+    cartError.textContent = err.message;
     cartError.classList.add('show');
     return;
   }
@@ -4713,6 +4792,11 @@ paymentBackToCartButton.addEventListener('click', () => showCartPage());
 document.getElementById('pay-cart').addEventListener('click', async () => {
   clearCartMessages();
   try {
+    const termsReady = await saveMissingCartTerms();
+    if (!termsReady) {
+      showCartPage();
+      return;
+    }
     const data = await fetchJson('/api/cart/create-checkout-session', { method: 'POST' });
     window.location.href = data.url;
   } catch (err) {

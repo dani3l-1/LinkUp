@@ -324,6 +324,10 @@ function canMatchSameGender(riderGender, driverGender) {
   return riderGender === driverGender;
 }
 
+function isSameSchoolUser(user, schoolName = '') {
+  return Boolean(user && schoolName && user.university === schoolName);
+}
+
 function calculateDistanceMiles(originLat, originLng, destinationLat, destinationLng) {
   const startLat = Number(originLat);
   const startLng = Number(originLng);
@@ -344,6 +348,12 @@ function calculateDistanceMiles(originLat, originLng, destinationLat, destinatio
 function sanitizeDurationMinutes(value) {
   const minutes = Math.round(Number(value));
   return Number.isFinite(minutes) && minutes >= 5 && minutes <= 720 ? minutes : 90;
+}
+
+function sanitizeDistanceMiles(value, fallbackMiles = 0) {
+  const miles = Number(value);
+  if (Number.isFinite(miles) && miles > 0 && miles <= 3000) return Math.round(miles * 10) / 10;
+  return Math.round(Number(fallbackMiles || 0) * 10) / 10;
 }
 
 function parseTripCoordinate(value, min, max) {
@@ -493,6 +503,23 @@ function canUserAccessRideChat(ride, userId) {
   return ride && (ride.driverId === userId || (ride.passengers || []).some((passenger) => passenger.studentId === userId));
 }
 
+function getMaskedLastName(lastName = '') {
+  const trimmed = String(lastName || '').trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() + '.' : '';
+}
+
+function getMaskedUserNameParts(user) {
+  const fallbackName = user?.email ? user.email.split('@')[0] : 'User';
+  return {
+    firstName: user?.firstName || fallbackName,
+    lastName: getMaskedLastName(user?.lastName),
+  };
+}
+
+function canUserSeeDriverFullName(ride, userId) {
+  return canUserAccessRideChat(ride, userId);
+}
+
 function getRideChatDisabledAt(ride) {
   const interval = getTripInterval(ride);
   if (!interval.end) return null;
@@ -506,6 +533,9 @@ function isRideChatDisabled(ride) {
 
 function rideForUser(ride, userId, db = null) {
   const publicRide = withRideMiles(ride, db);
+  if (!canUserSeeDriverFullName(ride, userId)) {
+    publicRide.driverLastName = getMaskedLastName(ride.driverLastName);
+  }
   if (!canUserSeeLicensePlate(ride, userId)) {
     delete publicRide.licensePlate;
   }
@@ -537,13 +567,24 @@ function areUsersBlocked(db, firstUserId, secondUserId) {
 function isRideVisibleToUser(db, ride, userId) {
   if (!ride || !userId) return false;
   if (ride.driverId === userId) return true;
+  const viewer = (db.users || []).find((user) => user.id === userId);
+  if (ride.sameSchoolOnly && !isSameSchoolUser(viewer, ride.university)) return false;
   return !areUsersBlocked(db, userId, ride.driverId);
 }
 
 function isRideRequestVisibleToUser(db, request, userId) {
   if (!request || !userId) return false;
   if (request.riderId === userId) return true;
+  const viewer = (db.users || []).find((user) => user.id === userId);
+  if (request.sameSchoolDriverOnly && !isSameSchoolUser(viewer, request.university)) return false;
   return !areUsersBlocked(db, userId, request.riderId);
+}
+
+function canUserSeeProfileFullName(db, profileUserId, viewerId) {
+  if (!profileUserId || !viewerId) return false;
+  if (profileUserId === viewerId) return true;
+  return (db.rides || []).some((ride) => ride.driverId === profileUserId
+    && (ride.passengers || []).some((passenger) => passenger.studentId === viewerId));
 }
 
 function hashToken(token) {
@@ -956,6 +997,9 @@ function canStudentReserveRide(student, ride, seatId = '', db = null) {
   }
   if (ride.sameGenderOnly && !canMatchSameGender(student.gender, ride.driverGender)) {
     return 'This ride is limited to same-gender riders';
+  }
+  if (ride.sameSchoolOnly && !isSameSchoolUser(student, ride.university)) {
+    return 'This ride is limited to riders from the driver\'s school';
   }
   if ((ride.passengers || []).some((p) => p.studentId === student.id)) {
     return 'You have already joined this ride';
@@ -1694,7 +1738,7 @@ app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
 });
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
-  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, estimatedDurationMinutes, notes } = req.body;
+  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, estimatedDurationMinutes, distanceMiles, notes } = req.body;
   if (!origin || !destination || !date || !time || !riderCount || willingToPay === undefined) {
     return res.status(400).json({ error: 'Missing trip request information' });
   }
@@ -1726,6 +1770,8 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     || (!hasBlankCoordinate(destinationLng) && parsedDestinationLng === null)) {
     return res.status(400).json({ error: 'Enter valid pickup and drop-off coordinates' });
   }
+  const fallbackDistanceMiles = calculateDistanceMiles(parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng);
+  const parsedDistanceMiles = sanitizeDistanceMiles(distanceMiles, fallbackDistanceMiles);
 
   const db = loadDb();
   db.rideRequests = db.rideRequests || [];
@@ -1753,6 +1799,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     destinationLng: parsedDestinationLng,
     pickupRadiusMiles: parsedPickupRadiusMiles,
     dropoffRadiusMiles: parsedDropoffRadiusMiles,
+    distanceMiles: parsedDistanceMiles,
     date,
     time,
     riderCount: riderCountNumber,
@@ -1760,6 +1807,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
     shareRideWithOthers: Boolean(shareRideWithOthers),
     sameGenderDriverOnly: Boolean(sameGenderDriverOnly),
+    sameSchoolDriverOnly: Boolean(sameSchoolDriverOnly),
     notes: notes || '',
     driverOffers: [],
     status: 'open',
@@ -1798,6 +1846,9 @@ app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAcces
   }
   if (request.sameGenderDriverOnly && !canMatchSameGender(request.riderGender, driver.gender)) {
     return res.status(400).json({ error: 'This rider requested same-gender drivers only' });
+  }
+  if (request.sameSchoolDriverOnly && !isSameSchoolUser(driver, request.university)) {
+    return res.status(400).json({ error: 'This rider requested same-school drivers only' });
   }
   if (request.driverOffers.some((offer) => offer.driverId === driver.id)) {
     return res.status(400).json({ error: 'You already offered to drive this request' });
@@ -1843,6 +1894,9 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
   if (areUsersBlocked(db, driver.id, request.riderId)) {
     return res.status(403).json({ error: 'You cannot post a shared ride for a blocked user' });
   }
+  if (request.sameSchoolDriverOnly && !isSameSchoolUser(driver, request.university)) {
+    return res.status(400).json({ error: 'This rider requested same-school drivers only' });
+  }
   if (!request.driverOffers.some((offer) => offer.driverId === driver.id)) {
     return res.status(400).json({ error: 'Offer to drive this request before posting it as a shared ride' });
   }
@@ -1860,6 +1914,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
     driverLastName: driver.lastName,
     driverGender: driver.gender || '',
     sameGenderOnly: false,
+    sameSchoolOnly: Boolean(request.sameSchoolDriverOnly),
     university: driver.university,
     origin: request.origin,
     destination: request.destination,
@@ -1869,7 +1924,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
     destinationLng: request.destinationLng ?? null,
     pickupRadiusMiles: request.pickupRadiusMiles || 0,
     dropoffRadiusMiles: request.dropoffRadiusMiles || 0,
-    distanceMiles: calculateDistanceMiles(request.originLat, request.originLng, request.destinationLat, request.destinationLng),
+    distanceMiles: sanitizeDistanceMiles(request.distanceMiles, calculateDistanceMiles(request.originLat, request.originLng, request.destinationLat, request.destinationLng)),
     date: request.date,
     time: request.time,
     estimatedDurationMinutes: sanitizeDurationMinutes(request.estimatedDurationMinutes),
@@ -1909,7 +1964,7 @@ app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 });
 
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
-  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, seatsAvailable, price, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, notes } = req.body;
+  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, sameSchoolOnly, seatsAvailable, price, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, distanceMiles, notes } = req.body;
   const rideProviderType = ['personal_car', 'rideshare_service'].includes(req.body.rideProviderType) ? req.body.rideProviderType : '';
   const isRideshareService = rideProviderType === 'rideshare_service';
   const rideshareService = String(req.body.rideshareService || '').trim();
@@ -1950,6 +2005,8 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   if ([parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng].some((value) => value === null)) {
     return res.status(400).json({ error: 'Enter valid pickup and drop-off coordinates' });
   }
+  const fallbackDistanceMiles = calculateDistanceMiles(parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng);
+  const parsedDistanceMiles = sanitizeDistanceMiles(distanceMiles, fallbackDistanceMiles);
 
   const priceCents = Math.round(Number(price) * 100);
   if (!Number.isInteger(priceCents) || priceCents < 50) {
@@ -1978,6 +2035,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     driverLastName: driver.lastName,
     driverGender: driver.gender || '',
     sameGenderOnly: Boolean(sameGenderOnly),
+    sameSchoolOnly: Boolean(sameSchoolOnly),
     university: driver.university,
     origin,
     destination,
@@ -1987,7 +2045,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     destinationLng: parsedDestinationLng,
     pickupRadiusMiles: parsedPickupRadiusMiles,
     dropoffRadiusMiles: parsedDropoffRadiusMiles,
-    distanceMiles: calculateDistanceMiles(parsedOriginLat, parsedOriginLng, parsedDestinationLat, parsedDestinationLng),
+    distanceMiles: parsedDistanceMiles,
     date,
     time,
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
@@ -2053,7 +2111,7 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
   });
   ride.seatsAvailable = getAvailableOpenSeatIds(ride).length;
   saveDb(db);
-  res.json(withRideMiles(ride, db));
+  res.json(rideForUser(ride, req.session.userId, db));
 });
 
 app.get('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req, res) => {
@@ -2222,7 +2280,11 @@ app.get('/api/cart', requireAuth, requireServiceAccess, (req, res) => {
   const cartRides = visibleCartEntries
     .map((entry) => {
       const ride = db.rides.find((item) => item.id === entry.rideId);
-      return ride ? { ...rideForUser(ride, req.session.userId, db), selectedSeatId: entry.seatId } : null;
+      return ride ? {
+        ...rideForUser(ride, req.session.userId, db),
+        selectedSeatId: entry.seatId,
+        cartTermsAccepted: Boolean(entry.termsAcceptedAt),
+      } : null;
     })
     .filter(Boolean);
 
@@ -2300,7 +2362,7 @@ app.post('/api/cart/checkout', requireAuth, requireServiceAccess, (req, res) => 
 
   db.carts[student.id] = [];
   saveDb(db);
-  res.json({ message: 'Payment complete. Your seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => withRideMiles(ride, db)) });
+  res.json({ message: 'Payment complete. Your seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) });
 });
 
 app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess, (req, res) => {
@@ -2380,7 +2442,7 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req,
   });
   db.carts[student.id] = [];
   saveDb(db);
-  res.json({ message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => withRideMiles(ride, db)) });
+  res.json({ message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) });
 });
 
 app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
@@ -2494,12 +2556,17 @@ app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, r
     : null;
   const completedDrivenRides = createdRides.filter((ride) => Date.now() > getTripInterval(ride).end).length;
   const openRideRequests = rideRequests.filter((request) => request.riderId === user.id && request.status === 'open').length;
+  const canSeeFullName = canUserSeeProfileFullName(db, user.id, req.session.userId);
+  const maskedNameParts = getMaskedUserNameParts(user);
+  const firstName = user.firstName || maskedNameParts.firstName;
+  const lastName = canSeeFullName ? (user.lastName || '') : maskedNameParts.lastName;
 
   res.json({
     id: user.id,
-    name: getUserDisplayName(user),
-    firstName: user.firstName || '',
-    lastName: user.lastName || '',
+    name: [firstName, lastName].filter(Boolean).join(' ') || 'User',
+    firstName,
+    lastName,
+    fullNameVisible: canSeeFullName,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
     memberSince: user.createdAt || null,
