@@ -3832,7 +3832,7 @@ function setBrowseRole(role) {
 function renderBrowseRoleChoice() {
   setBrowseRole(null);
   browseTitle.textContent = 'Browse rides';
-  browseSubtitle.textContent = 'Are you driving or riding today?';
+  browseSubtitle.textContent = 'Are you a driver looking for riders, or a rider looking for a seat?';
   browseControls.classList.add('hidden');
   browseMapPanel?.classList.add('hidden');
   browseRiderLayout?.classList.remove('rider-active');
@@ -3842,7 +3842,7 @@ function renderBrowseRoleChoice() {
   if (browsePickupMarker) { browsePickupMarker.setMap(null); browsePickupMarker = null; }
   if (browseDropoffMarker) { browseDropoffMarker.setMap(null); browseDropoffMarker = null; }
   browseResultsTitle.textContent = 'Choose a role to start';
-  ridesList.innerHTML = '<p class="browse-start-message">Select Driver to see ride requests, or Rider to see available seats.</p>';
+  ridesList.innerHTML = '<p class="browse-start-message">Select <strong>I\'m a Driver</strong> to see ride requests from students, or <strong>I\'m a Rider</strong> to browse available seats.</p>';
 }
 
 function showRiderBrowse() {

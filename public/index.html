@@ -18,10 +18,10 @@
     <div class="app-shell">
       <header>
         <div class="header-left-actions hidden" id="header-left-actions">
-          <button id="chat-button" type="button">Chat</button>
         </div>
         <img class="site-logo" src="assets/images/LinkUp-header.png" alt="LinkUp — Ride Connect Save" />
         <div class="header-actions hidden" id="header-actions">
+          <button id="chat-button" type="button">Chat</button>
           <button id="cart-button" type="button">Cart <span id="cart-count">0</span></button>
           <button id="profile-button" type="button">Profile</button>
           <button id="signout" type="button">Sign Out</button>
@@ -44,7 +44,7 @@
             <label>Email <input type="email" id="signin-email" placeholder="you@university.edu" required /></label>
             <label>Password <input type="password" id="signin-password" placeholder="••••••••" required /></label>
             <button type="submit">Let's Ride</button>
-            <button type="button" id="forgot-auth-link" class="text-button">Forgot username or password?</button>
+            <button type="button" id="forgot-auth-link" class="text-button">Forgot your password?</button>
             <div id="signin-error" class="error-message"></div>
           </form>
 
@@ -103,11 +103,11 @@
 
           <!-- Account recovery -->
           <form id="recovery-form" class="tab-content">
-            <h2>Recover your account</h2>
+            <h2>Account recovery</h2>
             <label>University Email <input type="email" id="recovery-email" placeholder="you@university.edu" required /></label>
             <div class="button-row">
-              <button type="button" id="send-username">Send Username</button>
-              <button type="button" id="send-password-reset">Reset Password</button>
+              <button type="button" id="send-username">Email me my username</button>
+              <button type="button" id="send-password-reset">Send password reset</button>
             </div>
             <button type="button" id="back-to-signin" class="text-button">Back to sign in</button>
             <div id="recovery-message" class="success-message"></div>
@@ -406,8 +406,14 @@
             <section class="card browse-role-card" id="browse-role-card">
               <h3>What's your role?</h3>
               <div class="browse-role-actions">
-                <button id="browse-driver-button" type="button">Driver</button>
-                <button id="browse-rider-button" type="button">Rider</button>
+                <button id="browse-driver-button" type="button">
+                  <span>I'm a Driver</span>
+                  <small>See ride requests from students who need a lift</small>
+                </button>
+                <button id="browse-rider-button" type="button">
+                  <span>I'm a Rider</span>
+                  <small>Find available seats on posted rides</small>
+                </button>
               </div>
             </section>
 
@@ -478,7 +484,7 @@
                 <h3>Request a ride</h3>
                 <p>Post where you need to go, your price, and pickup flexibility.</p>
               </div>
-              <button id="request-ride-back-home" type="button">Return to browse rides</button>
+              <button id="request-ride-back-home" type="button">← Back</button>
             </div>
 
             <article class="card request-ride-card">
@@ -719,7 +725,7 @@
             </div>
             <div id="cart-items">Your cart is empty.</div>
             <div id="cart-subtotal" class="cart-subtotal hidden"></div>
-            <button id="checkout-cart" type="button">Continue to payment</button>
+            <button id="checkout-cart" type="button">Proceed to payment →</button>
             <div id="cart-message" class="success-message"></div>
             <div id="cart-error" class="error-message"></div>
           </section>
@@ -731,7 +737,7 @@
                 <h3>Payment</h3>
                 <p id="payment-summary">Review your total before paying.</p>
               </div>
-              <button id="payment-back-to-cart" type="button">Return to browse rides</button>
+              <button id="payment-back-to-cart" type="button">← Back to cart</button>
             </div>
             <button type="button" id="pay-cart">Pay with Stripe</button>
             <div id="payment-message" class="success-message"></div>

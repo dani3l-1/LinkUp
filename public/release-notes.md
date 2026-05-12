@@ -14,6 +14,7 @@
 - **Browse cards are cleaner.** Browse results no longer show raw pickup/drop-off coordinates, empty Notes rows, or combined detour radius text.
 - **Detour radius is easier to read.** Pickup and drop-off detour/walking radius now appear as separate rows.
 - **Cart actions are less cluttered.** Report Driver no longer appears inside cart items.
+- **Navigation wording is clearer.** Browse role choices, recovery actions, back buttons, and checkout buttons now use more specific labels.
 - **Release notes are more user-focused.** Internal implementation details were removed from past release notes.
 
 ---
