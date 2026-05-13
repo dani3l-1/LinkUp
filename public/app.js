@@ -46,6 +46,10 @@ const releaseNoteFeed = document.getElementById('release-note-feed');
 const privacyLink = document.getElementById('privacy-link');
 const termsLink = document.getElementById('terms-link');
 const legalBackButtons = document.querySelectorAll('.legal-back');
+const legalModal = document.getElementById('legal-modal');
+const legalModalTitle = document.getElementById('legal-modal-title');
+const legalModalContent = document.getElementById('legal-modal-content');
+const legalInlineLinks = document.querySelectorAll('[data-legal-modal]');
 const tabButtons = document.querySelectorAll('.tab-button');
 const tabContents = document.querySelectorAll('.tab-content');
 
@@ -109,6 +113,9 @@ const profileMessage = document.getElementById('profile-message');
 const profileError = document.getElementById('profile-error');
 const profileSidebarButtons = document.querySelectorAll('.profile-sidebar-button');
 const profilePanels = document.querySelectorAll('[data-profile-panel]');
+const profilePictureInput = document.getElementById('profile-picture-input');
+const profilePicturePreview = document.getElementById('profile-picture-preview');
+const profilePictureRemoveButton = document.getElementById('profile-picture-remove');
 const driverPayoutForm = document.getElementById('driver-payout-form');
 const payoutMessage = document.getElementById('payout-message');
 const payoutError = document.getElementById('payout-error');
@@ -121,6 +128,9 @@ const LINKUP_COMMISSION_RATE = 0.15;
 const cartCount = document.getElementById('cart-count');
 const cartItems = document.getElementById('cart-items');
 const cartSubtotal = document.getElementById('cart-subtotal');
+const cartSelectAllCheckbox = document.getElementById('cart-select-all');
+const cartTermsAgreement = document.getElementById('cart-terms-agreement');
+const cartTermsCheckbox = document.getElementById('cart-terms-checkbox');
 const checkoutCartButton = document.getElementById('checkout-cart');
 const continueShoppingButton = document.getElementById('continue-shopping');
 const cartMessage = document.getElementById('cart-message');
@@ -164,7 +174,6 @@ const verificationCode = document.getElementById('verification-code');
 const verificationEmailLabel = document.getElementById('verification-email-label');
 const resendVerificationButton = document.getElementById('resend-verification');
 const verificationBackToSigninButton = document.getElementById('verification-back-to-signin');
-const sendUsernameButton = document.getElementById('send-username');
 const sendPasswordResetButton = document.getElementById('send-password-reset');
 const backToSigninButton = document.getElementById('back-to-signin');
 const resetBackToSigninButton = document.getElementById('reset-back-to-signin');
@@ -209,6 +218,9 @@ let requestDropoffRadiusCircle = null;
 let pickupRadiusAutocomplete = null;
 let dropoffRadiusAutocomplete = null;
 let cartRideIds = new Set();
+let selectedCartRideIds = new Set();
+let pendingExpiredCartRideNoticeCount = 0;
+let pendingProfilePictureDataUrl;
 let pendingVerificationEmail = '';
 let activeTrackingTripId = null;
 let activeTrackingViewerUrl = '';
@@ -911,15 +923,17 @@ function updateDestinationLocation(name, lat, lng) {
 }
 
 function validatePasswordRequirements(password) {
+  const hasMinimumLength = String(password || '').length >= 8;
   const hasUppercase = /[A-Z]/.test(password);
   const hasLowercase = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  document.getElementById('req-length').classList.toggle('met', hasMinimumLength);
   document.getElementById('req-uppercase').classList.toggle('met', hasUppercase);
   document.getElementById('req-lowercase').classList.toggle('met', hasLowercase);
   document.getElementById('req-number').classList.toggle('met', hasNumber);
   document.getElementById('req-special').classList.toggle('met', hasSpecialChar);
-  return hasUppercase && hasLowercase && hasNumber && hasSpecialChar;
+  return hasMinimumLength && hasUppercase && hasLowercase && hasNumber && hasSpecialChar;
 }
 
 async function fetchJson(url, options = {}) {
@@ -1063,6 +1077,27 @@ function loadExternalDocuments() {
   loadHtmlFragment('privacy.html', privacyContent, 'privacy-content');
   loadHtmlFragment('terms.html', termsContent, 'terms-content');
   loadReleaseNotes();
+}
+
+async function openLegalModal(type) {
+  const isPrivacy = type === 'privacy';
+  const file = isPrivacy ? 'privacy.html' : 'terms.html';
+  const sourceId = isPrivacy ? 'privacy-content' : 'terms-content';
+  const existingContent = isPrivacy ? privacyContent : termsContent;
+  legalModalTitle.textContent = isPrivacy ? 'Privacy Notice' : 'Terms and Conditions';
+  legalModalContent.innerHTML = existingContent?.innerHTML || '<p class="legal-loading">Loading document...</p>';
+  legalModal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+  legalModalContent.scrollTop = 0;
+  if (!existingContent || existingContent.querySelector('.legal-loading')) {
+    await loadHtmlFragment(file, legalModalContent, sourceId);
+  }
+  legalModal.querySelector('.legal-modal-close')?.focus();
+}
+
+function closeLegalModal() {
+  legalModal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 async function checkAuth() {
@@ -1258,11 +1293,36 @@ function fillProfileForm(user) {
   document.getElementById('profile-first-name').value = user.firstName || '';
   document.getElementById('profile-middle-name').value = user.middleName || '';
   document.getElementById('profile-last-name').value = user.lastName || '';
+  document.getElementById('profile-class-year').value = user.classYear || '';
+  document.getElementById('profile-major').value = user.major || '';
   birthdayInput.value = user.birthday || '';
   genderInput.value = user.gender || '';
   document.getElementById('profile-email').value = user.email || '';
+  pendingProfilePictureDataUrl = user.profilePictureDataUrl || '';
+  renderProfilePicturePreview(user);
   birthdayInput.disabled = Boolean(user.birthday);
   genderInput.disabled = Boolean(user.gender);
+}
+
+function getProfileInitials(user = currentUser) {
+  const first = String(user?.firstName || user?.name || 'U').trim();
+  const last = String(user?.lastName || '').trim();
+  return ((first.charAt(0) || 'U') + (last.charAt(0) || '')).toUpperCase();
+}
+
+function renderProfilePicturePreview(user = currentUser) {
+  if (!profilePicturePreview) return;
+  const picture = pendingProfilePictureDataUrl !== undefined ? pendingProfilePictureDataUrl : user?.profilePictureDataUrl || '';
+  profilePicturePreview.innerHTML = '';
+  profilePicturePreview.classList.toggle('has-image', Boolean(picture));
+  if (picture) {
+    const image = document.createElement('img');
+    image.src = picture;
+    image.alt = 'Profile picture preview';
+    profilePicturePreview.appendChild(image);
+  } else {
+    profilePicturePreview.textContent = getProfileInitials(user);
+  }
 }
 
 function userNeedsPolicyConsent(user) {
@@ -1586,14 +1646,22 @@ async function toggleUserBlock(profile) {
 
 function renderPublicProfile(profile) {
   const stats = profile.stats || {};
+  const profileDetails = [
+    profile.major ? 'Major: ' + profile.major : '',
+    profile.classYear ? 'Class of ' + profile.classYear : '',
+  ].filter(Boolean);
+  const avatarMarkup = profile.profilePictureDataUrl
+    ? `<img class="public-profile-avatar-image" src="${esc(profile.profilePictureDataUrl)}" alt="${esc(profile.name || 'Profile')} profile picture" />`
+    : esc((profile.firstName || profile.name || 'U').charAt(0).toUpperCase());
   publicProfileTitle.textContent = profile.name || 'User profile';
   publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince)].filter(Boolean).join(' - ');
   publicProfileContent.innerHTML = `
     <div class="public-profile-hero">
-      <div class="public-profile-avatar" aria-hidden="true">${esc((profile.firstName || profile.name || 'U').charAt(0).toUpperCase())}</div>
+      <div class="public-profile-avatar">${avatarMarkup}</div>
       <div>
         <h4>${esc(profile.name || 'LinkUp user')}</h4>
         <p>${esc(profile.university || profile.universityDomain || 'University rider')}</p>
+        ${profileDetails.length ? `<p class="public-profile-academic">${esc(profileDetails.join(' | '))}</p>` : ''}
         <span class="public-profile-status">${profile.serviceApproved ? 'Verified university network' : 'Waitlist account'}</span>
       </div>
     </div>
@@ -1816,11 +1884,17 @@ function showPaymentPage() {
     cartError.classList.add('show');
     return;
   }
+  if (!selectedCartRideIds.size) {
+    showCartPage();
+    cartError.textContent = 'Select at least one trip before checking out.';
+    cartError.classList.add('show');
+    return;
+  }
   setAppRoute('payment');
   clearCartMessages();
   hideDashboardPages();
   paymentPage.classList.remove('hidden');
-  paymentSummary.textContent = `${cartRideIds.size} ride${cartRideIds.size === 1 ? '' : 's'} in your cart.`;
+  paymentSummary.textContent = `${selectedCartRideIds.size} of ${cartRideIds.size} ride${cartRideIds.size === 1 ? '' : 's'} selected for checkout.`;
 }
 
 function restoreAppRoute() {
@@ -3692,12 +3766,37 @@ function renderCartItem(ride) {
   const item = buildRideSummary(ride, { includeChat: false, includeReportDriver: false });
   item.classList.add('cart-item-card');
   item.dataset.rideId = ride.id;
+  item.dataset.priceCents = String(ride.priceCents || 0);
+  item.dataset.cartTermsAccepted = ride.cartTermsAccepted ? 'true' : 'false';
 
   // Strip elements that clutter the cart view — the cart-item-detail
   // strip below already shows all the key info cleanly.
   ['.ride-details', '.ride-seat-picker', '.seat-picker-block',
    '.ride-card-passengers', '.shared-seat-notice', '.report-user-button']
     .forEach(sel => item.querySelectorAll(sel).forEach(el => el.remove()));
+
+  const selectLabel = document.createElement('label');
+  selectLabel.className = 'cart-item-select';
+  const selectCheckbox = document.createElement('input');
+  selectCheckbox.type = 'checkbox';
+  selectCheckbox.className = 'cart-item-select-checkbox';
+  selectCheckbox.checked = selectedCartRideIds.has(ride.id);
+  selectCheckbox.addEventListener('change', () => {
+    if (selectCheckbox.checked) selectedCartRideIds.add(ride.id);
+    else selectedCartRideIds.delete(ride.id);
+    updateCartSelectionSummary();
+  });
+  selectLabel.append(selectCheckbox, document.createTextNode(' Checkout'));
+  const title = item.querySelector('h4');
+  let routeRow = null;
+  if (title) {
+    routeRow = document.createElement('div');
+    routeRow.className = 'cart-route-row';
+    title.before(routeRow);
+    routeRow.append(selectLabel, title);
+  } else {
+    item.prepend(selectLabel);
+  }
 
   const detail = document.createElement('div');
   detail.className = 'cart-item-detail';
@@ -3711,20 +3810,7 @@ function renderCartItem(ride) {
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
     <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
   `;
-  item.prepend(detail);
-
-  if (!ride.cartTermsAccepted) {
-    const termsLabel = document.createElement('label');
-    termsLabel.className = 'checkbox-label terms-agreement cart-terms-agreement';
-    termsLabel.append(
-      Object.assign(document.createElement('input'), {
-        type: 'checkbox',
-        className: 'cart-terms-checkbox',
-      }),
-      document.createTextNode(' I agree to LinkUp\'s Terms and Conditions for this ride.')
-    );
-    item.appendChild(termsLabel);
-  }
+  (routeRow || item.querySelector('h4'))?.after(detail);
 
   const removeButton = document.createElement('button');
   removeButton.textContent = 'Remove';
@@ -3742,14 +3828,63 @@ function renderCartItem(ride) {
   return item;
 }
 
-async function saveMissingCartTerms() {
+function getSelectedCartRideIds() {
+  return [...cartItems.querySelectorAll('.cart-item-select-checkbox:checked')]
+    .map((checkbox) => checkbox.closest('.cart-item-card')?.dataset.rideId)
+    .filter(Boolean);
+}
+
+function updateCartSelectionSummary() {
+  const selectedRideIds = getSelectedCartRideIds();
+  selectedCartRideIds = new Set(selectedRideIds);
+  const totalRideCount = cartRideIds.size;
+  if (cartSelectAllCheckbox) {
+    cartSelectAllCheckbox.checked = totalRideCount > 0 && selectedRideIds.length === totalRideCount;
+    cartSelectAllCheckbox.indeterminate = selectedRideIds.length > 0 && selectedRideIds.length < totalRideCount;
+    cartSelectAllCheckbox.disabled = totalRideCount === 0;
+  }
+  const selectedSet = new Set(selectedRideIds);
+  const selectedCards = [...cartItems.querySelectorAll('.cart-item-card')]
+    .filter((card) => selectedSet.has(card.dataset.rideId));
+  const selectedNeedsTerms = selectedCards.some((card) => card.dataset.cartTermsAccepted !== 'true');
+  if (cartTermsAgreement) {
+    cartTermsAgreement.classList.toggle('hidden', !selectedNeedsTerms);
+  }
+  if (cartTermsCheckbox) {
+    cartTermsCheckbox.disabled = !selectedNeedsTerms;
+    if (!selectedNeedsTerms) cartTermsCheckbox.checked = false;
+  }
+  const subtotalCents = selectedCards.reduce((sum, card) => sum + Number(card.dataset.priceCents || 0), 0);
+  if (cartSubtotal && selectedRideIds.length) {
+    cartSubtotal.innerHTML = `
+      <div>
+        <strong>Selected subtotal</strong>
+        <span>${selectedRideIds.length} of ${totalRideCount} ride${totalRideCount === 1 ? '' : 's'} selected for checkout</span>
+      </div>
+      <strong>${formatCents(subtotalCents)}</strong>
+    `;
+    cartSubtotal.classList.remove('hidden');
+  } else if (cartSubtotal) {
+    cartSubtotal.innerHTML = `
+      <div>
+        <strong>Selected subtotal</strong>
+        <span>Select at least one trip to checkout</span>
+      </div>
+      <strong>${formatCents(0)}</strong>
+    `;
+    cartSubtotal.classList.toggle('hidden', totalRideCount === 0);
+  }
+  if (checkoutCartButton) checkoutCartButton.disabled = selectedRideIds.length === 0;
+}
+
+async function saveMissingCartTerms(selectedRideIds = getSelectedCartRideIds()) {
+  const selectedSet = new Set(selectedRideIds);
   const missingTermsItems = [...cartItems.querySelectorAll('.cart-item-card')]
-    .filter((item) => item.querySelector('.cart-terms-checkbox'));
+    .filter((item) => selectedSet.has(item.dataset.rideId) && item.dataset.cartTermsAccepted !== 'true');
   if (!missingTermsItems.length) return true;
 
-  const uncheckedItem = missingTermsItems.find((item) => !item.querySelector('.cart-terms-checkbox')?.checked);
-  if (uncheckedItem) {
-    cartError.textContent = 'Please agree to the Terms and Conditions for each ride before checkout.';
+  if (!cartTermsCheckbox?.checked) {
+    cartError.textContent = 'Please agree to the Terms and Conditions for the selected rides before checkout.';
     cartError.classList.add('show');
     return false;
   }
@@ -3765,8 +3900,9 @@ async function saveMissingCartTerms() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ seatId: selectedSeatId, termsAccepted: true }),
     });
-    ride?.querySelector('.cart-terms-agreement')?.remove();
+    if (ride) ride.dataset.cartTermsAccepted = 'true';
   }
+  if (cartTermsCheckbox) cartTermsCheckbox.checked = false;
   await loadCart();
   return true;
 }
@@ -3774,7 +3910,13 @@ async function saveMissingCartTerms() {
 async function loadCart() {
   try {
     const data = await fetchJson('/api/cart');
+    const expiredRideCount = Number(data.expiredRideCount || 0);
+    const previousSelection = new Set(selectedCartRideIds);
     cartRideIds = new Set(data.rides.map((ride) => ride.id));
+    const hasExistingSelection = previousSelection.size > 0;
+    selectedCartRideIds = new Set(data.rides
+      .map((ride) => ride.id)
+      .filter((rideId) => hasExistingSelection ? previousSelection.has(rideId) : true));
     data.rides.forEach((ride) => { if (ride.selectedSeatId) selectedSeatByRide.set(ride.id, ride.selectedSeatId); });
     cartCount.textContent = data.rides.length;
     cartItems.innerHTML = '';
@@ -3782,25 +3924,40 @@ async function loadCart() {
     cartSubtotal.innerHTML = '';
     if (!data.rides.length) {
       cartItems.textContent = 'Your cart is empty.';
+      selectedCartRideIds.clear();
+      updateCartSelectionSummary();
       checkoutCartButton.disabled = true;
+      showExpiredCartNotice(expiredRideCount);
       return;
     }
-    const subtotalCents = data.rides.reduce((sum, ride) => sum + Number(ride.priceCents || 0), 0);
-    cartSubtotal.innerHTML = `
-      <div>
-        <strong>Subtotal</strong>
-        <span>${data.rides.length} ride${data.rides.length === 1 ? '' : 's'} selected</span>
-      </div>
-      <strong>${formatCents(subtotalCents)}</strong>
-    `;
-    cartSubtotal.classList.remove('hidden');
-    checkoutCartButton.disabled = false;
     data.rides.forEach((ride) => cartItems.appendChild(renderCartItem(ride)));
+    updateCartSelectionSummary();
+    showExpiredCartNotice(expiredRideCount);
   } catch (err) {
     cartItems.textContent = 'Unable to load your cart.';
     cartSubtotal.classList.add('hidden');
     cartSubtotal.innerHTML = '';
+    if (cartSelectAllCheckbox) {
+      cartSelectAllCheckbox.checked = false;
+      cartSelectAllCheckbox.indeterminate = false;
+      cartSelectAllCheckbox.disabled = true;
+    }
   }
+}
+
+function showExpiredCartNotice(expiredRideCount = 0) {
+  const currentExpiredCount = Number(expiredRideCount || 0);
+  if (currentExpiredCount && cartPage.classList.contains('hidden')) {
+    pendingExpiredCartRideNoticeCount += currentExpiredCount;
+    return;
+  }
+  const noticeCount = currentExpiredCount + pendingExpiredCartRideNoticeCount;
+  if (!noticeCount || cartPage.classList.contains('hidden')) return;
+  pendingExpiredCartRideNoticeCount = 0;
+  cartMessage.textContent = noticeCount === 1
+    ? 'A ride in your cart has expired and was removed.'
+    : `${noticeCount} rides in your cart have expired and were removed.`;
+  cartMessage.classList.add('show');
 }
 
 function clearBrowseFilters() {
@@ -4346,7 +4503,6 @@ async function sendRecoveryRequest(endpoint) {
   }
 }
 
-sendUsernameButton.addEventListener('click', () => sendRecoveryRequest('/api/auth/forgot-username'));
 sendPasswordResetButton.addEventListener('click', () => sendRecoveryRequest('/api/auth/forgot-password'));
 
 resetPasswordForm.addEventListener('submit', async (event) => {
@@ -4617,6 +4773,19 @@ profileButton.addEventListener('click', () => showProfilePage());
 profileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 privacyLink.addEventListener('click', () => showLegalPage('privacy'));
 termsLink.addEventListener('click', () => showLegalPage('terms'));
+legalInlineLinks.forEach((link) => {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openLegalModal(link.dataset.legalModal);
+  });
+});
+legalModal?.addEventListener('click', (event) => {
+  if (event.target.closest('[data-legal-modal-close]')) closeLegalModal();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !legalModal?.classList.contains('hidden')) closeLegalModal();
+});
 legalBackButtons.forEach((button) => {
   button.addEventListener('click', () => returnFromLegalPage());
 });
@@ -4632,6 +4801,369 @@ profileSidebarButtons.forEach((button) => {
     clearPayoutMessages();
     showProfileTab(button.dataset.profileTab);
   });
+});
+
+profilePictureInput?.addEventListener('change', () => {
+  clearProfileMessages();
+  const file = profilePictureInput.files?.[0];
+  if (!file) return;
+  handleProfilePictureFile(file);
+});
+
+// Drag-and-drop on the dropzone
+(function () {
+  const dropzone = document.getElementById('profile-picture-dropzone');
+  if (!dropzone) return;
+
+  function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+  ['dragenter', 'dragover'].forEach(evt => {
+    dropzone.addEventListener(evt, e => { preventDefaults(e); dropzone.classList.add('drag-over'); });
+  });
+  ['dragleave', 'dragend', 'drop'].forEach(evt => {
+    dropzone.addEventListener(evt, e => { preventDefaults(e); dropzone.classList.remove('drag-over'); });
+  });
+
+  dropzone.addEventListener('drop', e => {
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleProfilePictureFile(file);
+  });
+
+  // Keyboard accessibility — label's `for` handles Enter natively in most browsers,
+  // but Space needs a nudge since labels don't respond to Space by default
+  dropzone.addEventListener('keydown', e => {
+    if (e.key === ' ') {
+      e.preventDefault();
+      profilePictureInput?.click();
+    }
+  });
+})();
+
+// ── Profile picture crop modal ──────────────────────────────
+(function () {
+  const modal      = document.getElementById('pic-crop-modal');
+  const canvas     = document.getElementById('pic-crop-canvas');
+  const zoomSlider = document.getElementById('pic-crop-zoom');
+  const btnCancel  = document.getElementById('pic-crop-cancel');
+  const btnConfirm = document.getElementById('pic-crop-confirm');
+  if (!modal || !canvas) return;
+
+  const ctx = canvas.getContext('2d');
+
+  // ── State ─────────────────────────────────────────────────
+  // All coordinates are in CSS pixels (logical). Canvas is sized
+  // at devicePixelRatio internally, but we think in CSS px throughout.
+  let img = null;
+  let dpr = 1;
+  let size = 400;      // canvas CSS size (square)
+  let cropR = 170;     // circle radius in CSS px
+  let cx = 200;        // circle centre x (always size/2)
+  let cy = 200;        // circle centre y (always size/2)
+
+  // Image position: (imgX, imgY) = top-left corner of the image in CSS px
+  let imgX = 0, imgY = 0;
+  let scale = 1;       // px per image-natural-pixel
+
+  let minScale = 1;    // scale where image exactly fills the crop circle
+
+  let dragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let imgStartX = 0, imgStartY = 0;
+
+  let lastPinchDist = null;
+  let lastPinchMidX = 0, lastPinchMidY = 0;
+
+  // ── Draw ──────────────────────────────────────────────────
+  // Everything is drawn on one canvas in logical (CSS) pixel space.
+  // We scale the context by dpr once after resize.
+  function draw() {
+    if (!img) return;
+    const W = size, H = size;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // 1. Draw image
+    ctx.drawImage(img, imgX, imgY, img.naturalWidth * scale, img.naturalHeight * scale);
+
+    // 2. Dark overlay covering everything outside the circle
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    // full rect minus circle
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.arc(cx, cy, cropR, 0, Math.PI * 2, true); // true = counterclockwise (hole)
+    ctx.fill('evenodd');
+    ctx.restore();
+
+    // 3. Circle border + subtle grid
+    ctx.save();
+    // Clip to circle for grid lines
+    ctx.beginPath();
+    ctx.arc(cx, cy, cropR, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Rule-of-thirds grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      const x = cx - cropR + (cropR * 2 * i / 3);
+      const y = cy - cropR + (cropR * 2 * i / 3);
+      ctx.beginPath(); ctx.moveTo(x, cy - cropR); ctx.lineTo(x, cy + cropR); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - cropR, y); ctx.lineTo(cx + cropR, y); ctx.stroke();
+    }
+    ctx.restore();
+
+    // 4. Circle ring (drawn on top, no clip)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, cropR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(62,207,207,0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Scale / pan helpers ───────────────────────────────────
+  // minScale: image must be large enough to fully cover the crop circle
+  function calcMinScale() {
+    if (!img) return 1;
+    const scaleW = (cropR * 2) / img.naturalWidth;
+    const scaleH = (cropR * 2) / img.naturalHeight;
+    return Math.max(scaleW, scaleH);
+  }
+
+  // Clamp so image always covers the crop circle
+  function clamp() {
+    const iw = img.naturalWidth  * scale;
+    const ih = img.naturalHeight * scale;
+    // Left edge of image must be ≤ cx - cropR
+    imgX = Math.min(imgX, cx - cropR);
+    // Right edge must be ≥ cx + cropR
+    imgX = Math.max(imgX, cx + cropR - iw);
+    // Top edge must be ≤ cy - cropR
+    imgY = Math.min(imgY, cy - cropR);
+    // Bottom edge must be ≥ cy + cropR
+    imgY = Math.max(imgY, cy + cropR - ih);
+  }
+
+  // Apply a new scale, keeping a given CSS-px point (pivX, pivY) stationary
+  function applyScale(newScale, pivX, pivY) {
+    const clamped = Math.max(minScale, Math.min(minScale * 4, newScale));
+    // The image point under the pivot stays fixed
+    // imagePoint = (pivX - imgX) / scale
+    const ipx = (pivX - imgX) / scale;
+    const ipy = (pivY - imgY) / scale;
+    scale = clamped;
+    imgX = pivX - ipx * scale;
+    imgY = pivY - ipy * scale;
+    clamp();
+  }
+
+  function syncSlider() {
+    // slider 100–400 maps to minScale–minScale*4
+    const pct = Math.round(((scale - minScale) / (minScale * 3)) * 300 + 100);
+    zoomSlider.value = Math.max(100, Math.min(400, pct));
+    zoomSlider.style.setProperty('--val', zoomSlider.value);
+  }
+
+  // ── Pointer helpers ───────────────────────────────────────
+  function clientToCanvas(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (clientX - r.left) * (size / r.width),
+      y: (clientY - r.top)  * (size / r.height),
+    };
+  }
+
+  function touchDist(e) {
+    return Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  }
+
+  function touchMid(e) {
+    return clientToCanvas(
+      (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      (e.touches[0].clientY + e.touches[1].clientY) / 2
+    );
+  }
+
+  // ── Mouse events ─────────────────────────────────────────
+  canvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    const pos = clientToCanvas(e.clientX, e.clientY);
+    dragStartX = pos.x; dragStartY = pos.y;
+    imgStartX = imgX;   imgStartY = imgY;
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const pos = clientToCanvas(e.clientX, e.clientY);
+    imgX = imgStartX + (pos.x - dragStartX);
+    imgY = imgStartY + (pos.y - dragStartY);
+    clamp(); draw();
+  });
+
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const pos = clientToCanvas(e.clientX, e.clientY);
+    const factor = e.deltaY < 0 ? 1.08 : 0.93;
+    applyScale(scale * factor, pos.x, pos.y);
+    draw(); syncSlider();
+  }, { passive: false });
+
+  // ── Touch events ─────────────────────────────────────────
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      dragging = true;
+      lastPinchDist = null;
+      const pos = clientToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+      dragStartX = pos.x; dragStartY = pos.y;
+      imgStartX = imgX;   imgStartY = imgY;
+    } else if (e.touches.length === 2) {
+      dragging = false;
+      lastPinchDist = touchDist(e);
+      const mid = touchMid(e);
+      lastPinchMidX = mid.x; lastPinchMidY = mid.y;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && dragging) {
+      const pos = clientToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+      imgX = imgStartX + (pos.x - dragStartX);
+      imgY = imgStartY + (pos.y - dragStartY);
+      clamp(); draw();
+    } else if (e.touches.length === 2 && lastPinchDist) {
+      const dist = touchDist(e);
+      const mid  = touchMid(e);
+      applyScale(scale * (dist / lastPinchDist), mid.x, mid.y);
+      lastPinchDist = dist;
+      draw(); syncSlider();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', e => {
+    if (e.touches.length < 2) lastPinchDist = null;
+    if (e.touches.length === 0) dragging = false;
+  });
+
+  // ── Zoom slider ───────────────────────────────────────────
+  zoomSlider.addEventListener('input', () => {
+    const pct = Number(zoomSlider.value); // 100–400
+    const newScale = minScale + (pct - 100) / 300 * (minScale * 3);
+    applyScale(newScale, cx, cy); // zoom around circle centre
+    draw();
+    zoomSlider.style.setProperty('--val', pct);
+  });
+
+  // ── Canvas resize ─────────────────────────────────────────
+  function resizeCanvas() {
+    dpr = window.devicePixelRatio || 1;
+    size = canvas.clientWidth || 400;
+    cropR = size * 0.42;
+    cx = size / 2;
+    cy = size / 2;
+    canvas.width  = size * dpr;
+    canvas.height = size * dpr;
+    ctx.scale(dpr, dpr);
+  }
+
+  // ── Open / close ──────────────────────────────────────────
+  window.openPicCropModal = function (src) {
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    img = new Image();
+    img.onload = () => {
+      resizeCanvas();
+      minScale = calcMinScale();
+      scale = minScale; // start fully fitted
+      // Centre the image over the crop circle
+      imgX = cx - (img.naturalWidth  * scale) / 2;
+      imgY = cy - (img.naturalHeight * scale) / 2;
+      clamp(); draw(); syncSlider();
+    };
+    img.src = src;
+  };
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+    img = null; dragging = false; lastPinchDist = null;
+  }
+
+  btnCancel.addEventListener('click', closeModal);
+  modal.querySelector('.pic-crop-backdrop').addEventListener('click', closeModal);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
+
+  // ── Confirm: export 512×512 JPEG ─────────────────────────
+  btnConfirm.addEventListener('click', () => {
+    const OUT = 512;
+    const off = document.createElement('canvas');
+    off.width = off.height = OUT;
+    const oc = off.getContext('2d');
+
+    // Clip to circle
+    oc.beginPath();
+    oc.arc(OUT / 2, OUT / 2, OUT / 2, 0, Math.PI * 2);
+    oc.clip();
+
+    // The crop circle in CSS px: centre (cx,cy) radius cropR
+    // Map that region from the image source
+    const srcX = (cx - cropR - imgX) / scale;
+    const srcY = (cy - cropR - imgY) / scale;
+    const srcW = (cropR * 2) / scale;
+    const srcH = (cropR * 2) / scale;
+
+    oc.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, OUT, OUT);
+
+    pendingProfilePictureDataUrl = off.toDataURL('image/jpeg', 0.92);
+    renderProfilePicturePreview();
+    closeModal();
+  });
+})();
+
+function handleProfilePictureFile(file) {
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+  if (!allowedTypes.includes(file.type)) {
+    profileError.textContent = 'Profile picture must be a PNG, JPG, or WebP image.';
+    profileError.classList.add('show');
+    if (profilePictureInput) profilePictureInput.value = '';
+    return;
+  }
+  // 10 MB raw limit — crop will compress the result down
+  if (file.size > 10 * 1024 * 1024) {
+    profileError.textContent = 'Image must be 10 MB or smaller.';
+    profileError.classList.add('show');
+    if (profilePictureInput) profilePictureInput.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    window.openPicCropModal(String(reader.result || ''));
+  };
+  reader.onerror = () => {
+    profileError.textContent = 'Unable to read that image. Try a different file.';
+    profileError.classList.add('show');
+  };
+  reader.readAsDataURL(file);
+}
+
+profilePictureRemoveButton?.addEventListener('click', () => {
+  clearProfileMessages();
+  pendingProfilePictureDataUrl = '';
+  if (profilePictureInput) profilePictureInput.value = '';
+  renderProfilePicturePreview();
 });
 defaultPaymentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -4728,6 +5260,18 @@ sendTrackingInviteButton?.addEventListener('click', () => sendTrackingInvite());
 startTrackingButton.addEventListener('click', () => startTripTracking());
 stopTrackingButton.addEventListener('click', () => stopTripTracking());
 continueShoppingButton.addEventListener('click', () => returnToBrowseRides());
+cartSelectAllCheckbox?.addEventListener('change', () => {
+  const checked = cartSelectAllCheckbox.checked;
+  cartItems.querySelectorAll('.cart-item-select-checkbox').forEach((checkbox) => {
+    checkbox.checked = checked;
+    const rideId = checkbox.closest('.cart-item-card')?.dataset.rideId;
+    if (rideId) {
+      if (checked) selectedCartRideIds.add(rideId);
+      else selectedCartRideIds.delete(rideId);
+    }
+  });
+  updateCartSelectionSummary();
+});
 siteLogo.addEventListener('click', () => {
   if (document.body.classList.contains('dashboard-mode')) showDashboardHome();
 });
@@ -4746,8 +5290,11 @@ profileForm.addEventListener('submit', async (event) => {
     firstName: document.getElementById('profile-first-name').value.trim(),
     middleName: document.getElementById('profile-middle-name').value.trim(),
     lastName: document.getElementById('profile-last-name').value.trim(),
+    classYear: document.getElementById('profile-class-year').value.trim(),
+    major: document.getElementById('profile-major').value.trim(),
     birthday: document.getElementById('profile-birthday').value,
     gender: document.getElementById('profile-gender').value,
+    profilePictureDataUrl: pendingProfilePictureDataUrl ?? currentUser?.profilePictureDataUrl ?? '',
   };
   try {
     currentUser = await fetchJson('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -4778,8 +5325,14 @@ checkoutCartButton.addEventListener('click', async () => {
     cartError.classList.add('show');
     return;
   }
+  const selectedRideIds = getSelectedCartRideIds();
+  if (!selectedRideIds.length) {
+    cartError.textContent = 'Select at least one trip before checking out.';
+    cartError.classList.add('show');
+    return;
+  }
   try {
-    const termsReady = await saveMissingCartTerms();
+    const termsReady = await saveMissingCartTerms(selectedRideIds);
     if (!termsReady) return;
   } catch (err) {
     cartError.textContent = err.message;
@@ -4792,12 +5345,23 @@ paymentBackToCartButton.addEventListener('click', () => showCartPage());
 document.getElementById('pay-cart').addEventListener('click', async () => {
   clearCartMessages();
   try {
-    const termsReady = await saveMissingCartTerms();
+    const selectedRideIds = getSelectedCartRideIds();
+    if (!selectedRideIds.length) {
+      showCartPage();
+      cartError.textContent = 'Select at least one trip before checking out.';
+      cartError.classList.add('show');
+      return;
+    }
+    const termsReady = await saveMissingCartTerms(selectedRideIds);
     if (!termsReady) {
       showCartPage();
       return;
     }
-    const data = await fetchJson('/api/cart/create-checkout-session', { method: 'POST' });
+    const data = await fetchJson('/api/cart/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rideIds: selectedRideIds }),
+    });
     window.location.href = data.url;
   } catch (err) {
     paymentError.textContent = err.message;

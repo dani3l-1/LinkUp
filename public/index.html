@@ -18,10 +18,10 @@
     <div class="app-shell">
       <header>
         <div class="header-left-actions hidden" id="header-left-actions">
+          <button id="chat-button" type="button">Chat</button>
         </div>
         <img class="site-logo" src="assets/images/LinkUp-header.png" alt="LinkUp — Ride Connect Save" />
         <div class="header-actions hidden" id="header-actions">
-          <button id="chat-button" type="button">Chat</button>
           <button id="cart-button" type="button">Cart <span id="cart-count">0</span></button>
           <button id="profile-button" type="button">Profile</button>
           <button id="signout" type="button">Sign Out</button>
@@ -65,10 +65,11 @@
               </select>
             </label>
             <label>University Email <input type="email" id="signup-email" placeholder="name@university.edu" required /></label>
-            <label>Password <input type="password" id="signup-password" placeholder="Create a strong password" required /></label>
+            <label>Password <input type="password" id="signup-password" placeholder="Create a strong password" minlength="8" required /></label>
             <div class="password-requirements">
               <p>Password must include</p>
               <ul>
+                <li id="req-length"><span class="check-icon">✓</span> At least 8 characters</li>
                 <li id="req-uppercase"><span class="check-icon">✓</span> One uppercase letter</li>
                 <li id="req-lowercase"><span class="check-icon">✓</span> One lowercase letter</li>
                 <li id="req-number"><span class="check-icon">✓</span> One number</li>
@@ -77,11 +78,11 @@
             </div>
             <label class="checkbox-label terms-agreement signup-consent">
               <input type="checkbox" id="signup-terms-agree" required />
-              I agree to LinkUp's Terms and Conditions.
+              I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button>.
             </label>
             <label class="checkbox-label terms-agreement signup-consent">
               <input type="checkbox" id="signup-privacy-agree" required />
-              I agree to LinkUp's Privacy Notice.
+              I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="privacy">Privacy Notice</button>.
             </label>
             <button type="submit">Create Account</button>
             <div id="signup-error" class="error-message"></div>
@@ -103,12 +104,10 @@
 
           <!-- Account recovery -->
           <form id="recovery-form" class="tab-content">
-            <h2>Account recovery</h2>
+            <h2>Password recovery</h2>
+            <p>Enter your university email and we will send a password reset link.</p>
             <label>University Email <input type="email" id="recovery-email" placeholder="you@university.edu" required /></label>
-            <div class="button-row">
-              <button type="button" id="send-username">Email me my username</button>
-              <button type="button" id="send-password-reset">Send password reset</button>
-            </div>
+            <button type="button" id="send-password-reset">Send password reset</button>
             <button type="button" id="back-to-signin" class="text-button">Back to sign in</button>
             <div id="recovery-message" class="success-message"></div>
             <div id="recovery-error" class="error-message"></div>
@@ -117,7 +116,7 @@
           <!-- Reset password -->
           <form id="reset-password-form" class="tab-content">
             <h2>Set a new password</h2>
-            <label>New Password <input type="password" id="reset-password" placeholder="New password" required /></label>
+            <label>New Password <input type="password" id="reset-password" placeholder="New password" minlength="8" required /></label>
             <button type="submit">Update Password</button>
             <button type="button" id="reset-back-to-signin" class="text-button">Back to sign in</button>
             <div id="reset-message" class="success-message"></div>
@@ -202,10 +201,33 @@
               <div class="profile-content">
                 <div id="profile-info-panel" class="profile-panel" data-profile-panel="info">
                   <form id="profile-form" class="profile-form">
+                    <div class="profile-picture-editor">
+                      <div class="profile-avatar-wrap">
+                        <div id="profile-picture-preview" class="profile-picture-preview">U</div>
+                        <div class="profile-avatar-ring" aria-hidden="true"></div>
+                      </div>
+                      <div class="profile-picture-info">
+                        <p class="profile-picture-label">Profile Photo</p>
+                        <label id="profile-picture-dropzone" class="profile-picture-dropzone" for="profile-picture-input" tabindex="0" aria-label="Upload profile picture — drag and drop or click to browse">
+                          <input type="file" id="profile-picture-input" accept="image/png,image/jpeg,image/webp" aria-label="Choose profile picture file" />
+                          <div class="dropzone-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                          </div>
+                          <span class="dropzone-text">Drop image here or <span class="dropzone-link">browse</span></span>
+                          <span class="dropzone-hint">PNG, JPG or WebP · max 512 KB</span>
+                        </label>
+                        <button type="button" id="profile-picture-remove" class="profile-picture-remove-btn">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                          Remove photo
+                        </button>
+                      </div>
+                    </div>
                     <div class="profile-grid">
                       <label>First Name <input type="text" id="profile-first-name" required /></label>
                       <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
                       <label>Last Name <input type="text" id="profile-last-name" required /></label>
+                      <label>Class of <input type="number" id="profile-class-year" min="1900" max="2100" placeholder="2028" /></label>
+                      <label>Major <input type="text" id="profile-major" maxlength="80" placeholder="Optional" /></label>
                       <label>Birthday <input type="date" id="profile-birthday" disabled /></label>
                       <label>Gender
                         <select id="profile-gender" disabled>
@@ -334,11 +356,11 @@
                     </div>
                     <label class="checkbox-label terms-agreement">
                       <input type="checkbox" id="profile-terms-agree" required />
-                      I agree to the latest LinkUp Terms and Conditions.
+                      I agree to the latest LinkUp <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button>.
                     </label>
                     <label class="checkbox-label terms-agreement">
                       <input type="checkbox" id="profile-privacy-agree" required />
-                      I agree to the latest LinkUp Privacy Notice.
+                      I agree to the latest LinkUp <button type="button" class="legal-inline-link" data-legal-modal="privacy">Privacy Notice</button>.
                     </label>
                     <button type="submit" id="policy-agree-button" disabled>Agree and continue</button>
                     <div id="policy-message" class="success-message"></div>
@@ -627,7 +649,7 @@
                   <label>Notes <input type="text" id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." /></label>
                   <label class="checkbox-label terms-agreement">
                     <input type="checkbox" id="ride-terms-agree" required />
-                    I agree to LinkUp's Terms and Conditions as a driver.
+                    I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> as a driver.
                   </label>
                   <button type="submit">Post ride</button>
                 </form>
@@ -723,8 +745,17 @@
               </div>
               <button id="continue-shopping" type="button">Return to browse rides</button>
             </div>
+            <div class="cart-disclaimer">Trips in your cart are not reserved yet. Seats are only held after checkout is completed.</div>
+            <label class="checkbox-label cart-select-all">
+              <input type="checkbox" id="cart-select-all" checked />
+              Select all trips for checkout
+            </label>
             <div id="cart-items">Your cart is empty.</div>
             <div id="cart-subtotal" class="cart-subtotal hidden"></div>
+            <label id="cart-terms-agreement" class="checkbox-label terms-agreement cart-terms-agreement cart-bottom-terms hidden">
+              <input type="checkbox" id="cart-terms-checkbox" />
+              I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> for the selected rides.
+            </label>
             <button id="checkout-cart" type="button">Proceed to payment →</button>
             <div id="cart-message" class="success-message"></div>
             <div id="cart-error" class="error-message"></div>
@@ -799,8 +830,46 @@
         <span>•</span>
         <button id="terms-link" type="button" class="text-button">Terms and Conditions</button>
       </footer>
+      <div id="legal-modal" class="legal-modal hidden" role="dialog" aria-modal="true" aria-labelledby="legal-modal-title">
+        <div class="legal-modal-backdrop" data-legal-modal-close></div>
+        <section class="legal-modal-panel">
+          <div class="legal-modal-header">
+            <h3 id="legal-modal-title">Legal document</h3>
+            <button type="button" class="legal-modal-close" data-legal-modal-close aria-label="Close legal document">Close</button>
+          </div>
+          <div id="legal-modal-content" class="legal-content legal-modal-content">
+            <p class="legal-loading">Loading document...</p>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <script src="app.js?v=20260510-1-external-docs"></script>
+    <!-- ── Profile picture crop modal ──────────────────────── -->
+    <div id="pic-crop-modal" class="pic-crop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pic-crop-title">
+      <div class="pic-crop-backdrop"></div>
+      <div class="pic-crop-panel">
+        <div class="pic-crop-header">
+          <h3 id="pic-crop-title">Adjust your photo</h3>
+          <p>Drag to reposition · Scroll or pinch to zoom</p>
+        </div>
+        <canvas id="pic-crop-canvas" class="pic-crop-canvas" aria-label="Photo crop editor"></canvas>
+        <div class="pic-crop-controls">
+          <div class="pic-crop-zoom-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            <input type="range" id="pic-crop-zoom" class="pic-crop-zoom-slider" min="100" max="400" value="100" step="1" aria-label="Zoom level" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </div>
+          <div class="pic-crop-actions">
+            <button type="button" id="pic-crop-cancel" class="pic-crop-btn-cancel">Cancel</button>
+            <button type="button" id="pic-crop-confirm" class="pic-crop-btn-confirm">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              Use photo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js?v=20260513-legal-modal"></script>
   </body>
 </html>

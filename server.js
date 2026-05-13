@@ -187,7 +187,7 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true,
   credentials: true,
 }));
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '1mb' }));
 app.use('/api/auth', authRateLimit);
 app.use('/api/profile/payment-method', sensitiveWriteRateLimit);
 app.use('/api/profile/payout', sensitiveWriteRateLimit);
@@ -709,6 +709,21 @@ function getMissingRequiredSettings(user) {
   return missing;
 }
 
+function validateProfilePictureDataUrl(value) {
+  if (value === undefined) return { valid: true, dataUrl: undefined };
+  const dataUrl = String(value || '').trim();
+  if (!dataUrl) return { valid: true, dataUrl: '' };
+  const match = dataUrl.match(/^data:(image\/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) {
+    return { valid: false, error: 'Profile picture must be a PNG, JPG, or WebP image' };
+  }
+  const byteLength = Buffer.byteLength(match[2], 'base64');
+  if (byteLength > 512 * 1024) {
+    return { valid: false, error: 'Profile picture must be 512 KB or smaller' };
+  }
+  return { valid: true, dataUrl };
+}
+
 function userNeedsRequiredSettings(user) {
   return getMissingRequiredSettings(user).length > 0;
 }
@@ -723,6 +738,9 @@ function publicUser(user) {
     lastName: user.lastName || '',
     birthday: user.birthday || '',
     gender: user.gender || '',
+    profilePictureDataUrl: user.profilePictureDataUrl || '',
+    classYear: user.classYear || '',
+    major: user.major || '',
     email: user.email,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
@@ -749,11 +767,15 @@ function addMonths(date, months) {
 }
 
 function validatePassword(password) {
+  const hasMinimumLength = String(password || '').length >= 8;
   const hasUppercase = /[A-Z]/.test(password);
   const hasLowercase = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
   
+  if (!hasMinimumLength) {
+    return { valid: false, error: 'Password must be at least 8 characters long' };
+  }
   if (!hasUppercase) {
     return { valid: false, error: 'Password must contain at least one uppercase letter' };
   }
@@ -863,15 +885,43 @@ function normalizeCartEntries(db, userId) {
   db.carts = db.carts || {};
   const rawCart = db.carts[userId] || [];
   const entries = rawCart.map((entry) => {
-    if (typeof entry === 'string') return { rideId: entry, seatId: '' };
-    return { rideId: entry.rideId, seatId: entry.seatId || '' };
+    if (typeof entry === 'string') return { rideId: entry, seatId: '', termsAcceptedAt: '' };
+    return { rideId: entry.rideId, seatId: entry.seatId || '', termsAcceptedAt: entry.termsAcceptedAt || '' };
   }).filter((entry) => entry.rideId);
   db.carts[userId] = entries;
   return entries;
 }
 
+function hasTripStartPassed(trip) {
+  if (!trip) return false;
+  const start = getTripStartMs(trip);
+  return Boolean(start && start <= Date.now());
+}
+
+function cleanCartEntries(db, userId) {
+  const cartEntries = normalizeCartEntries(db, userId);
+  const cleanedEntries = cartEntries.filter((entry) => {
+    const ride = db.rides.find((item) => item.id === entry.rideId);
+    return ride && !hasTripStartPassed(ride) && isRideVisibleToUser(db, ride, userId);
+  });
+  db.carts[userId] = cleanedEntries;
+  return cleanedEntries;
+}
+
+function cleanCartEntriesWithMeta(db, userId) {
+  const cartEntries = normalizeCartEntries(db, userId);
+  let expiredRideCount = 0;
+  const cleanedEntries = cartEntries.filter((entry) => {
+    const ride = db.rides.find((item) => item.id === entry.rideId);
+    if (ride && hasTripStartPassed(ride)) expiredRideCount += 1;
+    return ride && !hasTripStartPassed(ride) && isRideVisibleToUser(db, ride, userId);
+  });
+  db.carts[userId] = cleanedEntries;
+  return { entries: cleanedEntries, expiredRideCount };
+}
+
 function getCartRideIds(db, userId) {
-  return normalizeCartEntries(db, userId).map((entry) => entry.rideId);
+  return cleanCartEntries(db, userId).map((entry) => entry.rideId);
 }
 
 function getTrackingTrips(db) {
@@ -1167,27 +1217,6 @@ app.post('/api/auth/signin', async (req, res) => {
   res.json(publicUser(user));
 });
 
-app.post('/api/auth/forgot-username', (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
-  }
-
-  const db = loadDb();
-  const normalizedEmail = normalizeEmail(email);
-  const user = db.users.find((u) => u.email === normalizedEmail);
-
-  if (user) {
-    sendAuthEmail(
-      user.email,
-      'Your LinkUp username',
-      `Hi ${user.firstName},\n\nYour LinkUp username is: ${user.email}\n\n- LinkUp`
-    );
-  }
-
-  res.json({ message: 'If an account exists for that email, we sent the username reminder.' });
-});
-
 app.post('/api/auth/forgot-password', (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -1282,9 +1311,21 @@ app.put('/api/profile', requireAuth, (req, res) => {
   const firstName = String(req.body.firstName || '').trim();
   const middleName = String(req.body.middleName || '').trim();
   const lastName = String(req.body.lastName || '').trim();
+  const classYear = String(req.body.classYear || '').trim();
+  const major = String(req.body.major || '').trim();
+  const profilePictureValidation = validateProfilePictureDataUrl(req.body.profilePictureDataUrl);
+  if (!profilePictureValidation.valid) {
+    return res.status(400).json({ error: profilePictureValidation.error });
+  }
 
   if (!firstName || !lastName) {
     return res.status(400).json({ error: 'First name and last name are required' });
+  }
+  if (classYear && (!/^\d{4}$/.test(classYear) || Number(classYear) < 1900 || Number(classYear) > 2100)) {
+    return res.status(400).json({ error: 'Class year must be a valid 4-digit year' });
+  }
+  if (major.length > 80) {
+    return res.status(400).json({ error: 'Major must be 80 characters or fewer' });
   }
 
   const db = normalizeUserAccess(loadDb());
@@ -1329,6 +1370,11 @@ app.put('/api/profile', requireAuth, (req, res) => {
   }
   if (!user.birthday) user.birthday = requestedBirthday;
   if (!user.gender) user.gender = requestedGender;
+  if (profilePictureValidation.dataUrl !== undefined) {
+    user.profilePictureDataUrl = profilePictureValidation.dataUrl;
+  }
+  user.classYear = classYear;
+  user.major = major;
   user.updatedAt = new Date().toISOString();
 
   (db.rides || []).forEach((ride) => {
@@ -2271,13 +2317,8 @@ app.post('/api/reports', requireAuth, requireServiceAccess, (req, res) => {
 
 app.get('/api/cart', requireAuth, requireServiceAccess, (req, res) => {
   const db = loadDb();
-  const cartEntries = normalizeCartEntries(db, req.session.userId);
-  const visibleCartEntries = cartEntries.filter((entry) => {
-    const ride = db.rides.find((item) => item.id === entry.rideId);
-    return ride && isRideVisibleToUser(db, ride, req.session.userId);
-  });
-  db.carts[req.session.userId] = visibleCartEntries;
-  const cartRides = visibleCartEntries
+  const { entries: cartEntries, expiredRideCount } = cleanCartEntriesWithMeta(db, req.session.userId);
+  const cartRides = cartEntries
     .map((entry) => {
       const ride = db.rides.find((item) => item.id === entry.rideId);
       return ride ? {
@@ -2289,7 +2330,7 @@ app.get('/api/cart', requireAuth, requireServiceAccess, (req, res) => {
     .filter(Boolean);
 
   saveDb(db);
-  res.json({ rides: cartRides });
+  res.json({ rides: cartRides, expiredRideCount });
 });
 
 function reserveCartRides(db, student, cartEntries) {
@@ -2303,6 +2344,9 @@ function reserveCartRides(db, student, cartEntries) {
       return { error: 'Please agree to the Terms and Conditions again before checkout' };
     }
     const ride = db.rides.find((r) => r.id === entry.rideId);
+    if (hasTripStartPassed(ride)) {
+      return { error: 'This ride has already started and was removed from your cart' };
+    }
     const reserveError = canStudentReserveRide(student, ride, entry.seatId, db);
     if (reserveError) {
       const rideLabel = ride ? ride.origin + ' to ' + ride.destination : entry.rideId;
@@ -2331,6 +2375,13 @@ function reserveCartRides(db, student, cartEntries) {
   return { ridesToReserve };
 }
 
+function getSelectedCartEntries(cartEntries, selectedRideIds = null) {
+  if (!Array.isArray(selectedRideIds)) return cartEntries;
+  const selectedSet = new Set(selectedRideIds.map((rideId) => String(rideId || '').trim()).filter(Boolean));
+  if (!selectedSet.size) return [];
+  return cartEntries.filter((entry) => selectedSet.has(entry.rideId));
+}
+
 app.post('/api/cart/checkout', requireAuth, requireServiceAccess, (req, res) => {
   const paymentValidation = validatePayment(req.body.payment);
   if (!paymentValidation.valid) {
@@ -2343,7 +2394,10 @@ app.post('/api/cart/checkout', requireAuth, requireServiceAccess, (req, res) => 
     return res.status(404).json({ error: 'User not found' });
   }
 
-  const cartEntries = normalizeCartEntries(db, student.id);
+  const cartEntries = getSelectedCartEntries(cleanCartEntries(db, student.id), req.body.rideIds);
+  if (!cartEntries.length) {
+    return res.status(400).json({ error: 'Select at least one ride before checkout' });
+  }
   const reservation = reserveCartRides(db, student, cartEntries);
   if (reservation.error) {
     return res.status(400).json({ error: reservation.error });
@@ -2360,7 +2414,8 @@ app.post('/api/cart/checkout', requireAuth, requireServiceAccess, (req, res) => 
     createdAt: new Date().toISOString(),
   });
 
-  db.carts[student.id] = [];
+  const reservedRideIds = new Set(reservation.ridesToReserve.map(({ ride }) => ride.id));
+  db.carts[student.id] = cleanCartEntries(db, student.id).filter((entry) => !reservedRideIds.has(entry.rideId));
   saveDb(db);
   res.json({ message: 'Payment complete. Your seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) });
 });
@@ -2372,9 +2427,9 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     return res.status(404).json({ error: 'User not found' });
   }
 
-  const cartEntries = normalizeCartEntries(db, student.id);
+  const cartEntries = getSelectedCartEntries(cleanCartEntries(db, student.id), req.body.rideIds);
   if (!cartEntries.length) {
-    return res.status(400).json({ error: 'Your cart is empty' });
+    return res.status(400).json({ error: 'Select at least one ride before checkout' });
   }
 
   const checkoutRides = [];
@@ -2421,7 +2476,7 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req,
     return res.json({ message: 'Payment already completed.' });
   }
 
-  const cartEntries = checkoutSession.cartEntries || normalizeCartEntries(db, student.id);
+  const cartEntries = checkoutSession.cartEntries || cleanCartEntries(db, student.id);
   const reservation = reserveCartRides(db, student, cartEntries);
   if (reservation.error) {
     checkoutSession.status = 'failed';
@@ -2440,7 +2495,8 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req,
     status: 'paid',
     createdAt: checkoutSession.completedAt,
   });
-  db.carts[student.id] = [];
+  const reservedRideIds = new Set(reservation.ridesToReserve.map(({ ride }) => ride.id));
+  db.carts[student.id] = cleanCartEntries(db, student.id).filter((entry) => !reservedRideIds.has(entry.rideId));
   saveDb(db);
   res.json({ message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) });
 });
@@ -2458,12 +2514,15 @@ app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   }
 
   const ride = db.rides.find((r) => r.id === rideId);
+  if (hasTripStartPassed(ride)) {
+    return res.status(400).json({ error: 'This ride has already started and can no longer be added to your cart' });
+  }
   const reserveError = canStudentReserveRide(student, ride, seatId, db);
   if (reserveError) {
     return res.status(400).json({ error: reserveError });
   }
 
-  const cartEntries = normalizeCartEntries(db, student.id);
+  const cartEntries = cleanCartEntries(db, student.id);
   const existingCartRide = cartEntries
     .filter((entry) => entry.rideId !== ride.id)
     .map((entry) => db.rides.find((cartRide) => cartRide.id === entry.rideId))
@@ -2487,7 +2546,7 @@ app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
 app.delete('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   const { rideId } = req.params;
   const db = loadDb();
-  const cartEntries = normalizeCartEntries(db, req.session.userId);
+  const cartEntries = cleanCartEntries(db, req.session.userId);
   db.carts[req.session.userId] = cartEntries.filter((entry) => entry.rideId !== rideId);
   saveDb(db);
 
@@ -2566,6 +2625,9 @@ app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, r
     name: [firstName, lastName].filter(Boolean).join(' ') || 'User',
     firstName,
     lastName,
+    profilePictureDataUrl: user.profilePictureDataUrl || '',
+    classYear: user.classYear || '',
+    major: user.major || '',
     fullNameVisible: canSeeFullName,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),

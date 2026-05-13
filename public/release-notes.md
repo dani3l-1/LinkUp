@@ -2,6 +2,27 @@
 
 ---
 
+## v2026.05.13 BETA
+
+### New features
+- **Multiple-trip cart checkout.** Riders can keep multiple trips in the cart, select individual trips for checkout, use Select all, and see a selected-trip subtotal before paying.
+- **Clearer cart reservation status.** The cart now reminds riders that trips are not reserved until checkout is completed.
+- **Single cart Terms agreement.** Riders only need to agree to the Terms once at the bottom of the cart for the selected checkout trips.
+- **Profile photos.** Users can add, preview, adjust, save, remove, and display a profile picture on their public profile.
+- **Optional academic details.** Users can add an optional major and Class of year to their profile, and those details appear on public profiles when provided.
+- **Legal popups from agreement text.** Underlined Terms and Conditions and Privacy Notice text now opens the full legal documents in a popup without leaving the current page.
+
+### Bug fixes
+- **Expired cart rides are removed automatically.** Trips whose departure time has passed are removed from the cart and users see a one-time notice when that happens.
+- **Checkout only reserves selected trips.** Unselected cart trips stay in the cart after checkout instead of being removed.
+- **Past rides cannot be added or checked out.** Expired rides are blocked from cart add and checkout flows even if the page was already open.
+- **Password recovery is clearer.** Account recovery now focuses on password reset only because users sign in with their school email, not a separate username.
+- **Password length is enforced.** Signup and reset passwords now require at least 8 characters, with frontend and backend validation.
+- **Profile save alignment is cleaner.** The Save Profile button is centered in the profile form.
+- **Chat access is easier to find.** The Chat button now sits on the top-left side of the header.
+
+---
+
 ## v2026.05.12 BETA
 
 ### New features
