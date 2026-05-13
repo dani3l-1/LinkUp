@@ -265,6 +265,10 @@ function clearAppRoute() {
   window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
 }
 
+function finishAppBoot() {
+  document.body.classList.remove('app-booting');
+}
+
 function isLegalRoute(route) {
   return route === 'privacy' || route === 'terms';
 }
@@ -5417,19 +5421,20 @@ const trackingViewerToken = params.get('trackToken');
 const checkoutStatus = params.get('checkout');
 const checkoutSessionId = params.get('session_id');
 if (trackingViewerToken) {
-  loadSharedTrackingPage(trackingViewerToken);
+  loadSharedTrackingPage(trackingViewerToken).finally(finishAppBoot);
 } else if (resetToken) {
   showAuthSection();
   showAuthForm('reset-password-form');
+  finishAppBoot();
 } else if (checkoutStatus === 'success' && checkoutSessionId) {
-  completeStripeCheckout(checkoutSessionId);
+  completeStripeCheckout(checkoutSessionId).finally(finishAppBoot);
 } else if (checkoutStatus === 'cancel') {
   checkAuth().then(() => {
     showCartPage();
     cartError.textContent = 'Checkout was canceled. Your cart is still saved.';
     cartError.classList.add('show');
     window.history.replaceState({}, document.title, window.location.pathname);
-  });
+  }).finally(finishAppBoot);
 } else {
-  checkAuth();
+  checkAuth().finally(finishAppBoot);
 }

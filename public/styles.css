@@ -146,6 +146,10 @@ body {
   padding: 2rem 0 6rem;
 }
 
+body.app-booting .app-shell {
+  visibility: hidden;
+}
+
 /* ─── Header ────────────────────────────────────────────────── */
 header {
   text-align: center;
@@ -159,7 +163,7 @@ header {
   width: min(360px, 74vw);
   height: auto;
   margin: 0 auto;
-  transition: width 0.3s ease, opacity 0.2s ease;
+  transition: opacity 0.2s ease;
   filter: drop-shadow(0 0 18px rgba(62,207,207,0.18));
 }
 

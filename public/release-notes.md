@@ -20,6 +20,7 @@
 - **Password length is enforced.** Signup and reset passwords now require at least 8 characters, with frontend and backend validation.
 - **Profile save alignment is cleaner.** The Save Profile button is centered in the profile form.
 - **Chat access is easier to find.** The Chat button now sits on the top-left side of the header.
+- **Reload logo flash is fixed.** Reloading the app no longer briefly shows the large login logo before the correct page finishes loading.
 
 ---
 
