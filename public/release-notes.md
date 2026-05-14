@@ -2,6 +2,22 @@
 
 ---
 
+## v2026.05.14 BETA
+
+### New features
+- **In-app Stripe card checkout.** Riders can now enter payment details directly inside LinkUp's payment page instead of being sent to a separate Stripe checkout page.
+- **In-app saved card setup.** Riders can save a default card from Profile using a secure in-app Stripe form.
+- **Stripe driver payout connection.** Drivers can connect Stripe payouts from Profile so payout status can be tracked in LinkUp.
+
+### Bug fixes
+- **Browse Rides hides expired trips.** Rides whose departure time has already passed no longer appear in Browse Rides.
+- **Drivers no longer see their own listings in Browse Rides.** Drivers can still manage their rides elsewhere, but Browse Rides now focuses on rides a rider can actually reserve.
+- **Full rides stay out of Browse Rides.** Rides with no remaining spots are filtered out of rider browsing.
+- **Expired rides cannot be reserved.** Checkout and cart actions now block rides that already departed, even if a stale page is open.
+- **Checkout feels more native to LinkUp.** The payment form uses LinkUp's dark visual style and card-only payment flow for a cleaner beta checkout experience.
+
+---
+
 ## v2026.05.13 BETA
 
 ### New features

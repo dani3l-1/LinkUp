@@ -56,7 +56,8 @@ SESSION_SECRET=your_session_secret_key_here
 - `public/index.html` — frontend UI with Google Maps integration
 - `public/app.js` — client-side logic for rides, authentication, and maps
 - `public/styles.css` — styling with dark theme
-- `data/db.json` — local JSON database (stores users and rides)
+- `data/db.json` — local JSON database for development only
+- `docs/data-structure.md` — canonical local data shape and migration notes
 - `.env.example` — environment variable template
 
 ## API Endpoints

@@ -123,6 +123,8 @@ const defaultPaymentForm = document.getElementById('default-payment-form');
 const defaultPaymentSummary = document.getElementById('default-payment-summary');
 const defaultPaymentMessage = document.getElementById('default-payment-message');
 const defaultPaymentError = document.getElementById('default-payment-error');
+const stripePayoutSummary = document.getElementById('stripe-payout-summary');
+const stripePayoutConnectButton = document.getElementById('stripe-payout-connect');
 const payoutCommissionLabel = document.getElementById('payout-commission-label');
 const LINKUP_COMMISSION_RATE = 0.15;
 const cartCount = document.getElementById('cart-count');
@@ -140,6 +142,12 @@ const paymentSummary = document.getElementById('payment-summary');
 const paymentBackToCartButton = document.getElementById('payment-back-to-cart');
 const paymentMessage = document.getElementById('payment-message');
 const paymentError = document.getElementById('payment-error');
+const stripeCheckoutContainer = document.getElementById('stripe-checkout-container');
+const defaultPaymentStripeContainer = document.getElementById('default-payment-stripe-container');
+const stripePaymentElementNode = document.getElementById('stripe-payment-element');
+const confirmPaymentButton = document.getElementById('confirm-payment');
+const defaultPaymentElementNode = document.getElementById('default-payment-element');
+const defaultPaymentConfirmButton = document.getElementById('default-payment-confirm');
 const trackTripButton = document.getElementById('track-trip-button');
 const trackTripPage = document.getElementById('track-trip-page');
 const trackBackHomeButton = document.getElementById('track-back-home');
@@ -294,6 +302,13 @@ let browseResultMarkers = [];
 let browseRideRoutes = [];        // per-ride/request polylines
 let browseRideOriginMarkers = []; // small pickup dot per ride/request
 let browsePinLabels = new Map();
+let stripeInstance = null;
+let stripePaymentElements = null;
+let stripeSetupElements = null;
+let activePaymentElement = null;
+let activeSetupElement = null;
+let activePaymentIntentId = '';
+let activeSetupIntentId = '';
 const selectedSeatByRide = new Map();
 
 // ── Uber-style dark map theme ───────────────────────────────────
@@ -478,6 +493,7 @@ async function loadGoogleMapsAPI() {
     } catch (error) {
       _googleMapsPromise = null;
       console.error('Failed to load Google Maps API:', error);
+      throw error;
     }
   })();
   return _googleMapsPromise;
@@ -1455,26 +1471,109 @@ function clearDefaultPaymentMessages() {
   defaultPaymentError.classList.remove('show');
 }
 
-function fillDefaultPaymentForm(user) {
-  const method = user.defaultPaymentMethod || null;
-  document.getElementById('default-payment-name').value = method?.billingName || [user.firstName, user.lastName].filter(Boolean).join(' ');
-  document.getElementById('default-payment-card').value = '';
-  document.getElementById('default-payment-expiry').value = method?.expiry || '';
-  document.getElementById('default-payment-cvv').value = '';
-  document.getElementById('default-payment-zip').value = method?.billingZip || '';
-  defaultPaymentSummary.textContent = method
-    ? method.brand + ' ending in ' + method.last4 + (method.expiry ? ' - expires ' + method.expiry : '')
-    : 'No default payment method saved.';
+async function getStripeInstance() {
+  if (stripeInstance) return stripeInstance;
+  if (!window.Stripe) {
+    throw new Error('Stripe could not load. Check your internet connection and refresh.');
+  }
+  const config = await fetchJson('/api/stripe/config');
+  stripeInstance = window.Stripe(config.publishableKey);
+  return stripeInstance;
 }
 
-function getDefaultPaymentPayload() {
+function getStripeAppearance() {
   return {
-    name: document.getElementById('default-payment-name').value.trim(),
-    cardNumber: document.getElementById('default-payment-card').value.trim(),
-    expiry: document.getElementById('default-payment-expiry').value.trim(),
-    cvv: document.getElementById('default-payment-cvv').value.trim(),
-    billingZip: document.getElementById('default-payment-zip').value.trim(),
+    theme: 'night',
+    variables: {
+      colorPrimary: '#3ecfcf',
+      colorBackground: '#071719',
+      colorText: '#f3fbfb',
+      colorDanger: '#ff6b6b',
+      colorTextSecondary: '#a9c9cc',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      borderRadius: '8px',
+      spacingUnit: '4px',
+    },
+    rules: {
+      '.Input': {
+        backgroundColor: '#041012',
+        borderColor: 'rgba(62, 207, 207, 0.25)',
+      },
+      '.Block': {
+        backgroundColor: '#081b1e',
+        borderColor: 'rgba(62, 207, 207, 0.18)',
+      },
+      '.Tab': {
+        backgroundColor: '#081b1e',
+        borderColor: 'rgba(62, 207, 207, 0.18)',
+      },
+      '.Tab--selected': {
+        borderColor: '#3ecfcf',
+      },
+    },
   };
+}
+
+function destroyStripePaymentElements() {
+  if (activePaymentElement) {
+    try { activePaymentElement.unmount(); } catch (_) {}
+    activePaymentElement = null;
+  }
+  stripePaymentElements = null;
+  activePaymentIntentId = '';
+  stripeCheckoutContainer?.classList.add('hidden');
+  confirmPaymentButton?.classList.add('hidden');
+  if (stripePaymentElementNode) stripePaymentElementNode.innerHTML = '';
+}
+
+function destroyStripeSetupElements() {
+  if (activeSetupElement) {
+    try { activeSetupElement.unmount(); } catch (_) {}
+    activeSetupElement = null;
+  }
+  stripeSetupElements = null;
+  activeSetupIntentId = '';
+  defaultPaymentStripeContainer?.classList.add('hidden');
+  defaultPaymentConfirmButton?.classList.add('hidden');
+  if (defaultPaymentElementNode) defaultPaymentElementNode.innerHTML = '';
+}
+
+function destroyEmbeddedCheckout() {
+  destroyStripePaymentElements();
+  destroyStripeSetupElements();
+}
+
+async function mountStripePaymentElement(clientSecret, paymentIntentId) {
+  if (!clientSecret) throw new Error('Stripe payment could not be started.');
+  if (!stripeCheckoutContainer || !stripePaymentElementNode) throw new Error('Stripe payment container is missing.');
+  destroyStripePaymentElements();
+  const stripe = await getStripeInstance();
+  stripePaymentElements = stripe.elements({ clientSecret, appearance: getStripeAppearance() });
+  activePaymentElement = stripePaymentElements.create('payment', { layout: 'tabs' });
+  stripeCheckoutContainer.classList.remove('hidden');
+  activePaymentElement.mount(stripePaymentElementNode);
+  activePaymentIntentId = paymentIntentId || '';
+  confirmPaymentButton?.classList.remove('hidden');
+}
+
+async function mountStripeSetupElement(clientSecret, setupIntentId) {
+  if (!clientSecret) throw new Error('Stripe setup could not be started.');
+  if (!defaultPaymentStripeContainer || !defaultPaymentElementNode) throw new Error('Stripe setup container is missing.');
+  destroyStripeSetupElements();
+  const stripe = await getStripeInstance();
+  stripeSetupElements = stripe.elements({ clientSecret, appearance: getStripeAppearance() });
+  activeSetupElement = stripeSetupElements.create('payment', { layout: 'tabs' });
+  defaultPaymentStripeContainer.classList.remove('hidden');
+  activeSetupElement.mount(defaultPaymentElementNode);
+  activeSetupIntentId = setupIntentId || '';
+  defaultPaymentConfirmButton?.classList.remove('hidden');
+}
+
+function fillDefaultPaymentForm(user) {
+  const method = user.defaultPaymentMethod || null;
+  defaultPaymentSummary.textContent = method
+    ? (method.provider === 'stripe' ? 'Stripe ' : '') + method.brand + ' ending in ' + method.last4 + (method.expiry ? ' - expires ' + method.expiry : '')
+    : 'No default payment method saved.';
 }
 
 function clearPayoutMessages() {
@@ -1482,6 +1581,24 @@ function clearPayoutMessages() {
   payoutMessage.classList.remove('show');
   payoutError.textContent = '';
   payoutError.classList.remove('show');
+}
+
+function renderStripePayoutSummary(user) {
+  if (!stripePayoutSummary) return;
+  const stripeInfo = user?.payoutInfo?.stripe || null;
+  if (!stripeInfo?.accountId) {
+    stripePayoutSummary.textContent = 'Stripe payouts not connected.';
+    return;
+  }
+  if (stripeInfo.payoutsEnabled) {
+    stripePayoutSummary.textContent = 'Stripe payouts connected and ready.';
+    return;
+  }
+  if (stripeInfo.detailsSubmitted) {
+    stripePayoutSummary.textContent = 'Stripe payout details submitted. Stripe is finishing verification.';
+    return;
+  }
+  stripePayoutSummary.textContent = 'Stripe payouts started. Finish onboarding to receive driver payouts.';
 }
 
 function fillDriverPayoutForm(user) {
@@ -1494,6 +1611,7 @@ function fillDriverPayoutForm(user) {
   document.getElementById('payout-address').value = info.address || '';
   document.getElementById('payout-notes').value = info.notes || '';
   document.getElementById('payout-confirm').checked = Boolean(info.confirmedAt);
+  renderStripePayoutSummary(user);
   if (payoutCommissionLabel) payoutCommissionLabel.textContent = Math.round(LINKUP_COMMISSION_RATE * 100) + '%';
 }
 
@@ -1898,7 +2016,37 @@ function showPaymentPage() {
   clearCartMessages();
   hideDashboardPages();
   paymentPage.classList.remove('hidden');
-  paymentSummary.textContent = `${selectedCartRideIds.size} of ${cartRideIds.size} ride${cartRideIds.size === 1 ? '' : 's'} selected for checkout.`;
+  if (paymentSummary) paymentSummary.textContent = `${selectedCartRideIds.size} trip${selectedCartRideIds.size === 1 ? '' : 's'} ready for payment`;
+  document.getElementById('pay-cart')?.classList.remove('hidden');
+  destroyStripePaymentElements();
+
+  // Populate right-panel order summary from selected cart cards
+  const orderSummaryEl = document.getElementById('payment-order-summary');
+  if (orderSummaryEl) {
+    const selectedCards = [...cartItems.querySelectorAll('.cart-item-card')]
+      .filter((card) => selectedCartRideIds.has(card.dataset.rideId));
+    const totalCents = selectedCards.reduce((sum, card) => sum + Number(card.dataset.priceCents || 0), 0);
+
+    const rows = selectedCards.map((card) => {
+      const title = card.querySelector('h4')?.textContent?.trim() || 'Ride';
+      const priceCents = Number(card.dataset.priceCents || 0);
+      return `<div class="cart-summary-row">
+        <span class="cart-summary-row-label">${esc(title)}</span>
+        <span class="cart-summary-row-price">${formatCents(priceCents)}</span>
+      </div>`;
+    }).join('');
+
+    orderSummaryEl.innerHTML = `
+      <div class="cart-summary-rows">${rows}</div>
+      <div class="cart-summary-divider"></div>
+      <div class="cart-summary-total-row">
+        <span>Total</span>
+        <strong>${formatCents(totalCents)}</strong>
+      </div>
+      <p class="cart-summary-tax-note">Service fee included</p>
+    `;
+    orderSummaryEl.classList.remove('hidden');
+  }
 }
 
 function restoreAppRoute() {
@@ -2613,7 +2761,7 @@ function formatMiles(miles) {
 }
 
 function formatRidePrice(ride) {
-  return formatCents(ride.priceCents || 500);
+  return formatCents(ride.priceCents != null ? ride.priceCents : 500);
 }
 
 function formatDriverRating(ride) {
@@ -2699,6 +2847,11 @@ function getRideStartTime(ride) {
   if (!ride?.date) return 0;
   const ts = new Date(ride.date + 'T' + (ride.time || '00:00')).getTime();
   return Number.isFinite(ts) ? ts : 0;
+}
+
+function hasRideDeparted(ride) {
+  const start = getRideStartTime(ride);
+  return Boolean(start && start <= Date.now());
 }
 
 function getCoordinateFromText(value) {
@@ -3029,6 +3182,9 @@ function canMatchSameGender(riderGender, driverGender) {
 }
 
 function canCurrentUserSeeRide(ride) {
+  if (ride.driverId === currentUser?.id) return false;
+  if (hasRideDeparted(ride)) return false;
+  if (Number(ride.seatsAvailable || 0) <= 0) return false;
   if (sameSchoolOnlyFilter?.checked && ride.university !== currentUser.university) return false;
   if (ride.sameSchoolOnly && ride.university !== currentUser.university) return false;
   const sameGenderMatch = canMatchSameGender(currentUser.gender, ride.driverGender);
@@ -3455,6 +3611,7 @@ async function loadChatPage() {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'chat-ride-button' + (selectedChatRideId === ride.id ? ' active' : '');
+      button.dataset.rideId = ride.id;
       button.textContent = getChatRideTitle(ride);
       button.addEventListener('click', () => {
         selectedChatRideId = ride.id;
@@ -3468,7 +3625,7 @@ async function loadChatPage() {
     const initialRide = rides.find((ride) => ride.id === selectedChatRideId) || rides[0];
     if (initialRide) {
       selectedChatRideId = initialRide.id;
-      const firstButton = [...chatRideList.querySelectorAll('.chat-ride-button')].find((button) => button.textContent === getChatRideTitle(initialRide));
+      const firstButton = chatRideList.querySelector('[data-ride-id="' + initialRide.id + '"]');
       firstButton?.click();
     }
   } catch (err) {
@@ -3848,6 +4005,12 @@ function updateCartSelectionSummary() {
     cartSelectAllCheckbox.disabled = totalRideCount === 0;
   }
   const selectedSet = new Set(selectedRideIds);
+  // Apply visual selected/deselected state to each card
+  [...cartItems.querySelectorAll('.cart-item-card')].forEach((card) => {
+    const isSelected = selectedSet.has(card.dataset.rideId);
+    card.classList.toggle('cart-item-selected', isSelected);
+    card.classList.toggle('cart-item-deselected', !isSelected);
+  });
   const selectedCards = [...cartItems.querySelectorAll('.cart-item-card')]
     .filter((card) => selectedSet.has(card.dataset.rideId));
   const selectedNeedsTerms = selectedCards.some((card) => card.dataset.cartTermsAccepted !== 'true');
@@ -3859,23 +4022,28 @@ function updateCartSelectionSummary() {
     if (!selectedNeedsTerms) cartTermsCheckbox.checked = false;
   }
   const subtotalCents = selectedCards.reduce((sum, card) => sum + Number(card.dataset.priceCents || 0), 0);
-  if (cartSubtotal && selectedRideIds.length) {
+  if (cartSubtotal && totalRideCount > 0) {
+    const rideRows = selectedCards.map(card => {
+      const title = card.querySelector('h4')?.textContent?.trim() || 'Trip';
+      const price = formatCents(Number(card.dataset.priceCents || 0));
+      return `<div class="cart-summary-row"><span class="cart-summary-row-label">${esc(title)}</span><span class="cart-summary-row-price">${price}</span></div>`;
+    }).join('');
+    const selectionNote = selectedRideIds.length < totalRideCount
+      ? `<p class="cart-summary-selection-note">${selectedRideIds.length} of ${totalRideCount} trip${totalRideCount === 1 ? '' : 's'} selected</p>`
+      : '';
     cartSubtotal.innerHTML = `
-      <div>
-        <strong>Selected subtotal</strong>
-        <span>${selectedRideIds.length} of ${totalRideCount} ride${totalRideCount === 1 ? '' : 's'} selected for checkout</span>
+      ${selectionNote}
+      <div class="cart-summary-rows">${rideRows || '<p class="cart-summary-empty">No trips selected</p>'}</div>
+      <div class="cart-summary-divider"></div>
+      <div class="cart-summary-total-row">
+        <span>Subtotal</span>
+        <strong>${formatCents(subtotalCents)}</strong>
       </div>
-      <strong>${formatCents(subtotalCents)}</strong>
+      <p class="cart-summary-tax-note">Service fee calculated at checkout</p>
     `;
     cartSubtotal.classList.remove('hidden');
   } else if (cartSubtotal) {
-    cartSubtotal.innerHTML = `
-      <div>
-        <strong>Selected subtotal</strong>
-        <span>Select at least one trip to checkout</span>
-      </div>
-      <strong>${formatCents(0)}</strong>
-    `;
+    cartSubtotal.innerHTML = `<p class="cart-summary-empty">Your cart is empty.</p>`;
     cartSubtotal.classList.toggle('hidden', totalRideCount === 0);
   }
   if (checkoutCartButton) checkoutCartButton.disabled = selectedRideIds.length === 0;
@@ -3895,16 +4063,13 @@ async function saveMissingCartTerms(selectedRideIds = getSelectedCartRideIds()) 
 
   for (const item of missingTermsItems) {
     const rideId = item.dataset.rideId;
-    const ride = [...cartItems.querySelectorAll('.cart-item-card')]
-      .map((card) => card.dataset.rideId === rideId ? card : null)
-      .find(Boolean);
     const selectedSeatId = selectedSeatByRide.get(rideId) || '';
     await fetchJson(`/api/cart/${rideId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ seatId: selectedSeatId, termsAccepted: true }),
     });
-    if (ride) ride.dataset.cartTermsAccepted = 'true';
+    item.dataset.cartTermsAccepted = 'true';
   }
   if (cartTermsCheckbox) cartTermsCheckbox.checked = false;
   await loadCart();
@@ -4536,7 +4701,7 @@ signupForm.addEventListener('submit', async (event) => {
   const birthday = document.getElementById('signup-birthday').value;
   const gender = document.getElementById('signup-gender').value;
   const email = document.getElementById('signup-email').value.trim();
-  const password = document.getElementById('signup-password').value.trim();
+  const password = document.getElementById('signup-password').value;
   const termsAccepted = document.getElementById('signup-terms-agree').checked;
   const privacyAccepted = document.getElementById('signup-privacy-agree').checked;
   if (!termsAccepted || !privacyAccepted) {
@@ -4569,7 +4734,7 @@ signinForm.addEventListener('submit', async (event) => {
   signinError.textContent = '';
   signinError.classList.remove('show');
   const email = document.getElementById('signin-email').value.trim();
-  const password = document.getElementById('signin-password').value.trim();
+  const password = document.getElementById('signin-password').value;
   try {
     await fetchJson('/api/auth/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
     currentUser = await fetchJson('/api/auth/me');
@@ -5077,6 +5242,7 @@ profilePictureInput?.addEventListener('change', () => {
     cy = size / 2;
     canvas.width  = size * dpr;
     canvas.height = size * dpr;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // reset before re-scaling
     ctx.scale(dpr, dpr);
   }
 
@@ -5173,17 +5339,47 @@ defaultPaymentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearDefaultPaymentMessages();
   try {
-    currentUser = await fetchJson('/api/profile/payment-method', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(getDefaultPaymentPayload()),
+    const data = await fetchJson('/api/profile/payment-method/setup-session', { method: 'POST' });
+    defaultPaymentMessage.textContent = 'Enter your card below, then save it securely with Stripe.';
+    defaultPaymentMessage.classList.add('show');
+    await mountStripeSetupElement(data.clientSecret, data.setupIntentId);
+  } catch (err) {
+    defaultPaymentError.textContent = err.message;
+    defaultPaymentError.classList.add('show');
+  }
+});
+
+defaultPaymentConfirmButton?.addEventListener('click', async () => {
+  clearDefaultPaymentMessages();
+  if (!stripeSetupElements || !activeSetupIntentId) {
+    defaultPaymentError.textContent = 'Start payment method setup first.';
+    defaultPaymentError.classList.add('show');
+    return;
+  }
+  try {
+    defaultPaymentConfirmButton.disabled = true;
+    const stripe = await getStripeInstance();
+    const result = await stripe.confirmSetup({
+      elements: stripeSetupElements,
+      confirmParams: { return_url: window.location.origin + window.location.pathname + '?setup=payment' },
+      redirect: 'if_required',
     });
+    if (result.error) throw new Error(result.error.message || 'Unable to save payment method.');
+    const setupIntentId = result.setupIntent?.id || activeSetupIntentId;
+    currentUser = await fetchJson('/api/profile/payment-method/complete-setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ setupIntentId }),
+    });
+    destroyStripeSetupElements();
     fillDefaultPaymentForm(currentUser);
     defaultPaymentMessage.textContent = 'Default payment method saved.';
     defaultPaymentMessage.classList.add('show');
   } catch (err) {
     defaultPaymentError.textContent = err.message;
     defaultPaymentError.classList.add('show');
+  } finally {
+    defaultPaymentConfirmButton.disabled = false;
   }
 });
 policyScrollbox?.addEventListener('scroll', updatePolicyAgreeButtonState);
@@ -5252,6 +5448,16 @@ driverPayoutForm.addEventListener('submit', async (event) => {
     fillDriverPayoutForm(currentUser);
     payoutMessage.textContent = 'Payout information saved.';
     payoutMessage.classList.add('show');
+  } catch (err) {
+    payoutError.textContent = err.message;
+    payoutError.classList.add('show');
+  }
+});
+stripePayoutConnectButton?.addEventListener('click', async () => {
+  clearPayoutMessages();
+  try {
+    const data = await fetchJson('/api/profile/payout/stripe-onboarding', { method: 'POST' });
+    window.location.href = data.url;
   } catch (err) {
     payoutError.textContent = err.message;
     payoutError.classList.add('show');
@@ -5345,11 +5551,19 @@ checkoutCartButton.addEventListener('click', async () => {
   }
   showPaymentPage();
 });
-paymentBackToCartButton.addEventListener('click', () => showCartPage());
+paymentBackToCartButton.addEventListener('click', () => {
+  destroyEmbeddedCheckout();
+  showCartPage();
+});
 document.getElementById('pay-cart').addEventListener('click', async () => {
   clearCartMessages();
+  paymentMessage.textContent = '';
+  paymentMessage.classList.remove('show');
+  paymentError.textContent = '';
+  paymentError.classList.remove('show');
   try {
-    const selectedRideIds = getSelectedCartRideIds();
+    // Use the authoritative in-memory set rather than re-querying possibly stale DOM checkboxes
+    const selectedRideIds = [...selectedCartRideIds];
     if (!selectedRideIds.length) {
       showCartPage();
       cartError.textContent = 'Select at least one trip before checking out.';
@@ -5366,17 +5580,56 @@ document.getElementById('pay-cart').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rideIds: selectedRideIds }),
     });
-    window.location.href = data.url;
+    paymentSummary.textContent = 'Enter your payment details below. Your card details stay with Stripe.';
+    document.getElementById('pay-cart').classList.add('hidden');
+    await mountStripePaymentElement(data.clientSecret, data.paymentIntentId);
   } catch (err) {
     paymentError.textContent = err.message;
     paymentError.classList.add('show');
   }
 });
 
+confirmPaymentButton?.addEventListener('click', async () => {
+  paymentMessage.textContent = '';
+  paymentMessage.classList.remove('show');
+  paymentError.textContent = '';
+  paymentError.classList.remove('show');
+  if (!stripePaymentElements || !activePaymentIntentId) {
+    paymentError.textContent = 'Load the payment form first.';
+    paymentError.classList.add('show');
+    return;
+  }
+  try {
+    confirmPaymentButton.disabled = true;
+    const stripe = await getStripeInstance();
+    const result = await stripe.confirmPayment({
+      elements: stripePaymentElements,
+      confirmParams: { return_url: window.location.origin + window.location.pathname + '?checkout=success' },
+      redirect: 'if_required',
+    });
+    if (result.error) throw new Error(result.error.message || 'Unable to complete payment.');
+    if (result.paymentIntent?.status !== 'succeeded') {
+      paymentMessage.textContent = 'Stripe is still processing this payment. Refresh the cart in a moment.';
+      paymentMessage.classList.add('show');
+      return;
+    }
+    await completeStripeCheckout(result.paymentIntent.id);
+  } catch (err) {
+    paymentError.textContent = err.message;
+    paymentError.classList.add('show');
+  } finally {
+    confirmPaymentButton.disabled = false;
+  }
+});
+
 signoutButton.addEventListener('click', async () => {
   try {
     if (activeTrackingTripId) {
-      await stopTripTracking();
+      try {
+        await stopTripTracking();
+      } catch (_) {
+        // Don't let a tracking stop failure block sign-out
+      }
     }
     await fetchJson('/api/auth/signout', { method: 'POST' });
     clearAppRoute();
@@ -5390,7 +5643,11 @@ async function completeStripeCheckout(sessionId) {
   try {
     currentUser = await fetchJson('/api/auth/me');
     showDashboard(currentUser);
-    showPaymentPage();
+    setAppRoute('payment');
+    hideDashboardPages();
+    paymentPage.classList.remove('hidden');
+    paymentSummary.textContent = 'Verifying your Stripe payment...';
+    destroyEmbeddedCheckout();
     const data = await fetchJson('/api/cart/checkout/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }) });
     paymentMessage.textContent = data.message;
     paymentMessage.classList.add('show');
@@ -5413,21 +5670,88 @@ async function completeStripeCheckout(sessionId) {
   }
 }
 
+async function completeStripePaymentSetup(setupIntentId) {
+  try {
+    currentUser = await fetchJson('/api/auth/me');
+    showDashboard(currentUser);
+    showProfilePage('payment');
+    defaultPaymentSummary.textContent = 'Verifying your saved Stripe payment method...';
+    destroyEmbeddedCheckout();
+    currentUser = await fetchJson('/api/profile/payment-method/complete-setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ setupIntentId }),
+    });
+    fillDefaultPaymentForm(currentUser);
+    defaultPaymentMessage.textContent = 'Default payment method saved.';
+    defaultPaymentMessage.classList.add('show');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } catch (err) {
+    if (!currentUser) {
+      showAuthSection();
+      signinError.textContent = err.message;
+      signinError.classList.add('show');
+      return;
+    }
+    showDashboard(currentUser);
+    showProfilePage('payment');
+    defaultPaymentError.textContent = err.message;
+    defaultPaymentError.classList.add('show');
+  }
+}
+
+async function refreshStripePayoutStatus(status) {
+  try {
+    currentUser = await fetchJson('/api/auth/me');
+    showDashboard(currentUser);
+    showProfilePage('payouts');
+    if (status === 'refresh') {
+      payoutError.textContent = 'Stripe payout onboarding needs a little more information.';
+      payoutError.classList.add('show');
+    }
+    currentUser = await fetchJson('/api/profile/payout/stripe-status', { method: 'POST' });
+    fillDriverPayoutForm(currentUser);
+    if (status !== 'refresh') {
+      payoutMessage.textContent = currentUser.payoutInfo?.stripe?.payoutsEnabled
+        ? 'Stripe payouts are connected.'
+        : 'Stripe payout details saved. Stripe may still be verifying your account.';
+      payoutMessage.classList.add('show');
+    }
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } catch (err) {
+    if (!currentUser) {
+      showAuthSection();
+      signinError.textContent = err.message;
+      signinError.classList.add('show');
+      return;
+    }
+    showDashboard(currentUser);
+    showProfilePage('payouts');
+    payoutError.textContent = err.message;
+    payoutError.classList.add('show');
+  }
+}
+
 loadExternalDocuments();
 
 const params = new URLSearchParams(window.location.search);
 const resetToken = params.get('resetToken');
 const trackingViewerToken = params.get('trackToken');
 const checkoutStatus = params.get('checkout');
+const setupStatus = params.get('setup');
+const connectTarget = params.get('connect');
+const connectStatus = params.get('status');
 const checkoutSessionId = params.get('session_id');
+const checkoutPaymentIntentId = params.get('payment_intent');
+const setupIntentId = params.get('setup_intent');
 if (trackingViewerToken) {
   loadSharedTrackingPage(trackingViewerToken).finally(finishAppBoot);
 } else if (resetToken) {
   showAuthSection();
   showAuthForm('reset-password-form');
   finishAppBoot();
-} else if (checkoutStatus === 'success' && checkoutSessionId) {
-  completeStripeCheckout(checkoutSessionId).finally(finishAppBoot);
+} else if (checkoutStatus === 'success' && (checkoutSessionId || checkoutPaymentIntentId)) {
+  completeStripeCheckout(checkoutSessionId || checkoutPaymentIntentId).finally(finishAppBoot);
 } else if (checkoutStatus === 'cancel') {
   checkAuth().then(() => {
     showCartPage();
@@ -5435,6 +5759,17 @@ if (trackingViewerToken) {
     cartError.classList.add('show');
     window.history.replaceState({}, document.title, window.location.pathname);
   }).finally(finishAppBoot);
+} else if (setupStatus === 'payment' && (checkoutSessionId || setupIntentId)) {
+  completeStripePaymentSetup(checkoutSessionId || setupIntentId).finally(finishAppBoot);
+} else if (setupStatus === 'cancel') {
+  checkAuth().then(() => {
+    showProfilePage('payment');
+    defaultPaymentError.textContent = 'Payment method setup was canceled.';
+    defaultPaymentError.classList.add('show');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }).finally(finishAppBoot);
+} else if (connectTarget === 'payout') {
+  refreshStripePayoutStatus(connectStatus).finally(finishAppBoot);
 } else {
   checkAuth().finally(finishAppBoot);
 }

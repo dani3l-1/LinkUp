@@ -250,20 +250,17 @@
                   <form id="default-payment-form" class="profile-form payout-guide">
                     <div>
                       <h4>Default payment method</h4>
-                      <p>Save the card details you want to use when checking out rides.</p>
+                      <p>Save the card you want to use when checking out rides.</p>
                     </div>
                     <div id="default-payment-summary" class="payment-method-summary">No default payment method saved.</div>
                     <div class="payout-note payout-warning">
-                      LinkUp stores only card brand, last 4 digits, expiration, and billing name — never your full card number.
+                      Stripe securely collects and stores your card. LinkUp only keeps the card brand, last 4 digits, and expiration date.
                     </div>
-                    <div class="profile-grid">
-                      <label>Billing name <input type="text" id="default-payment-name" placeholder="Name on card" required /></label>
-                      <label>Card number <input type="text" id="default-payment-card" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" required /></label>
-                      <label>Expiration <input type="text" id="default-payment-expiry" autocomplete="cc-exp" placeholder="MM/YY" required /></label>
-                      <label>CVV <input type="password" id="default-payment-cvv" autocomplete="cc-csc" placeholder="123" required /></label>
-                      <label>Billing ZIP <input type="text" id="default-payment-zip" autocomplete="postal-code" placeholder="Optional" /></label>
+                    <button type="submit">Set up payment method with Stripe</button>
+                    <div id="default-payment-stripe-container" class="stripe-payment-frame hidden">
+                      <div id="default-payment-element"></div>
+                      <button type="button" id="default-payment-confirm" class="hidden">Save card</button>
                     </div>
-                    <button type="submit">Save payment method</button>
                     <div id="default-payment-message" class="success-message"></div>
                     <div id="default-payment-error" class="error-message"></div>
                   </form>
@@ -380,6 +377,8 @@
                       <h4>Driver payout</h4>
                       <p>Where LinkUp sends your earnings after commission.</p>
                     </div>
+                    <div id="stripe-payout-summary" class="payment-method-summary">Stripe payouts not connected.</div>
+                    <button type="button" id="stripe-payout-connect">Connect Stripe payouts</button>
                     <div class="payout-note payout-warning">
                       Use a payout email, phone, or handle. Do not enter raw bank account or routing numbers.
                     </div>
@@ -391,7 +390,7 @@
                           <option value="zelle">Zelle</option>
                           <option value="venmo">Venmo</option>
                           <option value="paypal">PayPal</option>
-                          <option value="stripe">Stripe Connect later</option>
+                          <option value="stripe">Stripe Connect</option>
                           <option value="check">Paper check</option>
                           <option value="other">Other</option>
                         </select>
@@ -738,41 +737,127 @@
 
           <!-- Cart page -->
           <section id="cart-page" class="card hidden">
-            <div class="cart-header">
-              <div>
-                <h3>Your cart</h3>
-                <p>Review selected trips before checkout.</p>
+            <!-- Cart top bar -->
+            <div class="cart-topbar">
+              <div class="cart-topbar-left">
+                <button id="continue-shopping" type="button" class="cart-back-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                  Browse rides
+                </button>
+                <h3 class="cart-page-title">Your Cart</h3>
               </div>
-              <button id="continue-shopping" type="button">Return to browse rides</button>
+              <!-- Progress stepper -->
+              <div class="checkout-stepper cart-stepper" aria-label="Checkout steps">
+                <div class="checkout-step step-active" id="stepper-cart">
+                  <div class="step-circle">1</div>
+                  <span class="step-label">Cart</span>
+                </div>
+                <div class="checkout-step" id="stepper-payment">
+                  <div class="step-circle">2</div>
+                  <span class="step-label">Payment</span>
+                </div>
+                <div class="checkout-step" id="stepper-confirm">
+                  <div class="step-circle">3</div>
+                  <span class="step-label">Confirmed</span>
+                </div>
+              </div>
             </div>
-            <div class="cart-disclaimer">Trips in your cart are not reserved yet. Seats are only held after checkout is completed.</div>
-            <label class="checkbox-label cart-select-all">
-              <input type="checkbox" id="cart-select-all" checked />
-              Select all trips for checkout
-            </label>
-            <div id="cart-items">Your cart is empty.</div>
-            <div id="cart-subtotal" class="cart-subtotal hidden"></div>
-            <label id="cart-terms-agreement" class="checkbox-label terms-agreement cart-terms-agreement cart-bottom-terms hidden">
-              <input type="checkbox" id="cart-terms-checkbox" />
-              I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> for the selected rides.
-            </label>
-            <button id="checkout-cart" type="button">Proceed to payment →</button>
-            <div id="cart-message" class="success-message"></div>
-            <div id="cart-error" class="error-message"></div>
+
+            <!-- Two-column layout: items left, summary right -->
+            <div class="cart-two-col">
+
+              <!-- Left: trip items -->
+              <div class="cart-items-col">
+                <div class="cart-disclaimer">Trips are not reserved until checkout is complete.</div>
+                <label class="checkbox-label cart-select-all">
+                  <input type="checkbox" id="cart-select-all" checked />
+                  Select all trips
+                </label>
+                <div id="cart-items">Your cart is empty.</div>
+                <div id="cart-message" class="success-message"></div>
+                <div id="cart-error" class="error-message"></div>
+              </div>
+
+              <!-- Right: sticky order summary -->
+              <aside class="cart-summary-panel">
+                <h4 class="cart-summary-title">Order Summary</h4>
+                <div id="cart-subtotal" class="cart-subtotal hidden"></div>
+                <label id="cart-terms-agreement" class="checkbox-label terms-agreement cart-terms-agreement cart-bottom-terms hidden">
+                  <input type="checkbox" id="cart-terms-checkbox" />
+                  I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> for the selected rides.
+                </label>
+                <button id="checkout-cart" type="button">Proceed to checkout</button>
+                <p class="cart-summary-note">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  Payments are encrypted and secure
+                </p>
+              </aside>
+
+            </div>
           </section>
 
           <!-- Payment page -->
           <section id="payment-page" class="card hidden">
-            <div class="cart-header">
-              <div>
-                <h3>Payment</h3>
-                <p id="payment-summary">Review your total before paying.</p>
+            <!-- Payment top bar -->
+            <div class="cart-topbar">
+              <div class="cart-topbar-left">
+                <button id="payment-back-to-cart" type="button" class="cart-back-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                  Back to cart
+                </button>
+                <h3 class="cart-page-title">Secure Checkout</h3>
               </div>
-              <button id="payment-back-to-cart" type="button">← Back to cart</button>
+              <!-- Progress stepper (payment step active) -->
+              <div class="checkout-stepper cart-stepper" aria-label="Checkout steps">
+                <div class="checkout-step step-done" id="stepper-cart-pay">
+                  <div class="step-circle">✓</div>
+                  <span class="step-label">Cart</span>
+                </div>
+                <div class="checkout-step step-active" id="stepper-payment-pay">
+                  <div class="step-circle">2</div>
+                  <span class="step-label">Payment</span>
+                </div>
+                <div class="checkout-step" id="stepper-confirm-pay">
+                  <div class="step-circle">3</div>
+                  <span class="step-label">Confirmed</span>
+                </div>
+              </div>
             </div>
-            <button type="button" id="pay-cart">Pay with Stripe</button>
-            <div id="payment-message" class="success-message"></div>
-            <div id="payment-error" class="error-message"></div>
+
+            <!-- Two-column: payment form left, order summary right -->
+            <div class="cart-two-col">
+
+              <!-- Left: payment form -->
+              <div class="cart-items-col">
+                <p id="payment-summary" class="payment-summary-label">Review your order and enter payment details.</p>
+                <button type="button" id="pay-cart">Pay now</button>
+                <p class="payment-security-note">Your payment details are encrypted and never stored by LinkUp</p>
+                <div id="stripe-checkout-container" class="stripe-payment-frame hidden">
+                  <div class="payment-form-header">
+                    <span class="payment-form-title">Payment details</span>
+                    <span class="payment-secure-badge">
+                      <svg width="11" height="13" viewBox="0 0 11 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5.5 0L1 2v4c0 2.76 1.97 5.34 4.5 6C8.03 11.34 10 8.76 10 6V2L5.5 0z" fill="currentColor" opacity="0.9"/></svg>
+                      Secure
+                    </span>
+                  </div>
+                  <div id="stripe-payment-element"></div>
+                  <button type="button" id="confirm-payment" class="hidden">Confirm &amp; pay</button>
+                </div>
+                <div id="payment-message" class="success-message"></div>
+                <div id="payment-error" class="error-message"></div>
+              </div>
+
+              <!-- Right: sticky order summary -->
+              <aside class="cart-summary-panel">
+                <h4 class="cart-summary-title">Order Summary</h4>
+                <div id="payment-order-summary" class="payment-order-summary hidden"></div>
+                <p class="cart-summary-note">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  Payments are encrypted and secure
+                </p>
+              </aside>
+
+            </div>
           </section>
 
         </section>
@@ -870,6 +955,7 @@
       </div>
     </div>
 
-    <script src="app.js?v=20260513-profile-cart"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="app.js?v=20260514-payment-element"></script>
   </body>
 </html>

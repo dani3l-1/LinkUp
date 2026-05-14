@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const Stripe = require('stripe');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,6 +22,12 @@ if (!SESSION_SECRET) {
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
+const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15);
+const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
+const DB_SCHEMA_VERSION = 2;
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-02-25.clover' })
+  : null;
 const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.8';
 const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.8';
 const CAR_SEATS = [
@@ -140,7 +147,7 @@ function securityHeaders(req, res, next) {
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://maps.googleapis.com; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; frame-ancestors 'none';"
   );
   if (process.env.NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
@@ -214,32 +221,117 @@ app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
 }));
 
+app.get('/api/stripe/config', requireAuth, (req, res) => {
+  if (!STRIPE_PUBLISHABLE_KEY) {
+    return res.status(500).json({ error: 'Stripe publishable key is not configured. Add STRIPE_PUBLISHABLE_KEY to continue.' });
+  }
+  res.json({ publishableKey: STRIPE_PUBLISHABLE_KEY });
+});
+
 function getEmptyDb() {
   return {
+    schemaVersion: DB_SCHEMA_VERSION,
+    meta: {
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
     rides: [],
     rideRequests: [],
     users: [],
     carts: {},
     checkoutSessions: [],
+    payments: [],
     trackingTrips: [],
     rideMessages: {},
     userReports: [],
     userBlocks: [],
+    passwordResetTokens: [],
   };
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function asPlainObject(value) {
+  return isPlainObject(value) ? value : {};
+}
+
+function uniqueById(items) {
+  const seen = new Set();
+  return asArray(items).filter((item) => {
+    if (!isPlainObject(item)) return false;
+    if (!item.id) return true;
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+function normalizeCartMap(carts) {
+  return Object.entries(asPlainObject(carts)).reduce((normalized, [userId, entries]) => {
+    normalized[userId] = asArray(entries)
+      .map((entry) => {
+        if (typeof entry === 'string') return { rideId: entry, seatId: '', termsAcceptedAt: '' };
+        if (!isPlainObject(entry)) return null;
+        return {
+          rideId: String(entry.rideId || ''),
+          seatId: String(entry.seatId || ''),
+          termsAcceptedAt: String(entry.termsAcceptedAt || ''),
+        };
+      })
+      .filter((entry) => entry?.rideId);
+    return normalized;
+  }, {});
+}
+
+function normalizeRideMessages(messagesByRide) {
+  return Object.entries(asPlainObject(messagesByRide)).reduce((normalized, [rideId, messages]) => {
+    normalized[rideId] = asArray(messages).filter(isPlainObject);
+    return normalized;
+  }, {});
+}
+
+function normalizeCheckoutSessions(sessions) {
+  return uniqueById(sessions).map((session) => ({
+    ...session,
+    cartEntries: asArray(session.cartEntries)
+      .map((entry) => isPlainObject(entry) ? {
+        rideId: String(entry.rideId || ''),
+        seatId: String(entry.seatId || ''),
+        termsAcceptedAt: String(entry.termsAcceptedAt || ''),
+      } : null)
+      .filter((entry) => entry?.rideId),
+  }));
 }
 
 function normalizeDbShape(db) {
   const base = getEmptyDb();
   const normalized = { ...base, ...(db && typeof db === 'object' ? db : {}) };
-  if (!Array.isArray(normalized.rides)) normalized.rides = [];
-  if (!Array.isArray(normalized.rideRequests)) normalized.rideRequests = [];
-  if (!Array.isArray(normalized.users)) normalized.users = [];
-  if (!normalized.carts || typeof normalized.carts !== 'object' || Array.isArray(normalized.carts)) normalized.carts = {};
-  if (!Array.isArray(normalized.checkoutSessions)) normalized.checkoutSessions = [];
-  if (!Array.isArray(normalized.trackingTrips)) normalized.trackingTrips = [];
-  if (!normalized.rideMessages || typeof normalized.rideMessages !== 'object' || Array.isArray(normalized.rideMessages)) normalized.rideMessages = {};
-  if (!Array.isArray(normalized.userReports)) normalized.userReports = [];
-  if (!Array.isArray(normalized.userBlocks)) normalized.userBlocks = [];
+  normalized.schemaVersion = DB_SCHEMA_VERSION;
+  normalized.meta = {
+    ...base.meta,
+    ...asPlainObject(normalized.meta),
+    updatedAt: new Date().toISOString(),
+  };
+  normalized.rides = uniqueById(normalized.rides);
+  normalized.rideRequests = uniqueById(normalized.rideRequests);
+  normalized.users = uniqueById(normalized.users);
+  normalized.carts = normalizeCartMap(normalized.carts);
+  normalized.checkoutSessions = normalizeCheckoutSessions(normalized.checkoutSessions);
+  normalized.payments = uniqueById(normalized.payments);
+  normalized.trackingTrips = uniqueById(normalized.trackingTrips).map((trip) => ({
+    ...trip,
+    locations: asArray(trip.locations).filter(isPlainObject),
+  }));
+  normalized.rideMessages = normalizeRideMessages(normalized.rideMessages);
+  normalized.userReports = uniqueById(normalized.userReports);
+  normalized.userBlocks = asArray(normalized.userBlocks).filter(isPlainObject);
+  normalized.passwordResetTokens = asArray(normalized.passwordResetTokens).filter(isPlainObject);
   return normalized;
 }
 
@@ -255,7 +347,9 @@ function loadDb() {
 function saveDb(db) {
   const tmpPath = DB_PATH + '.tmp';
   try {
-    fs.writeFileSync(tmpPath, JSON.stringify(db, null, 2));
+    const normalized = normalizeDbShape(db);
+    normalized.meta.updatedAt = new Date().toISOString();
+    fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2));
     fs.renameSync(tmpPath, DB_PATH);
   } catch (err) {
     console.error('saveDb error:', err);
@@ -263,6 +357,17 @@ function saveDb(db) {
     throw err;
   }
 }
+
+function migrateDbOnStartup() {
+  try {
+    saveDb(loadDb());
+  } catch (err) {
+    console.error('Database migration failed:', err);
+    process.exit(1);
+  }
+}
+
+migrateDbOnStartup();
 
 function expireUnclaimedRideRequests(db) {
   let changed = false;
@@ -572,6 +677,14 @@ function isRideVisibleToUser(db, ride, userId) {
   return !areUsersBlocked(db, userId, ride.driverId);
 }
 
+function isRideBrowseVisibleToUser(db, ride, userId) {
+  if (!ride || !userId) return false;
+  if (ride.driverId === userId) return false;
+  if (hasTripStartPassed(ride)) return false;
+  if (!isRideVisibleToUser(db, ride, userId)) return false;
+  return getAvailableOpenSeatIds(ride).length > 0;
+}
+
 function isRideRequestVisibleToUser(db, request, userId) {
   if (!request || !userId) return false;
   if (request.riderId === userId) return true;
@@ -757,6 +870,46 @@ function publicUser(user) {
     requiresPolicyConsent: userNeedsPolicyConsent(user),
     missingRequiredSettings,
     requiresRequiredSettings: missingRequiredSettings.length > 0,
+  };
+}
+
+async function ensureStripeCustomer(db, user) {
+  if (!stripe) throw new Error('Stripe is not configured');
+  if (user.stripeCustomerId) return user.stripeCustomerId;
+  const customer = await stripe.customers.create({
+    email: user.email,
+    name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.name || user.email,
+    metadata: { linkupUserId: user.id },
+  });
+  user.stripeCustomerId = customer.id;
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  return customer.id;
+}
+
+function summarizeStripePaymentMethod(paymentMethod, customerId) {
+  const card = paymentMethod?.card || {};
+  return {
+    provider: 'stripe',
+    stripeCustomerId: customerId || '',
+    stripePaymentMethodId: paymentMethod?.id || '',
+    brand: card.brand || 'card',
+    last4: card.last4 || '',
+    expiry: card.exp_month && card.exp_year ? String(card.exp_month).padStart(2, '0') + '/' + String(card.exp_year).slice(-2) : '',
+    billingName: paymentMethod?.billing_details?.name || '',
+    billingZip: paymentMethod?.billing_details?.address?.postal_code || '',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function summarizeStripeAccount(account) {
+  return {
+    accountId: account.id,
+    detailsSubmitted: account.details_submitted === true,
+    payoutsEnabled: account.payouts_enabled === true,
+    chargesEnabled: account.charges_enabled === true,
+    requirementsDue: Array.isArray(account.requirements?.currently_due) ? account.requirements.currently_due : [],
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -995,49 +1148,12 @@ function refreshTrackingTripRoute(db, trip) {
   return true;
 }
 
-function getCardBrand(cardDigits) {
-  if (/^4/.test(cardDigits)) return 'Visa';
-  if (/^5[1-5]/.test(cardDigits) || /^2[2-7]/.test(cardDigits)) return 'Mastercard';
-  if (/^3[47]/.test(cardDigits)) return 'American Express';
-  if (/^6(?:011|5)/.test(cardDigits)) return 'Discover';
-  return 'Card';
-}
-
-function validatePayment(payment) {
-  if (!payment || !payment.name || !payment.cardNumber || !payment.expiry || !payment.cvv) {
-    return { valid: false, error: 'All payment fields are required' };
-  }
-
-  const cardDigits = String(payment.cardNumber).replace(/\D/g, '');
-  const cvvDigits = String(payment.cvv).replace(/\D/g, '');
-  if (cardDigits.length < 12 || cardDigits.length > 19) {
-    return { valid: false, error: 'Please enter a valid card number' };
-  }
-  if (!/^\d{2}\/\d{2}$/.test(payment.expiry)) {
-    return { valid: false, error: 'Expiration must use MM/YY format' };
-  }
-  const [monthText] = payment.expiry.split('/');
-  const month = Number(monthText);
-  if (month < 1 || month > 12) {
-    return { valid: false, error: 'Please enter a valid expiration month' };
-  }
-  if (cvvDigits.length < 3 || cvvDigits.length > 4) {
-    return { valid: false, error: 'Please enter a valid CVV' };
-  }
-
-  return {
-    valid: true,
-    last4: cardDigits.slice(-4),
-    brand: getCardBrand(cardDigits),
-    expiry: String(payment.expiry).trim(),
-    billingName: String(payment.name || '').trim(),
-    billingZip: String(payment.billingZip || '').trim(),
-  };
-}
-
 function canStudentReserveRide(student, ride, seatId = '', db = null) {
   if (!ride) {
     return 'Ride not found';
+  }
+  if (hasTripStartPassed(ride)) {
+    return 'This ride has already departed';
   }
   if (ride.driverId === student.id) {
     return 'You cannot reserve your own ride';
@@ -1436,36 +1552,62 @@ app.put('/api/profile/policies', requireAuth, (req, res) => {
   res.json(publicUser(user));
 });
 
-app.put('/api/profile/payment-method', requireAuth, (req, res) => {
-  const paymentValidation = validatePayment({
-    name: req.body.name,
-    cardNumber: req.body.cardNumber,
-    expiry: req.body.expiry,
-    cvv: req.body.cvv,
-    billingZip: req.body.billingZip,
-  });
-  if (!paymentValidation.valid) {
-    return res.status(400).json({ error: paymentValidation.error });
+app.post('/api/profile/payment-method/setup-session', requireAuth, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
   }
-
   const db = loadDb();
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
+  try {
+    const customerId = await ensureStripeCustomer(db, user);
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      usage: 'off_session',
+      metadata: { linkupUserId: user.id, purpose: 'default_payment_method' },
+    });
+    res.json({ clientSecret: setupIntent.client_secret, setupIntentId: setupIntent.id });
+  } catch (err) {
+    console.error('Stripe payment method setup error:', err);
+    res.status(502).json({ error: 'Unable to start Stripe payment setup. Please try again.' });
+  }
+});
 
-  user.defaultPaymentMethod = {
-    brand: paymentValidation.brand,
-    last4: paymentValidation.last4,
-    expiry: paymentValidation.expiry,
-    billingName: paymentValidation.billingName.slice(0, 120),
-    billingZip: paymentValidation.billingZip.slice(0, 20),
-    updatedAt: new Date().toISOString(),
-  };
-  user.updatedAt = new Date().toISOString();
-
-  saveDb(db);
-  res.json(publicUser(user));
+app.post('/api/profile/payment-method/complete-setup', requireAuth, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe is not configured. Payment method cannot be verified.' });
+  }
+  const setupIntentId = String(req.body.setupIntentId || req.body.sessionId || '').trim();
+  if (!setupIntentId) {
+    return res.status(400).json({ error: 'Stripe setup intent is required' });
+  }
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  try {
+    const setupIntent = await stripe.setupIntents.retrieve(setupIntentId, { expand: ['payment_method'] });
+    const customerId = typeof setupIntent.customer === 'string' ? setupIntent.customer : setupIntent.customer?.id || '';
+    if (setupIntent.status !== 'succeeded' || customerId !== user.stripeCustomerId) {
+      return res.status(400).json({ error: 'Stripe payment setup did not match this account.' });
+    }
+    const paymentMethod = setupIntent.payment_method;
+    if (!paymentMethod || typeof paymentMethod === 'string' || paymentMethod.type !== 'card') {
+      return res.status(400).json({ error: 'Only card payment methods can be saved right now.' });
+    }
+    await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: paymentMethod.id } });
+    user.defaultPaymentMethod = summarizeStripePaymentMethod(paymentMethod, customerId);
+    user.updatedAt = new Date().toISOString();
+    saveDb(db);
+    res.json(publicUser(user));
+  } catch (err) {
+    console.error('Stripe payment setup verification error:', err);
+    res.status(502).json({ error: 'Unable to verify the saved payment method. Please try again.' });
+  }
 });
 
 app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => {
@@ -1501,6 +1643,7 @@ app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => 
   }
 
   user.payoutInfo = {
+    ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
     legalName: legalName.slice(0, 120),
     method,
     email: email.slice(0, 160),
@@ -1508,7 +1651,7 @@ app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => 
     handle: handle.slice(0, 80),
     address: address.slice(0, 220),
     notes: notes.slice(0, 300),
-    commissionRate: 0.15,
+    commissionRate: LINKUP_COMMISSION_RATE,
     confirmedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -1516,6 +1659,86 @@ app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => 
 
   saveDb(db);
   res.json(publicUser(user));
+});
+
+app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAccess, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
+  }
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  try {
+    let accountId = user.stripeConnectedAccountId || user.payoutInfo?.stripe?.accountId || '';
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: 'US',
+        email: user.email,
+        business_type: 'individual',
+        business_profile: {
+          name: 'LinkUp driver payouts',
+          product_description: 'Peer-to-peer student ride cost-sharing payouts',
+        },
+        capabilities: {
+          transfers: { requested: true },
+        },
+        metadata: { linkupUserId: user.id },
+      });
+      accountId = account.id;
+      user.stripeConnectedAccountId = accountId;
+      user.payoutInfo = {
+        ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
+        method: user.payoutInfo?.method || 'stripe',
+        stripe: summarizeStripeAccount(account),
+      };
+      user.updatedAt = new Date().toISOString();
+      saveDb(db);
+    }
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: APP_BASE_URL + '/?connect=payout&status=refresh',
+      return_url: APP_BASE_URL + '/?connect=payout&status=return',
+      type: 'account_onboarding',
+    });
+    res.json({ url: accountLink.url });
+  } catch (err) {
+    console.error('Stripe Connect onboarding error:', err);
+    res.status(502).json({ error: 'Unable to start Stripe payout onboarding. Please try again.' });
+  }
+});
+
+app.post('/api/profile/payout/stripe-status', requireAuth, requireServiceAccess, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe is not configured. Payout status cannot be checked.' });
+  }
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const accountId = user.stripeConnectedAccountId || user.payoutInfo?.stripe?.accountId || '';
+  if (!accountId) {
+    return res.status(400).json({ error: 'Stripe payouts have not been connected yet.' });
+  }
+  try {
+    const account = await stripe.accounts.retrieve(accountId);
+    user.stripeConnectedAccountId = account.id;
+    user.payoutInfo = {
+      ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
+      method: user.payoutInfo?.method || 'stripe',
+      stripe: summarizeStripeAccount(account),
+      updatedAt: new Date().toISOString(),
+    };
+    user.updatedAt = new Date().toISOString();
+    saveDb(db);
+    res.json(publicUser(user));
+  } catch (err) {
+    console.error('Stripe Connect status error:', err);
+    res.status(502).json({ error: 'Unable to check Stripe payout status. Please try again.' });
+  }
 });
 
 // Sign out endpoint
@@ -2005,7 +2228,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
 app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   const db = loadDb();
   res.json((db.rides || [])
-    .filter((ride) => isRideVisibleToUser(db, ride, req.session.userId))
+    .filter((ride) => isRideBrowseVisibleToUser(db, ride, req.session.userId))
     .map((ride) => rideForUser(ride, req.session.userId, db)));
 });
 
@@ -2382,45 +2605,29 @@ function getSelectedCartEntries(cartEntries, selectedRideIds = null) {
   return cartEntries.filter((entry) => selectedSet.has(entry.rideId));
 }
 
+function getCheckoutLineItems(rides) {
+  return rides.map((ride) => ({
+    price_data: {
+      currency: 'usd',
+      product_data: {
+        name: 'LinkUp ride: ' + (ride.origin || 'Pickup') + ' to ' + (ride.destination || 'Destination'),
+        description: describeTripTime(ride).slice(0, 1000),
+      },
+      unit_amount: Math.max(50, Number(ride.priceCents || 0)),
+    },
+    quantity: 1,
+  }));
+}
+
 app.post('/api/cart/checkout', requireAuth, requireServiceAccess, (req, res) => {
-  const paymentValidation = validatePayment(req.body.payment);
-  if (!paymentValidation.valid) {
-    return res.status(400).json({ error: paymentValidation.error });
-  }
-
-  const db = loadDb();
-  const student = db.users.find((u) => u.id === req.session.userId);
-  if (!student) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  const cartEntries = getSelectedCartEntries(cleanCartEntries(db, student.id), req.body.rideIds);
-  if (!cartEntries.length) {
-    return res.status(400).json({ error: 'Select at least one ride before checkout' });
-  }
-  const reservation = reserveCartRides(db, student, cartEntries);
-  if (reservation.error) {
-    return res.status(400).json({ error: reservation.error });
-  }
-
-  db.payments = db.payments || [];
-  db.payments.push({
-    id: uuidv4(),
-    studentId: student.id,
-    rideIds: reservation.ridesToReserve.map(({ ride }) => ride.id),
-    seats: reservation.ridesToReserve.map(({ ride, seatId }) => ({ rideId: ride.id, seatId })),
-    cardLast4: paymentValidation.last4,
-    status: 'paid',
-    createdAt: new Date().toISOString(),
-  });
-
-  const reservedRideIds = new Set(reservation.ridesToReserve.map(({ ride }) => ride.id));
-  db.carts[student.id] = cleanCartEntries(db, student.id).filter((entry) => !reservedRideIds.has(entry.rideId));
-  saveDb(db);
-  res.json({ message: 'Payment complete. Your seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) });
+  res.status(410).json({ error: 'Direct card checkout has been retired. Use Stripe Checkout.' });
 });
 
-app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess, (req, res) => {
+app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
+  }
+
   const db = loadDb();
   const student = db.users.find((u) => u.id === req.session.userId);
   if (!student) {
@@ -2445,22 +2652,42 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     return res.status(400).json({ error: 'Two rides in your cart overlap: ' + describeTripTime(internalConflict[0]) + ' and ' + describeTripTime(internalConflict[1]) });
   }
 
-  db.checkoutSessions = db.checkoutSessions || [];
-  const sessionId = uuidv4();
-  db.checkoutSessions.push({
-    id: sessionId,
-    studentId: student.id,
-    cartEntries: cartEntries.map((entry) => ({ ...entry })),
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-  });
-  saveDb(db);
+  try {
+    const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + Number(ride.priceCents || 0), 0);
+    const customerId = await ensureStripeCustomer(db, student);
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: expectedAmountCents,
+      currency: 'usd',
+      customer: customerId,
+      payment_method_types: ['card'],
+      receipt_email: student.email,
+      metadata: {
+        linkupStudentId: student.id,
+        linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
+      },
+    });
 
-  res.json({ url: APP_BASE_URL + '/?checkout=success&session_id=' + sessionId, sessionId });
+    db.checkoutSessions = db.checkoutSessions || [];
+    db.checkoutSessions.push({
+      id: paymentIntent.id,
+      stripePaymentIntentId: paymentIntent.id,
+      studentId: student.id,
+      cartEntries: cartEntries.map((entry) => ({ ...entry })),
+      expectedAmountCents,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    saveDb(db);
+
+    res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
+  } catch (err) {
+    console.error('Stripe checkout session error:', err);
+    res.status(502).json({ error: 'Unable to start Stripe Checkout. Please try again.' });
+  }
 });
 
-app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req, res) => {
-  const sessionId = String(req.body.sessionId || '').trim();
+app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, async (req, res) => {
+  const sessionId = String(req.body.sessionId || req.body.paymentIntentId || '').trim();
   const db = loadDb();
   const student = db.users.find((u) => u.id === req.session.userId);
   if (!student) {
@@ -2468,12 +2695,62 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req,
   }
 
   db.checkoutSessions = db.checkoutSessions || [];
-  const checkoutSession = db.checkoutSessions.find((session) => session.id === sessionId && session.studentId === student.id);
+  const checkoutSession = db.checkoutSessions.find((session) => session.studentId === student.id
+    && (session.id === sessionId || session.stripeSessionId === sessionId || session.stripePaymentIntentId === sessionId));
   if (!checkoutSession) {
     return res.status(404).json({ error: 'Checkout session not found' });
   }
   if (checkoutSession.status === 'paid') {
     return res.json({ message: 'Payment already completed.' });
+  }
+
+  if (checkoutSession.stripePaymentIntentId && !checkoutSession.stripeSessionId) {
+    if (!stripe) {
+      return res.status(500).json({ error: 'Stripe is not configured. Payment cannot be verified.' });
+    }
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(checkoutSession.stripePaymentIntentId);
+    } catch (err) {
+      console.error('Stripe payment verification error:', err);
+      return res.status(502).json({ error: 'Unable to verify Stripe payment. Please try again.' });
+    }
+    if (paymentIntent.status !== 'succeeded') {
+      return res.status(400).json({ error: 'Stripe payment is not complete yet.' });
+    }
+    if (checkoutSession.expectedAmountCents && paymentIntent.amount !== checkoutSession.expectedAmountCents) {
+      checkoutSession.status = 'failed';
+      checkoutSession.failureReason = 'Stripe amount mismatch';
+      saveDb(db);
+      return res.status(400).json({ error: 'Stripe payment amount did not match this checkout.' });
+    }
+    checkoutSession.stripeAmountTotal = paymentIntent.amount || 0;
+    checkoutSession.stripeCurrency = paymentIntent.currency || 'usd';
+  } else if (checkoutSession.stripeSessionId) {
+    if (!stripe) {
+      return res.status(500).json({ error: 'Stripe is not configured. Payment cannot be verified.' });
+    }
+    let stripeSession;
+    try {
+      stripeSession = await stripe.checkout.sessions.retrieve(checkoutSession.stripeSessionId);
+    } catch (err) {
+      console.error('Stripe checkout verification error:', err);
+      return res.status(502).json({ error: 'Unable to verify Stripe payment. Please try again.' });
+    }
+    if (stripeSession.payment_status !== 'paid') {
+      return res.status(400).json({ error: 'Stripe payment is not complete yet.' });
+    }
+    if (checkoutSession.expectedAmountCents && stripeSession.amount_total !== checkoutSession.expectedAmountCents) {
+      checkoutSession.status = 'failed';
+      checkoutSession.failureReason = 'Stripe amount mismatch';
+      saveDb(db);
+      return res.status(400).json({ error: 'Stripe payment amount did not match this checkout.' });
+    }
+    checkoutSession.stripePaymentIntentId = typeof stripeSession.payment_intent === 'string'
+      ? stripeSession.payment_intent
+      : stripeSession.payment_intent?.id || '';
+    checkoutSession.stripeAmountTotal = stripeSession.amount_total || 0;
+    checkoutSession.stripeCurrency = stripeSession.currency || 'usd';
   }
 
   const cartEntries = checkoutSession.cartEntries || cleanCartEntries(db, student.id);
@@ -2492,6 +2769,11 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, (req,
     studentId: student.id,
     rideIds: reservation.ridesToReserve.map(({ ride }) => ride.id),
     seats: reservation.ridesToReserve.map(({ ride, seatId }) => ({ rideId: ride.id, seatId })),
+    provider: checkoutSession.stripeSessionId ? 'stripe' : 'local',
+    stripeSessionId: checkoutSession.stripeSessionId || '',
+    stripePaymentIntentId: checkoutSession.stripePaymentIntentId || '',
+    amountCents: checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || null,
+    currency: checkoutSession.stripeCurrency || 'usd',
     status: 'paid',
     createdAt: checkoutSession.completedAt,
   });
