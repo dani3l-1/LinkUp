@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const nodemailer = require('nodemailer');
@@ -35,6 +36,7 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.8';
 const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.8';
+const TRACKING_VIEWER_TTL_MS = 1000 * 60 * 60 * 8;
 function shouldUsePostgresSsl(databaseUrl) {
   if (process.env.DATABASE_SSL === 'true') return true;
   if (process.env.DATABASE_SSL === 'false') return false;
@@ -168,6 +170,10 @@ function getUniversityNameFromEmail(email) {
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 
 function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -369,7 +375,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     },
   })
@@ -486,10 +492,20 @@ function normalizeDbShape(db) {
   normalized.carts = normalizeCartMap(normalized.carts);
   normalized.checkoutSessions = normalizeCheckoutSessions(normalized.checkoutSessions);
   normalized.payments = uniqueById(normalized.payments);
-  normalized.trackingTrips = uniqueById(normalized.trackingTrips).map((trip) => ({
-    ...trip,
-    locations: asArray(trip.locations).filter(isPlainObject),
-  }));
+  normalized.trackingTrips = uniqueById(normalized.trackingTrips).map((trip) => {
+    const createdAtMs = new Date(trip.createdAt || 0).getTime();
+    const fallbackExpiresAt = Number.isFinite(createdAtMs) && createdAtMs > 0
+      ? createdAtMs + TRACKING_VIEWER_TTL_MS
+      : Date.now() + TRACKING_VIEWER_TTL_MS;
+    const viewerAccessExpiresAt = Number(trip.viewerAccessExpiresAt);
+    return {
+      ...trip,
+      viewerAccessExpiresAt: Number.isFinite(viewerAccessExpiresAt) && viewerAccessExpiresAt > 0
+        ? viewerAccessExpiresAt
+        : fallbackExpiresAt,
+      locations: asArray(trip.locations).filter(isPlainObject),
+    };
+  });
   normalized.rideMessages = normalizeRideMessages(normalized.rideMessages);
   normalized.userReports = uniqueById(normalized.userReports);
   normalized.userBlocks = asArray(normalized.userBlocks).filter(isPlainObject);
@@ -954,6 +970,33 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function hasLuhnCheckDigit(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length < 13 || digits.length > 19) return false;
+  let sum = 0;
+  let doubleDigit = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (doubleDigit) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    doubleDigit = !doubleDigit;
+  }
+  return sum > 0 && sum % 10 === 0;
+}
+
+function containsProhibitedFinancialData(value) {
+  const text = String(value || '');
+  if (!text.trim()) return false;
+  const normalized = text.toLowerCase();
+  if (/\b(?:routing|account|acct|iban|swift|sort\s*code|ssn|social\s*security|cvv|cvc|card\s*(?:number|no\.?|#)?)\b/.test(normalized)) {
+    return true;
+  }
+  return text.match(/\b(?:\d[ -]?){13,19}\b/g)?.some(hasLuhnCheckDigit) || false;
+}
+
 function generateVerificationCode() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
@@ -1358,6 +1401,19 @@ function getCartRideIds(db, userId) {
 function getTrackingTrips(db) {
   db.trackingTrips = db.trackingTrips || [];
   return db.trackingTrips;
+}
+
+function isTrackingTripExpired(trip) {
+  return Boolean(trip?.viewerAccessExpiresAt && Number(trip.viewerAccessExpiresAt) <= Date.now());
+}
+
+function expireTrackingTrip(trip) {
+  if (!trip || trip.status !== 'active') return false;
+  if (!isTrackingTripExpired(trip)) return false;
+  trip.status = 'expired';
+  trip.stoppedAt = trip.stoppedAt || new Date().toISOString();
+  trip.updatedAt = trip.stoppedAt;
+  return true;
 }
 
 function publicTrackingTrip(trip) {
@@ -1897,6 +1953,7 @@ app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => 
   const handle = String(req.body.handle || '').trim();
   const address = String(req.body.address || '').trim();
   const notes = String(req.body.notes || '').trim();
+  const payoutFreeText = [legalName, email, handle, address, notes].join(' ');
 
   if (!legalName) {
     return res.status(400).json({ error: 'Legal payout name is required' });
@@ -1909,6 +1966,9 @@ app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => 
   }
   if (email && !/^\S+@\S+\.\S+$/.test(email)) {
     return res.status(400).json({ error: 'Enter a valid payout email' });
+  }
+  if (containsProhibitedFinancialData(payoutFreeText)) {
+    return res.status(400).json({ error: 'Do not enter bank account, routing, card, CVV, SSN, IBAN, or similar financial account numbers in payout fields. Use Stripe payouts for bank details.' });
   }
   if (!req.body.confirmed) {
     return res.status(400).json({ error: 'Confirm that the payout information is accurate' });
@@ -2140,7 +2200,7 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     trustedEmail,
     viewerTokenHash: hashToken(viewerToken),
     viewerUrl,
-    viewerAccessExpiresAt: Date.now() + 1000 * 60 * 60 * 8,
+    viewerAccessExpiresAt: Date.now() + TRACKING_VIEWER_TTL_MS,
     status: 'active',
     locations: [],
     createdAt: new Date().toISOString(),
@@ -2190,6 +2250,10 @@ app.put('/api/trips/track/:tripId/trusted-email', requireAuth, requireServiceAcc
   if (!trip || trip.status !== 'active') {
     return res.status(404).json({ error: 'Active tracking trip not found' });
   }
+  if (expireTrackingTrip(trip)) {
+    saveDb(db);
+    return res.status(410).json({ error: 'This tracking link has expired. Restart sharing to send a new invite.' });
+  }
 
   trip.trustedEmail = trustedEmail;
   trip.updatedAt = new Date().toISOString();
@@ -2227,6 +2291,10 @@ app.post('/api/trips/track/:tripId/location', requireAuth, requireServiceAccess,
   }
   if (trip.status !== 'active') {
     return res.status(400).json({ error: 'Location sharing is not active' });
+  }
+  if (expireTrackingTrip(trip)) {
+    saveDb(db);
+    return res.status(410).json({ error: 'This tracking link has expired. Restart sharing to continue.' });
   }
 
   const location = {
@@ -2272,7 +2340,8 @@ app.get('/api/track/:viewerToken', (req, res) => {
   if (trip.status !== 'active') {
     return res.status(410).json({ error: 'This tracking link is no longer active' });
   }
-  if (trip.viewerAccessExpiresAt && trip.viewerAccessExpiresAt <= Date.now()) {
+  if (expireTrackingTrip(trip)) {
+    saveDb(db);
     return res.status(410).json({ error: 'This tracking link has expired' });
   }
 

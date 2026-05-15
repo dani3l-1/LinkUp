@@ -8,3 +8,5 @@ yarn-error.log*
 /data/db.json
 public/.DS_Store
 /data/email-outbox.json
+/data/sessions.json
+/data/backups/
