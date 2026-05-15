@@ -40,6 +40,9 @@ Ride Connect Save - A university-only ride-sharing app for students to offer and
 3. Enable these APIs:
    - Google Maps Platform > Maps JavaScript API
    - Google Maps Platform > Places API
+   - Google Maps Platform > Directions API
+   - Google Maps Platform > Distance Matrix API
+   - Google Maps Platform > Geocoding API
 4. Create an API key (Web application)
 5. Copy your API key
 
@@ -56,8 +59,9 @@ SESSION_SECRET=your_session_secret_key_here
 - `public/index.html` — frontend UI with Google Maps integration
 - `public/app.js` — client-side logic for rides, authentication, and maps
 - `public/styles.css` — styling with dark theme
-- `data/db.json` — local JSON database for development only
+- `data/db.json` — local development data store when `DATABASE_URL` is not set
 - `docs/data-structure.md` — canonical local data shape and migration notes
+- `docs/deployment-setup.md` — deployment checklist for Render, Railway, or another Node host with PostgreSQL
 - `.env.example` — environment variable template
 
 ## API Endpoints
@@ -80,7 +84,8 @@ SESSION_SECRET=your_session_secret_key_here
 
 ## Security notes
 - Do not commit `.env`, `data/db.json`, or `data/email-outbox.json`.
-- Local `db.json` storage is for development only. Use a managed database before real users.
+- Use `DATABASE_URL` with managed PostgreSQL for hosted deployments.
+- Keep database backups enabled before inviting real users.
 - Do not store full payment cards, CVV, bank account numbers, or routing numbers in LinkUp.
 - Use Stripe Checkout/Elements and Stripe Connect before production payments and payouts.
 - Review the Privacy Policy and Terms of Service with a qualified attorney before public launch.

@@ -9,11 +9,16 @@ const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const DB_PATH = path.join(__dirname, 'data', 'db.json');
-const EMAIL_OUTBOX_PATH = path.join(__dirname, 'data', 'email-outbox.json');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const DB_PATH = path.join(DATA_DIR, 'db.json');
+const EMAIL_OUTBOX_PATH = path.join(DATA_DIR, 'email-outbox.json');
+const SESSION_STORE_PATH = path.join(DATA_DIR, 'sessions.json');
+const DATABASE_URL = process.env.DATABASE_URL || '';
+const USE_POSTGRES = Boolean(DATABASE_URL);
 const SESSION_SECRET = process.env.SESSION_SECRET;
 if (!SESSION_SECRET) {
   console.error('FATAL: SESSION_SECRET environment variable is not set. Refusing to start.');
@@ -30,6 +35,31 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.8';
 const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.8';
+function shouldUsePostgresSsl(databaseUrl) {
+  if (process.env.DATABASE_SSL === 'true') return true;
+  if (process.env.DATABASE_SSL === 'false') return false;
+  return !/(localhost|127\.0\.0\.1)/i.test(databaseUrl);
+}
+const pgPool = USE_POSTGRES ? new Pool({
+  connectionString: DATABASE_URL,
+  ssl: shouldUsePostgresSsl(DATABASE_URL) ? { rejectUnauthorized: false } : false,
+}) : null;
+fs.mkdirSync(DATA_DIR, { recursive: true });
+if (process.env.NODE_ENV === 'production') {
+  const missingProductionVars = [
+    ['DATABASE_URL', DATABASE_URL],
+    ['APP_BASE_URL', APP_BASE_URL && !APP_BASE_URL.includes('localhost')],
+    ['GOOGLE_MAPS_API_KEY', GOOGLE_MAPS_API_KEY],
+    ['STRIPE_SECRET_KEY', process.env.STRIPE_SECRET_KEY],
+    ['STRIPE_PUBLISHABLE_KEY', STRIPE_PUBLISHABLE_KEY],
+    ['STRIPE_WEBHOOK_SECRET', process.env.STRIPE_WEBHOOK_SECRET],
+    ['SMTP_HOST/SMTP_USER/SMTP_PASS', process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS],
+  ].filter(([, ok]) => !ok).map(([name]) => name);
+  if (missingProductionVars.length) {
+    console.error('FATAL: Missing production configuration: ' + missingProductionVars.join(', '));
+    process.exit(1);
+  }
+}
 const CAR_SEATS = [
   { id: 'front_passenger', label: 'Front passenger' },
   { id: 'back_left', label: 'Back left' },
@@ -189,11 +219,138 @@ const authRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 60, messa
 const sensitiveWriteRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 40, message: 'Too many sensitive updates. Please wait and try again.' });
 const trackingRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many tracking requests. Please slow down.' });
 
+class JsonSessionStore extends session.Store {
+  constructor(filePath) {
+    super();
+    this.filePath = filePath;
+  }
+
+  readSessions() {
+    try {
+      const raw = fs.readFileSync(this.filePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  writeSessions(sessions) {
+    const tmpPath = this.filePath + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(sessions, null, 2));
+    fs.renameSync(tmpPath, this.filePath);
+  }
+
+  isExpired(sess) {
+    const expires = sess?.cookie?.expires;
+    return Boolean(expires && new Date(expires).getTime() <= Date.now());
+  }
+
+  get(sid, callback) {
+    try {
+      const sessions = this.readSessions();
+      const sess = sessions[sid];
+      if (!sess || this.isExpired(sess)) {
+        delete sessions[sid];
+        this.writeSessions(sessions);
+        return callback(null, null);
+      }
+      callback(null, sess);
+    } catch (err) {
+      callback(err);
+    }
+  }
+
+  set(sid, sess, callback = () => {}) {
+    try {
+      const sessions = this.readSessions();
+      sessions[sid] = sess;
+      this.writeSessions(sessions);
+      callback(null);
+    } catch (err) {
+      callback(err);
+    }
+  }
+
+  destroy(sid, callback = () => {}) {
+    try {
+      const sessions = this.readSessions();
+      delete sessions[sid];
+      this.writeSessions(sessions);
+      callback(null);
+    } catch (err) {
+      callback(err);
+    }
+  }
+
+  touch(sid, sess, callback = () => {}) {
+    this.set(sid, sess, callback);
+  }
+}
+
+class PostgresSessionStore extends session.Store {
+  constructor(pool) {
+    super();
+    this.pool = pool;
+  }
+
+  get(sid, callback) {
+    this.pool.query('SELECT sess FROM linkup_sessions WHERE sid = $1 AND expires > NOW()', [sid])
+      .then((result) => callback(null, result.rows[0]?.sess || null))
+      .catch((err) => callback(err));
+  }
+
+  set(sid, sess, callback = () => {}) {
+    const expires = sess?.cookie?.expires ? new Date(sess.cookie.expires) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    this.pool.query(
+      `INSERT INTO linkup_sessions (sid, sess, expires)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (sid) DO UPDATE SET sess = EXCLUDED.sess, expires = EXCLUDED.expires`,
+      [sid, sess, expires]
+    ).then(() => callback(null)).catch((err) => callback(err));
+  }
+
+  destroy(sid, callback = () => {}) {
+    this.pool.query('DELETE FROM linkup_sessions WHERE sid = $1', [sid])
+      .then(() => callback(null))
+      .catch((err) => callback(err));
+  }
+
+  touch(sid, sess, callback = () => {}) {
+    this.set(sid, sess, callback);
+  }
+}
+
 app.use(securityHeaders);
 app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true,
   credentials: true,
 }));
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(503).json({ error: 'Stripe webhook is not configured' });
+  }
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Stripe webhook signature error:', err.message);
+    return res.status(400).send('Webhook signature verification failed');
+  }
+  try {
+    const db = loadDb();
+    if (event.type === 'payment_intent.succeeded') {
+      finalizePaidCheckoutByPaymentIntent(db, event.data.object);
+    } else if (event.type === 'account.updated') {
+      updateStripeConnectedAccountStatus(db, event.data.object);
+    }
+    saveDb(db);
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Stripe webhook handling error:', err);
+    res.status(500).json({ error: 'Webhook handling failed' });
+  }
+});
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/auth', authRateLimit);
 app.use('/api/profile/payment-method', sensitiveWriteRateLimit);
@@ -205,6 +362,7 @@ app.use('/api/track', trackingRateLimit);
 app.use(
   session({
     name: 'linkup.sid',
+    store: USE_POSTGRES ? new PostgresSessionStore(pgPool) : new JsonSessionStore(SESSION_STORE_PATH),
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -276,11 +434,13 @@ function normalizeCartMap(carts) {
   return Object.entries(asPlainObject(carts)).reduce((normalized, [userId, entries]) => {
     normalized[userId] = asArray(entries)
       .map((entry) => {
-        if (typeof entry === 'string') return { rideId: entry, seatId: '', termsAcceptedAt: '' };
+        if (typeof entry === 'string') return { rideId: entry, seatId: '', actualPickup: '', actualDropoff: '', termsAcceptedAt: '' };
         if (!isPlainObject(entry)) return null;
         return {
           rideId: String(entry.rideId || ''),
           seatId: String(entry.seatId || ''),
+          actualPickup: String(entry.actualPickup || '').slice(0, 180),
+          actualDropoff: String(entry.actualDropoff || '').slice(0, 180),
           termsAcceptedAt: String(entry.termsAcceptedAt || ''),
         };
       })
@@ -303,6 +463,8 @@ function normalizeCheckoutSessions(sessions) {
       .map((entry) => isPlainObject(entry) ? {
         rideId: String(entry.rideId || ''),
         seatId: String(entry.seatId || ''),
+        actualPickup: String(entry.actualPickup || '').slice(0, 180),
+        actualDropoff: String(entry.actualDropoff || '').slice(0, 180),
         termsAcceptedAt: String(entry.termsAcceptedAt || ''),
       } : null)
       .filter((entry) => entry?.rideId),
@@ -335,7 +497,10 @@ function normalizeDbShape(db) {
   return normalized;
 }
 
-function loadDb() {
+let dbCache = null;
+let dbWritePromise = Promise.resolve();
+
+function readFileDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
     return normalizeDbShape(JSON.parse(raw));
@@ -344,11 +509,38 @@ function loadDb() {
   }
 }
 
+function loadDb() {
+  if (USE_POSTGRES) {
+    return normalizeDbShape(dbCache || getEmptyDb());
+  }
+  return readFileDb();
+}
+
+function queuePostgresDbSave(db) {
+  const snapshot = JSON.parse(JSON.stringify(db));
+  dbWritePromise = dbWritePromise
+    .then(() => pgPool.query(
+      `INSERT INTO linkup_state (state_key, data, updated_at)
+       VALUES ('main', $1, NOW())
+       ON CONFLICT (state_key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+      [snapshot]
+    ))
+    .catch((err) => {
+      console.error('PostgreSQL saveDb error:', err);
+    });
+}
+
 function saveDb(db) {
+  const normalized = normalizeDbShape(db);
+  normalized.meta.updatedAt = new Date().toISOString();
+  if (USE_POSTGRES) {
+    dbCache = normalized;
+    queuePostgresDbSave(normalized);
+    return;
+  }
+
   const tmpPath = DB_PATH + '.tmp';
   try {
-    const normalized = normalizeDbShape(db);
-    normalized.meta.updatedAt = new Date().toISOString();
     fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2));
     fs.renameSync(tmpPath, DB_PATH);
   } catch (err) {
@@ -358,16 +550,53 @@ function saveDb(db) {
   }
 }
 
-function migrateDbOnStartup() {
+async function initPostgresStorage() {
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS linkup_state (
+      state_key TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS linkup_sessions (
+      sid TEXT PRIMARY KEY,
+      sess JSONB NOT NULL,
+      expires TIMESTAMPTZ NOT NULL
+    )
+  `);
+  await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_sessions_expires_idx ON linkup_sessions (expires)');
+  await pgPool.query('DELETE FROM linkup_sessions WHERE expires <= NOW()');
+
+  const result = await pgPool.query('SELECT data FROM linkup_state WHERE state_key = $1', ['main']);
+  if (result.rows[0]?.data) {
+    dbCache = normalizeDbShape(result.rows[0].data);
+  } else {
+    dbCache = readFileDb();
+    await pgPool.query(
+      `INSERT INTO linkup_state (state_key, data, updated_at)
+       VALUES ('main', $1, NOW())
+       ON CONFLICT (state_key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+      [dbCache]
+    );
+  }
+  console.log('LinkUp PostgreSQL storage connected.');
+}
+
+async function migrateDbOnStartup() {
   try {
-    saveDb(loadDb());
+    if (USE_POSTGRES) {
+      await initPostgresStorage();
+      saveDb(loadDb());
+      await dbWritePromise;
+    } else {
+      saveDb(loadDb());
+    }
   } catch (err) {
     console.error('Database migration failed:', err);
     process.exit(1);
   }
 }
-
-migrateDbOnStartup();
 
 function expireUnclaimedRideRequests(db) {
   let changed = false;
@@ -523,6 +752,11 @@ function getTripIntervals(trip) {
   return intervals;
 }
 
+function hasTripEnded(trip) {
+  const intervals = getTripIntervals(trip);
+  return intervals.length > 0 && intervals.every((interval) => interval.end < Date.now());
+}
+
 function intervalsOverlap(a, b) {
   return a.start < b.end && b.start < a.end;
 }
@@ -570,6 +804,16 @@ function getRideMiles(ride) {
     ? Number(ride.distanceMiles)
     : calculateDistanceMiles(ride.originLat, ride.originLng, ride.destinationLat, ride.destinationLng);
   return Math.round(oneWayMiles * (ride.returnRide ? 2 : 1) * 10) / 10;
+}
+
+function getRideMilesSaved(ride) {
+  const passengerCount = Array.isArray(ride.passengers) ? ride.passengers.length : 0;
+  if (!passengerCount) return 0;
+  return Math.round(getRideMiles(ride) * passengerCount * 10) / 10;
+}
+
+function hasConfirmedRidePassenger(ride) {
+  return Array.isArray(ride.passengers) && ride.passengers.length > 0;
 }
 
 function getDriverRatingSummary(db, driverId) {
@@ -638,6 +882,12 @@ function isRideChatDisabled(ride) {
 
 function rideForUser(ride, userId, db = null) {
   const publicRide = withRideMiles(ride, db);
+  publicRide.passengers = (publicRide.passengers || []).map((passenger) => {
+    const canSeeRiderStops = publicRide.driverId === userId || passenger.studentId === userId;
+    if (canSeeRiderStops) return passenger;
+    const { actualPickup, actualDropoff, ...safePassenger } = passenger;
+    return safePassenger;
+  });
   if (!canUserSeeDriverFullName(ride, userId)) {
     publicRide.driverLastName = getMaskedLastName(ride.driverLastName);
   }
@@ -1034,12 +1284,40 @@ function getAvailableOpenSeatIds(ride) {
   return getRideSeatMap(ride).filter((seat) => seat.available && !seat.reserved).map((seat) => seat.id);
 }
 
+function sanitizeRiderStop(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+}
+
+function rideAllowsCustomPickup(ride) {
+  return ride?.rideProviderType === 'personal_car' && Number(ride?.pickupRadiusMiles || 0) > 0;
+}
+
+function rideAllowsCustomDropoff(ride) {
+  return ride?.rideProviderType === 'personal_car' && Number(ride?.dropoffRadiusMiles || 0) > 0;
+}
+
+function validateRiderStopsForRide(ride, actualPickup = '', actualDropoff = '') {
+  if (rideAllowsCustomPickup(ride) && !sanitizeRiderStop(actualPickup)) {
+    return 'Enter your actual pickup spot for this ride';
+  }
+  if (rideAllowsCustomDropoff(ride) && !sanitizeRiderStop(actualDropoff)) {
+    return 'Enter your actual drop-off spot for this ride';
+  }
+  return '';
+}
+
 function normalizeCartEntries(db, userId) {
   db.carts = db.carts || {};
   const rawCart = db.carts[userId] || [];
   const entries = rawCart.map((entry) => {
-    if (typeof entry === 'string') return { rideId: entry, seatId: '', termsAcceptedAt: '' };
-    return { rideId: entry.rideId, seatId: entry.seatId || '', termsAcceptedAt: entry.termsAcceptedAt || '' };
+    if (typeof entry === 'string') return { rideId: entry, seatId: '', actualPickup: '', actualDropoff: '', termsAcceptedAt: '' };
+    return {
+      rideId: entry.rideId,
+      seatId: entry.seatId || '',
+      actualPickup: sanitizeRiderStop(entry.actualPickup),
+      actualDropoff: sanitizeRiderStop(entry.actualDropoff),
+      termsAcceptedAt: entry.termsAcceptedAt || '',
+    };
   }).filter((entry) => entry.rideId);
   db.carts[userId] = entries;
   return entries;
@@ -1785,6 +2063,8 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
 
   const milesBySchool = new Map();
   (db.rides || []).forEach((ride) => {
+    if (!hasTripEnded(ride)) return;
+    if (!hasConfirmedRidePassenger(ride)) return;
     const rideMiles = getRideMiles(ride);
     if (!rideMiles) return;
 
@@ -1818,8 +2098,12 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
       if (b.miles !== a.miles) return b.miles - a.miles;
       return a.school.localeCompare(b.school);
     });
+  const totalMilesSaved = Math.round((db.rides || [])
+    .filter(hasTripEnded)
+    .filter(hasConfirmedRidePassenger)
+    .reduce((sum, ride) => sum + getRideMilesSaved(ride), 0) * 10) / 10;
 
-  res.json({ schools, mileageSchools, totalUsers: (db.users || []).length });
+  res.json({ schools, mileageSchools, totalUsers: (db.users || []).length, totalMilesSaved });
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting
@@ -2350,6 +2634,8 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res) => {
   const { rideId } = req.params;
   const seatId = String(req.body.seatId || '').trim();
+  const actualPickup = sanitizeRiderStop(req.body.actualPickup);
+  const actualDropoff = sanitizeRiderStop(req.body.actualDropoff);
   if (req.body.termsAccepted !== true) {
     return res.status(400).json({ error: 'You must agree to the Terms and Conditions before joining this ride' });
   }
@@ -2369,6 +2655,10 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
   if (reserveError) {
     return res.status(400).json({ error: reserveError });
   }
+  const stopError = validateRiderStopsForRide(ride, actualPickup, actualDropoff);
+  if (stopError) {
+    return res.status(400).json({ error: stopError });
+  }
 
   ride.passengers.push({
     studentId: student.id,
@@ -2377,6 +2667,8 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
     studentGender: student.gender || '',
     email: student.email,
     seatId,
+    actualPickup,
+    actualDropoff,
   });
   ride.seatsAvailable = getAvailableOpenSeatIds(ride).length;
   saveDb(db);
@@ -2547,6 +2839,8 @@ app.get('/api/cart', requireAuth, requireServiceAccess, (req, res) => {
       return ride ? {
         ...rideForUser(ride, req.session.userId, db),
         selectedSeatId: entry.seatId,
+        actualPickup: entry.actualPickup || '',
+        actualDropoff: entry.actualDropoff || '',
         cartTermsAccepted: Boolean(entry.termsAcceptedAt),
       } : null;
     })
@@ -2575,7 +2869,12 @@ function reserveCartRides(db, student, cartEntries) {
       const rideLabel = ride ? ride.origin + ' to ' + ride.destination : entry.rideId;
       return { error: reserveError + ': ' + rideLabel };
     }
-    ridesToReserve.push({ ride, seatId: entry.seatId });
+    const stopError = validateRiderStopsForRide(ride, entry.actualPickup, entry.actualDropoff);
+    if (stopError) {
+      const rideLabel = ride ? ride.origin + ' to ' + ride.destination : entry.rideId;
+      return { error: stopError + ': ' + rideLabel };
+    }
+    ridesToReserve.push({ ride, seatId: entry.seatId, actualPickup: sanitizeRiderStop(entry.actualPickup), actualDropoff: sanitizeRiderStop(entry.actualDropoff) });
   }
 
   const internalConflict = findInternalRideConflict(ridesToReserve.map(({ ride }) => ride));
@@ -2583,7 +2882,7 @@ function reserveCartRides(db, student, cartEntries) {
     return { error: 'Two rides in your cart overlap: ' + describeTripTime(internalConflict[0]) + ' and ' + describeTripTime(internalConflict[1]) };
   }
 
-  ridesToReserve.forEach(({ ride, seatId }) => {
+  ridesToReserve.forEach(({ ride, seatId, actualPickup, actualDropoff }) => {
     ride.passengers.push({
       studentId: student.id,
       studentFirstName: student.firstName,
@@ -2591,6 +2890,8 @@ function reserveCartRides(db, student, cartEntries) {
       studentGender: student.gender || '',
       email: student.email,
       seatId,
+      actualPickup,
+      actualDropoff,
     });
     ride.seatsAvailable = getAvailableOpenSeatIds(ride).length;
   });
@@ -2603,6 +2904,79 @@ function getSelectedCartEntries(cartEntries, selectedRideIds = null) {
   const selectedSet = new Set(selectedRideIds.map((rideId) => String(rideId || '').trim()).filter(Boolean));
   if (!selectedSet.size) return [];
   return cartEntries.filter((entry) => selectedSet.has(entry.rideId));
+}
+
+function finalizePaidCheckoutSession(db, student, checkoutSession) {
+  if (!student) return { error: 'User not found' };
+  if (!checkoutSession) return { error: 'Checkout session not found' };
+  if (checkoutSession.status === 'paid') return { message: 'Payment already completed.', alreadyPaid: true };
+
+  const cartEntries = checkoutSession.cartEntries || cleanCartEntries(db, student.id);
+  const reservation = reserveCartRides(db, student, cartEntries);
+  if (reservation.error) {
+    checkoutSession.status = 'failed';
+    checkoutSession.failureReason = reservation.error;
+    return { error: reservation.error };
+  }
+
+  checkoutSession.status = 'paid';
+  checkoutSession.completedAt = new Date().toISOString();
+  db.payments = db.payments || [];
+  const existingPayment = db.payments.find((payment) => payment.stripePaymentIntentId
+    && payment.stripePaymentIntentId === checkoutSession.stripePaymentIntentId);
+  if (!existingPayment) {
+    db.payments.push({
+      id: uuidv4(),
+      studentId: student.id,
+      rideIds: reservation.ridesToReserve.map(({ ride }) => ride.id),
+      seats: reservation.ridesToReserve.map(({ ride, seatId, actualPickup, actualDropoff }) => ({ rideId: ride.id, seatId, actualPickup, actualDropoff })),
+      provider: checkoutSession.stripeSessionId ? 'stripe' : 'local',
+      stripeSessionId: checkoutSession.stripeSessionId || '',
+      stripePaymentIntentId: checkoutSession.stripePaymentIntentId || '',
+      amountCents: checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || null,
+      currency: checkoutSession.stripeCurrency || 'usd',
+      status: 'paid',
+      createdAt: checkoutSession.completedAt,
+    });
+  }
+  const reservedRideIds = new Set(reservation.ridesToReserve.map(({ ride }) => ride.id));
+  db.carts[student.id] = cleanCartEntries(db, student.id).filter((entry) => !reservedRideIds.has(entry.rideId));
+  return { message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) };
+}
+
+function finalizePaidCheckoutByPaymentIntent(db, paymentIntent) {
+  const paymentIntentId = typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id;
+  const checkoutSession = (db.checkoutSessions || []).find((session) => session.stripePaymentIntentId === paymentIntentId);
+  if (!checkoutSession) return { error: 'Checkout session not found' };
+  if (paymentIntent && typeof paymentIntent === 'object') {
+    if (checkoutSession.expectedAmountCents && paymentIntent.amount !== checkoutSession.expectedAmountCents) {
+      checkoutSession.status = 'failed';
+      checkoutSession.failureReason = 'Stripe amount mismatch';
+      return { error: 'Stripe payment amount did not match this checkout.' };
+    }
+    checkoutSession.stripeAmountTotal = paymentIntent.amount || 0;
+    checkoutSession.stripeCurrency = paymentIntent.currency || 'usd';
+  } else {
+    checkoutSession.stripeAmountTotal = checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || 0;
+    checkoutSession.stripeCurrency = checkoutSession.stripeCurrency || 'usd';
+  }
+  const student = (db.users || []).find((user) => user.id === checkoutSession.studentId);
+  return finalizePaidCheckoutSession(db, student, checkoutSession);
+}
+
+function updateStripeConnectedAccountStatus(db, account) {
+  const user = (db.users || []).find((entry) => entry.stripeConnectedAccountId === account.id
+    || entry.payoutInfo?.stripe?.accountId === account.id);
+  if (!user) return false;
+  user.stripeConnectedAccountId = account.id;
+  user.payoutInfo = {
+    ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
+    method: user.payoutInfo?.method || 'stripe',
+    stripe: summarizeStripeAccount(account),
+    updatedAt: new Date().toISOString(),
+  };
+  user.updatedAt = new Date().toISOString();
+  return true;
 }
 
 function getCheckoutLineItems(rides) {
@@ -2753,39 +3127,19 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, async
     checkoutSession.stripeCurrency = stripeSession.currency || 'usd';
   }
 
-  const cartEntries = checkoutSession.cartEntries || cleanCartEntries(db, student.id);
-  const reservation = reserveCartRides(db, student, cartEntries);
-  if (reservation.error) {
-    checkoutSession.status = 'failed';
-    saveDb(db);
-    return res.status(400).json({ error: reservation.error });
-  }
-
-  checkoutSession.status = 'paid';
-  checkoutSession.completedAt = new Date().toISOString();
-  db.payments = db.payments || [];
-  db.payments.push({
-    id: uuidv4(),
-    studentId: student.id,
-    rideIds: reservation.ridesToReserve.map(({ ride }) => ride.id),
-    seats: reservation.ridesToReserve.map(({ ride, seatId }) => ({ rideId: ride.id, seatId })),
-    provider: checkoutSession.stripeSessionId ? 'stripe' : 'local',
-    stripeSessionId: checkoutSession.stripeSessionId || '',
-    stripePaymentIntentId: checkoutSession.stripePaymentIntentId || '',
-    amountCents: checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || null,
-    currency: checkoutSession.stripeCurrency || 'usd',
-    status: 'paid',
-    createdAt: checkoutSession.completedAt,
-  });
-  const reservedRideIds = new Set(reservation.ridesToReserve.map(({ ride }) => ride.id));
-  db.carts[student.id] = cleanCartEntries(db, student.id).filter((entry) => !reservedRideIds.has(entry.rideId));
+  const finalized = finalizePaidCheckoutSession(db, student, checkoutSession);
   saveDb(db);
-  res.json({ message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) });
+  if (finalized.error) {
+    return res.status(400).json({ error: finalized.error });
+  }
+  res.json({ message: finalized.message, rides: finalized.rides || [] });
 });
 
 app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   const { rideId } = req.params;
   const seatId = String(req.body.seatId || '').trim();
+  const actualPickup = sanitizeRiderStop(req.body.actualPickup);
+  const actualDropoff = sanitizeRiderStop(req.body.actualDropoff);
   if (req.body.termsAccepted !== true) {
     return res.status(400).json({ error: 'You must agree to the Terms and Conditions before adding this ride' });
   }
@@ -2803,6 +3157,10 @@ app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   if (reserveError) {
     return res.status(400).json({ error: reserveError });
   }
+  const stopError = validateRiderStopsForRide(ride, actualPickup, actualDropoff);
+  if (stopError) {
+    return res.status(400).json({ error: stopError });
+  }
 
   const cartEntries = cleanCartEntries(db, student.id);
   const existingCartRide = cartEntries
@@ -2816,9 +3174,11 @@ app.post('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) => {
   const existingEntry = cartEntries.find((entry) => entry.rideId === ride.id);
   if (existingEntry) {
     existingEntry.seatId = seatId;
+    existingEntry.actualPickup = actualPickup;
+    existingEntry.actualDropoff = actualDropoff;
     existingEntry.termsAcceptedAt = new Date().toISOString();
   } else {
-    cartEntries.push({ rideId: ride.id, seatId, termsAcceptedAt: new Date().toISOString() });
+    cartEntries.push({ rideId: ride.id, seatId, actualPickup, actualDropoff, termsAcceptedAt: new Date().toISOString() });
   }
   saveDb(db);
 
@@ -2947,6 +3307,8 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
       return {
         ...withRideMiles(ride, db),
         selectedSeatId: passenger?.seatId || '',
+        actualPickup: passenger?.actualPickup || '',
+        actualDropoff: passenger?.actualDropoff || '',
         driverRatingByCurrentUser: passenger?.driverRating || null,
         driverRatingCommentByCurrentUser: passenger?.driverRatingComment || '',
       };
@@ -2960,6 +3322,29 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`LinkUp server listening on http://localhost:${PORT}`);
+let server;
+
+async function shutdown(signal) {
+  console.log(`${signal} received. Shutting down LinkUp...`);
+  try {
+    await dbWritePromise;
+    if (pgPool) await pgPool.end();
+  } catch (err) {
+    console.error('Shutdown error:', err);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+migrateDbOnStartup().then(() => {
+  server = app.listen(PORT, () => {
+    console.log(`LinkUp server listening on http://localhost:${PORT}`);
+  });
+  server.on('error', (err) => {
+    console.error('Server startup error:', err);
+    process.exit(1);
+  });
 });

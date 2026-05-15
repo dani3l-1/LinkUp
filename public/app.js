@@ -96,6 +96,7 @@ const leaderboardButton = document.getElementById('leaderboard-button');
 const leaderboardPage = document.getElementById('leaderboard-page');
 const leaderboardBackHomeButton = document.getElementById('leaderboard-back-home');
 const leaderboardSummary = document.getElementById('leaderboard-summary');
+const leaderboardSavedMiles = document.getElementById('leaderboard-saved-miles');
 const schoolLeaderboardChart = document.getElementById('school-leaderboard-chart');
 const milesLeaderboardSummary = document.getElementById('miles-leaderboard-summary');
 const milesLeaderboardChart = document.getElementById('miles-leaderboard-chart');
@@ -1691,6 +1692,10 @@ function renderSchoolLeaderboard(data) {
   schoolLeaderboardChart.innerHTML = '';
   milesLeaderboardSummary.textContent = 'Loading miles...';
   milesLeaderboardChart.innerHTML = '';
+  if (leaderboardSavedMiles) {
+    const savedMilesValue = leaderboardSavedMiles.querySelector('strong');
+    if (savedMilesValue) savedMilesValue.textContent = formatMiles(data.totalMilesSaved || 0);
+  }
   leaderboardSummary.textContent = schools.length
     ? `${data.totalUsers} total user${data.totalUsers === 1 ? '' : 's'} across ${schools.length} school${schools.length === 1 ? '' : 's'}.`
     : 'No users have signed up yet.';
@@ -1712,6 +1717,10 @@ async function loadLeaderboard() {
   leaderboardError.textContent = '';
   leaderboardError.classList.remove('show');
   leaderboardSummary.textContent = 'Loading schools...';
+  if (leaderboardSavedMiles) {
+    const savedMilesValue = leaderboardSavedMiles.querySelector('strong');
+    if (savedMilesValue) savedMilesValue.textContent = 'Loading...';
+  }
   schoolLeaderboardChart.innerHTML = '';
   try {
     const data = await fetchJson('/api/leaderboard/schools');
@@ -1719,6 +1728,10 @@ async function loadLeaderboard() {
   } catch (err) {
     leaderboardSummary.textContent = '';
     milesLeaderboardSummary.textContent = '';
+    if (leaderboardSavedMiles) {
+      const savedMilesValue = leaderboardSavedMiles.querySelector('strong');
+      if (savedMilesValue) savedMilesValue.textContent = '--';
+    }
     leaderboardError.textContent = err.message;
     leaderboardError.classList.add('show');
   }
@@ -3238,6 +3251,51 @@ function getFlexRadiusMarkup(item, mode = 'driver') {
   ].join('');
 }
 
+function rideNeedsRiderPickup(ride) {
+  return ride?.rideProviderType === 'personal_car' && Number(ride?.pickupRadiusMiles || 0) > 0;
+}
+
+function rideNeedsRiderDropoff(ride) {
+  return ride?.rideProviderType === 'personal_car' && Number(ride?.dropoffRadiusMiles || 0) > 0;
+}
+
+function getRiderStopFieldsMarkup(ride) {
+  if (!rideNeedsRiderPickup(ride) && !rideNeedsRiderDropoff(ride)) return '';
+  return `
+    <div class="rider-stop-fields" data-rider-stop-fields="${esc(ride.id)}">
+      <div class="rider-stop-fields-title">Your exact ride spots</div>
+      ${rideNeedsRiderPickup(ride) ? `<label>Actual pickup spot <input type="text" data-rider-pickup="${esc(ride.id)}" maxlength="180" placeholder="Dorm, building, address, or landmark" value="${esc(ride.actualPickup || '')}" /></label>` : ''}
+      ${rideNeedsRiderDropoff(ride) ? `<label>Actual drop-off spot <input type="text" data-rider-dropoff="${esc(ride.id)}" maxlength="180" placeholder="Exact address, terminal, or landmark" value="${esc(ride.actualDropoff || '')}" /></label>` : ''}
+    </div>
+  `;
+}
+
+function getRiderStopPayload(ride) {
+  const rideId = String(ride.id || '').replace(/"/g, '\\"');
+  return {
+    actualPickup: rideNeedsRiderPickup(ride) ? (document.querySelector(`[data-rider-pickup="${rideId}"]`)?.value || '').trim() : '',
+    actualDropoff: rideNeedsRiderDropoff(ride) ? (document.querySelector(`[data-rider-dropoff="${rideId}"]`)?.value || '').trim() : '',
+  };
+}
+
+function getRiderStopDetailMarkup(item) {
+  const rows = [];
+  if (item.actualPickup) rows.push(`<div><strong>Actual pickup:</strong> ${esc(item.actualPickup)}</div>`);
+  if (item.actualDropoff) rows.push(`<div><strong>Actual drop-off:</strong> ${esc(item.actualDropoff)}</div>`);
+  return rows.join('');
+}
+
+function appendPassengerStopDetails(container, passenger) {
+  const details = [];
+  if (passenger?.actualPickup) details.push('Pickup: ' + passenger.actualPickup);
+  if (passenger?.actualDropoff) details.push('Drop-off: ' + passenger.actualDropoff);
+  if (!details.length) return;
+  const note = document.createElement('span');
+  note.className = 'seat-manifest-stop-note';
+  note.textContent = details.join(' · ');
+  container.appendChild(note);
+}
+
 function esc(str) {
   return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -3371,6 +3429,11 @@ function renderRideCard(ride) {
       cartActionButton.disabled = isInCart || !selectedSeatId || ride.seatsAvailable <= 0;
       card.appendChild(renderRideSeatPicker(ride, cartActionButton));
     }
+    if (!isInCart && (rideNeedsRiderPickup(ride) || rideNeedsRiderDropoff(ride))) {
+      const stops = document.createElement('div');
+      stops.innerHTML = getRiderStopFieldsMarkup(ride);
+      card.appendChild(stops.firstElementChild);
+    }
     const riderTermsLabel = document.createElement('label');
     riderTermsLabel.className = 'checkbox-label terms-agreement rider-terms-agreement';
     const riderTermsCheckbox = document.createElement('input');
@@ -3391,7 +3454,18 @@ function renderRideCard(ride) {
       }
       try {
         const seatId = ride.seatingChartUnavailable ? '' : selectedSeatByRide.get(ride.id);
-        await fetchJson(`/api/cart/${ride.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seatId, termsAccepted: true }) });
+        const riderStops = getRiderStopPayload(ride);
+        if (rideNeedsRiderPickup(ride) && !riderStops.actualPickup) {
+          cardError.textContent = 'Enter your actual pickup spot for this ride.';
+          cardError.classList.add('show');
+          return;
+        }
+        if (rideNeedsRiderDropoff(ride) && !riderStops.actualDropoff) {
+          cardError.textContent = 'Enter your actual drop-off spot for this ride.';
+          cardError.classList.add('show');
+          return;
+        }
+        await fetchJson(`/api/cart/${ride.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seatId, ...riderStops, termsAccepted: true }) });
         await loadCart();
         loadRides();
       } catch (err) {
@@ -3417,8 +3491,12 @@ function renderRideCard(ride) {
 }
 function getCurrentUserSeatId(ride) {
   if (ride.selectedSeatId) return ride.selectedSeatId;
-  const passenger = (ride.passengers || []).find((p) => p.studentId === currentUser?.id);
+  const passenger = getCurrentUserPassenger(ride);
   return passenger?.seatId || '';
+}
+
+function getCurrentUserPassenger(ride) {
+  return (ride.passengers || []).find((p) => p.studentId === currentUser?.id) || null;
 }
 
 function canSeeRideLicensePlate(ride) {
@@ -3664,6 +3742,7 @@ function buildDriverSeatManifest(ride) {
       const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
       rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
       if (passenger.email) rider.appendChild(document.createTextNode(' · ' + passenger.email));
+      appendPassengerStopDetails(rider, passenger);
 
       row.append(spot, rider);
       if (passenger.studentId && passenger.studentId !== currentUser?.id) {
@@ -3704,6 +3783,7 @@ function buildDriverSeatManifest(ride) {
       const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
       rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
       if (passenger.email) rider.appendChild(document.createTextNode(' · ' + passenger.email));
+      appendPassengerStopDetails(rider, passenger);
     } else {
       rider.textContent = isForSale ? 'Available' : 'Unavailable';
     }
@@ -3872,6 +3952,7 @@ function buildDriverRideSummary(ride) {
 
 function buildRideSummary(ride, options = {}) {
   const selectedSeatId = getCurrentUserSeatId(ride);
+  const currentPassenger = getCurrentUserPassenger(ride);
   const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
   const container = document.createElement('div');
   container.className = 'ride-card';
@@ -3889,6 +3970,7 @@ function buildRideSummary(ride, options = {}) {
       ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
       <div><strong>Seats available:</strong> ${esc(ride.seatsAvailable)}</div>
       ${selectedSeatId ? `<div><strong>Seat:</strong> ${esc(getSeatLabel(selectedSeatId))}</div>` : ''}
+      ${getRiderStopDetailMarkup(currentPassenger || ride)}
       <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
       <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
       ${getVehicleDetailMarkup(ride)}
@@ -3929,6 +4011,8 @@ function renderCartItem(ride) {
   item.dataset.rideId = ride.id;
   item.dataset.priceCents = String(ride.priceCents || 0);
   item.dataset.cartTermsAccepted = ride.cartTermsAccepted ? 'true' : 'false';
+  item.dataset.actualPickup = ride.actualPickup || '';
+  item.dataset.actualDropoff = ride.actualDropoff || '';
 
   // Strip elements that clutter the cart view — the cart-item-detail
   // strip below already shows all the key info cleanly.
@@ -3968,6 +4052,7 @@ function renderCartItem(ride) {
     <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
     <div><strong>Rating:</strong> ${esc(formatDriverRating(ride))}</div>
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
+    ${getRiderStopDetailMarkup(ride)}
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
     <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
   `;
@@ -4067,7 +4152,12 @@ async function saveMissingCartTerms(selectedRideIds = getSelectedCartRideIds()) 
     await fetchJson(`/api/cart/${rideId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seatId: selectedSeatId, termsAccepted: true }),
+      body: JSON.stringify({
+        seatId: selectedSeatId,
+        actualPickup: item.dataset.actualPickup || '',
+        actualDropoff: item.dataset.actualDropoff || '',
+        termsAccepted: true,
+      }),
     });
     item.dataset.cartTermsAccepted = 'true';
   }
@@ -4332,6 +4422,10 @@ function isPastRide(ride) {
   return getTripEndTime(ride) < Date.now();
 }
 
+function isExpiredRideActivity(ride) {
+  return hasRideDeparted(ride);
+}
+
 function setYourRidesView(view) {
   yourRidesView = view;
   yourRidesCurrentTab.classList.toggle('active', view === 'current');
@@ -4471,19 +4565,20 @@ async function loadYourRides() {
     const riderRequests = data.riderRequests || [];
     const requestedRides = riderRequests
       .filter((request) => (request.status || 'open') === 'open')
+      .filter((request) => !isExpiredRideActivity(request))
       .sort((a, b) => getRideStartTime(a) - getRideStartTime(b));
     const expiredRequests = riderRequests
-      .filter((request) => request.status === 'expired')
+      .filter((request) => request.status === 'expired' || isExpiredRideActivity(request))
       .sort((a, b) => getRideStartTime(b) - getRideStartTime(a));
     const currentDrivingRides = drivingRides
-      .filter((ride) => !isPastRide(ride))
+      .filter((ride) => !isExpiredRideActivity(ride))
       .sort((a, b) => getRideStartTime(a) - getRideStartTime(b));
     const currentReservedRides = reservedRides
-      .filter((ride) => !isPastRide(ride))
+      .filter((ride) => !isExpiredRideActivity(ride))
       .sort((a, b) => getRideStartTime(a) - getRideStartTime(b));
     const historyRides = [
-      ...drivingRides.filter(isPastRide).map((ride) => ({ type: 'ride', ride, role: 'Driver', sortTime: getRideStartTime(ride) })),
-      ...reservedRides.filter(isPastRide).map((ride) => ({ type: 'ride', ride, role: 'Rider', sortTime: getRideStartTime(ride) })),
+      ...drivingRides.filter(isExpiredRideActivity).map((ride) => ({ type: 'ride', ride, role: 'Driver', sortTime: getRideStartTime(ride) })),
+      ...reservedRides.filter(isExpiredRideActivity).map((ride) => ({ type: 'ride', ride, role: 'Rider', sortTime: getRideStartTime(ride) })),
       ...expiredRequests.map((request) => ({ type: 'request', request, sortTime: getRideStartTime(request) })),
     ].sort((a, b) => b.sortTime - a.sortTime);
 
@@ -4528,47 +4623,51 @@ async function loadProfile() {
   try {
     const data = await fetchJson('/api/profile');
     profileRides.innerHTML = '';
+    const currentCreatedRides = (data.createdRides || []).filter((ride) => !isExpiredRideActivity(ride));
+    const currentJoinedRides = (data.joinedRides || []).filter((ride) => !isExpiredRideActivity(ride));
+    const currentRiderRequests = (data.riderRequests || []).filter((request) => (request.status || 'open') === 'open' && !isExpiredRideActivity(request));
+    const currentDriverOffers = (data.driverOffers || []).filter((request) => (request.status || 'open') === 'open' && !isExpiredRideActivity(request));
     const createdLabel = document.createElement('h4');
     createdLabel.textContent = 'Your posted rides';
     profileRides.appendChild(createdLabel);
-    if (!data.createdRides.length) {
+    if (!currentCreatedRides.length) {
       const empty = document.createElement('p');
       empty.textContent = 'You have not offered any rides yet.';
       profileRides.appendChild(empty);
     } else {
-      data.createdRides.forEach((ride) => profileRides.appendChild(buildDriverRideSummary(ride)));
+      currentCreatedRides.forEach((ride) => profileRides.appendChild(buildDriverRideSummary(ride)));
     }
     const joinedLabel = document.createElement('h4');
     joinedLabel.textContent = 'Rides you joined';
     profileRides.appendChild(joinedLabel);
-    if (!data.joinedRides.length) {
+    if (!currentJoinedRides.length) {
       const empty = document.createElement('p');
       empty.textContent = 'You have not joined any rides yet.';
       profileRides.appendChild(empty);
     } else {
-      data.joinedRides.forEach((ride) => profileRides.appendChild(buildRideSummary(ride)));
+      currentJoinedRides.forEach((ride) => profileRides.appendChild(buildRideSummary(ride)));
     }
 
     const requestsLabel = document.createElement('h4');
     requestsLabel.textContent = 'Your trip requests';
     profileRides.appendChild(requestsLabel);
-    if (!data.riderRequests?.length) {
+    if (!currentRiderRequests.length) {
       const empty = document.createElement('p');
       empty.textContent = 'You have not requested any rides yet.';
       profileRides.appendChild(empty);
     } else {
-      data.riderRequests.forEach((request) => profileRides.appendChild(buildRequestSummary(request)));
+      currentRiderRequests.forEach((request) => profileRides.appendChild(buildRequestSummary(request)));
     }
 
     const offersLabel = document.createElement('h4');
     offersLabel.textContent = 'Requests you offered to drive';
     profileRides.appendChild(offersLabel);
-    if (!data.driverOffers?.length) {
+    if (!currentDriverOffers.length) {
       const empty = document.createElement('p');
       empty.textContent = 'You have not offered to drive any rider requests yet.';
       profileRides.appendChild(empty);
     } else {
-      data.driverOffers.forEach((request) => profileRides.appendChild(buildRequestSummary(request)));
+      currentDriverOffers.forEach((request) => profileRides.appendChild(buildRequestSummary(request)));
     }
   } catch (err) {
     profileRides.textContent = 'Unable to load your ride history.';

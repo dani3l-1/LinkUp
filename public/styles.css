@@ -2348,6 +2348,35 @@ button:disabled::before { display: none; }
   text-transform: uppercase;
 }
 
+.leaderboard-saved-miles {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1.1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(62,207,207,0.18);
+  border-radius: var(--radius-md);
+  background: rgba(62,207,207,0.06);
+}
+
+.leaderboard-saved-miles span,
+.leaderboard-saved-miles strong {
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.leaderboard-saved-miles span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.leaderboard-saved-miles strong {
+  color: var(--accent);
+  font-size: 1.25rem;
+}
+
 .leaderboard-divider {
   margin: 1.8rem 0 1.35rem;
   border-top: 1px solid var(--border);
@@ -3604,6 +3633,40 @@ article.card h3 {
 .rider-terms-agreement {
   margin-top: 1rem;
   margin-bottom: 0.85rem;
+}
+
+.rider-stop-fields {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(62,207,207,0.22);
+  border-radius: var(--radius-md);
+  background: rgba(62,207,207,0.06);
+}
+
+.rider-stop-fields-title {
+  color: var(--text-primary);
+  font-weight: 800;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.rider-stop-fields label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.seat-manifest-stop-note {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .rider-terms-agreement input,
