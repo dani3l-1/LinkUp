@@ -2,6 +2,20 @@
 
 ---
 
+## v2026.05.16 BETA
+
+### New
+- **LinkUp browser icon.** The site now uses the simple LinkUp logo for browser tabs, bookmarks, and Apple touch icons.
+- **Better verification email.** Email verification codes now arrive in a branded LinkUp email with a cleaner layout and plain-text fallback.
+- **Reservation confirmation email.** Riders now receive a thank-you email with ride details after a seat is successfully reserved.
+
+### Fixed
+- **Legal pages load again.** Privacy Notice and Terms and Conditions now load from the current Markdown documents inside the app.
+- **Checkout polish.** The in-app card checkout is cleaner, with Link removed from the card form and real wallet buttons only shown when Apple Pay or Google Pay are available.
+- **Order summary cleanup.** Subtotal and service-fee text now display like a receipt instead of crowding the same row.
+
+---
+
 ## v2026.05.15 BETA
 
 ### New
