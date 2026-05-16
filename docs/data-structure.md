@@ -33,12 +33,12 @@ This keeps the current app stable while moving persistence to PostgreSQL. A futu
 
 ## Collection notes
 
-- `users`: account, university, policy consent, profile, Stripe customer, and payout summary fields.
+- `users`: account, university, policy consent, profile, provider customer ids, provider payout account summaries, and legacy Stripe migration fields.
 - `rides`: driver-created ride listings, passengers, seat availability, route, price, and restrictions.
 - `rideRequests`: rider-created requests and driver offers.
 - `carts`: keyed by user id, each value is an array of `{ rideId, seatId, actualPickup, actualDropoff, termsAcceptedAt }`.
-- `checkoutSessions`: temporary checkout reservation records keyed by Stripe PaymentIntent or legacy Checkout Session id.
-- `payments`: completed payment records after Stripe verification and seat reservation.
+- `checkoutSessions`: temporary checkout reservation records keyed by provider payment id, with Stripe ids kept only as provider-specific migration fields.
+- `payments`: completed payment records after provider verification and seat reservation. Records include `provider`, `providerPaymentId`, and optional provider-specific legacy ids.
 - `rides.passengers`: reserved riders. Flexible-radius Personal Car rides may include `actualPickup` and `actualDropoff` so drivers can navigate to the rider's requested spots.
 - `trackingTrips`: live trip sharing sessions with location snapshots.
 - `rideMessages`: keyed by ride id, each value is an array of chat messages.

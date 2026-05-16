@@ -3258,6 +3258,67 @@ article.card h3 {
   line-height: 1.65;
 }
 
+.about-linkup-panel {
+  display: grid;
+  gap: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.about-linkup-eyebrow {
+  display: inline-block;
+  margin-bottom: 0.45rem;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.about-linkup-panel h4,
+.about-linkup-panel h5 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.about-linkup-panel h4 {
+  font-size: 1.25rem;
+}
+
+.about-linkup-panel h5 {
+  font-size: 0.95rem;
+}
+
+.about-linkup-panel p {
+  margin: 0.45rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+.about-linkup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.about-linkup-grid section,
+.about-linkup-note {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.035);
+  padding: 1rem;
+}
+
+.about-linkup-note {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+@media (max-width: 620px) {
+  .about-linkup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 @media (max-width: 780px) {
   .profile-layout {
@@ -3311,18 +3372,157 @@ article.card h3 {
 
 .stripe-payment-frame {
   display: grid;
-  gap: 1rem;
+  gap: 1.15rem;
   margin-top: 1.25rem;
-  border: 1px solid rgba(62,207,207,0.18);
-  border-radius: var(--radius-md);
-  background: rgba(6,20,22,0.82);
-  padding: 1rem;
+  border: 1px solid rgba(62,207,207,0.22);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1e2429;
+  padding: 1.35rem;
   overflow: hidden;
 }
 
 #stripe-payment-element,
 #default-payment-element {
-  padding: 0.35rem;
+  padding: 0;
+}
+
+#stripe-checkout-container #stripe-payment-element {
+  min-height: 56px;
+  border: 1px solid #f4f4f5;
+  border-radius: 10px;
+  background: #f4f4f5;
+  padding: 0 1rem;
+}
+
+#stripe-checkout-container #stripe-payment-element.StripeElement--focus {
+  border-color: rgba(31,143,143,0.55);
+  box-shadow: 0 0 0 3px rgba(31,143,143,0.12);
+}
+
+#stripe-checkout-container #stripe-payment-element.StripeElement--invalid {
+  border-color: rgba(184,50,58,0.7);
+}
+
+.payment-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #1e2429;
+}
+
+.payment-form-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e2429;
+}
+
+.payment-secure-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #5c626a;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.wallet-checkout {
+  display: grid;
+  gap: 0.8rem;
+  order: -1;
+}
+
+.wallet-checkout.hidden {
+  display: none;
+}
+
+.wallet-checkout-label {
+  color: #5c626a;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+#stripe-express-checkout-element {
+  min-height: 48px;
+}
+
+#stripe-express-checkout-element.hidden {
+  display: none;
+}
+
+.wallet-card-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #7a818a;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.wallet-card-divider::before,
+.wallet-card-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: #e7e7e9;
+}
+
+.cardholder-field {
+  display: grid;
+  gap: 0.6rem;
+  color: #5c626a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cardholder-field input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #f4f4f5;
+  border-radius: 10px;
+  background: #f4f4f5;
+  color: #1e2429;
+  padding: 0.85rem 1rem;
+  font: inherit;
+  outline: none;
+}
+
+.cardholder-field input:focus {
+  border-color: rgba(31,143,143,0.55);
+  box-shadow: 0 0 0 3px rgba(31,143,143,0.12);
+}
+
+#stripe-checkout-container #confirm-payment {
+  width: 100%;
+  margin-top: 0.25rem;
+  justify-content: center;
+}
+
+#payment-page #pay-cart {
+  width: min(100%, 420px);
+  min-height: 64px;
+  border: 0;
+  border-radius: 0;
+  background: #36c4d3;
+  color: #17242a;
+  font-size: clamp(1.2rem, 2.6vw, 2rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  justify-content: center;
+  box-shadow: none;
+}
+
+#payment-page #pay-cart:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.02);
 }
 
 
@@ -3413,8 +3613,23 @@ article.card h3 {
   font-size: 0.95rem;
 }
 
+.legal-content h5 {
+  margin: 0.45rem 0 0;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
 .legal-content p {
   margin: 0;
+}
+
+.legal-content ul {
+  margin: 0 0 0 1.25rem;
+  color: var(--text-secondary);
+}
+
+.legal-content li + li {
+  margin-top: 0.3rem;
 }
 
 
@@ -4857,13 +5072,19 @@ textarea:disabled,
 /* ── Total row ───────────────────────────────────────────────── */
 .cart-summary-total-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.4rem;
 }
 
-.cart-summary-total-row span {
+.cart-summary-total-copy {
+  min-width: 0;
+}
+
+.cart-summary-total-row span,
+.cart-summary-total-copy span {
+  display: block;
   font-family: var(--font-display);
   font-size: 0.88rem;
   font-weight: 700;
@@ -4874,19 +5095,21 @@ textarea:disabled,
 
 .cart-summary-total-row strong {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: var(--accent);
   letter-spacing: 0.03em;
   line-height: 1;
+  white-space: nowrap;
 }
 
 /* ── Tax / service fee note ──────────────────────────────────── */
 .cart-summary-tax-note {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: var(--text-muted);
-  margin: 0 0 1.25rem;
+  margin: 0.35rem 0 0;
   letter-spacing: 0.02em;
+  line-height: 1.45;
 }
 
 /* ── Selection note ──────────────────────────────────────────── */
@@ -5023,6 +5246,7 @@ textarea:disabled,
 /* ── Hide old cart-subtotal floating bar styles in new layout ── */
 #cart-page .cart-subtotal,
 #payment-page .payment-order-summary {
+  display: block !important;
   background: none !important;
   border: none !important;
   border-radius: 0 !important;

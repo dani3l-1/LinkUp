@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkUp — Ride · Connect · Save</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-profile-cart" />
+    <link rel="stylesheet" href="styles.css?v=20260516-summary-cleanup" />
   </head>
   <body class="app-booting">
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -201,6 +201,7 @@
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payouts">Driver payouts</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="release-notes">Release notes</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="about">About LinkUp</button>
               </aside>
               <div class="profile-content">
                 <div id="profile-info-panel" class="profile-panel" data-profile-panel="info">
@@ -372,6 +373,36 @@
                   <div class="release-note-card release-note-single">
                     <div id="release-note-feed" class="release-note-feed" aria-label="Release notes newest first">
                       <p class="legal-loading">Loading release notes...</p>
+                    </div>
+                  </div>
+                </div>
+                <div id="profile-about-panel" class="profile-panel hidden" data-profile-panel="about">
+                  <div class="about-linkup-panel">
+                    <div>
+                      <span class="about-linkup-eyebrow">About LinkUp</span>
+                      <h4>Student rides, built around trust.</h4>
+                      <p>LinkUp helps college students find, offer, and share rides with people from their own school network. The goal is simple: make campus travel easier, safer, and more affordable without turning rides into a commercial taxi service.</p>
+                    </div>
+                    <div class="about-linkup-grid">
+                      <section>
+                        <h5>For riders</h5>
+                        <p>Find rides posted by verified students, reserve seats, chat with your driver, and keep your trip details organized in one place.</p>
+                      </section>
+                      <section>
+                        <h5>For drivers</h5>
+                        <p>Post available seats, choose ride preferences, manage confirmed riders, and track weekly earnings through your wallet.</p>
+                      </section>
+                      <section>
+                        <h5>For schools</h5>
+                        <p>LinkUp is designed for university communities, with school-based access, public profiles, reporting, blocking, and shared ride stats.</p>
+                      </section>
+                      <section>
+                        <h5>Safety first</h5>
+                        <p>Profiles, policy agreement, trip chat, ride history, reporting tools, and optional Track My Trip links help keep users informed before and during rides.</p>
+                      </section>
+                    </div>
+                    <div class="about-linkup-note">
+                      LinkUp coordinates student ride sharing. Drivers remain independent users responsible for their vehicle, license, insurance, route, and safe driving.
                     </div>
                   </div>
                 </div>
@@ -834,16 +865,24 @@
               <!-- Left: payment form -->
               <div class="cart-items-col">
                 <p id="payment-summary" class="payment-summary-label">Review your order and enter payment details.</p>
-                <button type="button" id="pay-cart">Pay now</button>
+                <button type="button" id="pay-cart">Check Out</button>
                 <p class="payment-security-note">Your payment details are encrypted and never stored by LinkUp</p>
                 <div id="stripe-checkout-container" class="stripe-payment-frame hidden">
+                  <div id="stripe-express-checkout-wrap" class="wallet-checkout hidden">
+                    <span class="wallet-checkout-label">Express checkout</span>
+                    <div id="stripe-express-checkout-element"></div>
+                    <div class="wallet-card-divider"><span>or use card</span></div>
+                  </div>
                   <div class="payment-form-header">
-                    <span class="payment-form-title">Payment details</span>
+                    <span class="payment-form-title">Card</span>
                     <span class="payment-secure-badge">
                       <svg width="11" height="13" viewBox="0 0 11 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5.5 0L1 2v4c0 2.76 1.97 5.34 4.5 6C8.03 11.34 10 8.76 10 6V2L5.5 0z" fill="currentColor" opacity="0.9"/></svg>
                       Secure
                     </span>
                   </div>
+                  <label class="cardholder-field">Name on Card
+                    <input type="text" id="cardholder-name" autocomplete="cc-name" placeholder="Name on card" />
+                  </label>
                   <div id="stripe-payment-element"></div>
                   <button type="button" id="confirm-payment" class="hidden">Confirm &amp; pay</button>
                 </div>
@@ -867,7 +906,7 @@
         </section>
 
         <!-- ── Legal pages ─────────────────────────────────────── -->
-        <!-- Privacy Notice — content loaded from privacy.html -->
+        <!-- Privacy Notice — content loaded from privacy-notice.md -->
         <section id="privacy-page" class="card legal-page hidden">
           <div class="cart-header">
             <div>
@@ -881,7 +920,7 @@
           </div>
         </section>
 
-        <!-- Terms and Conditions — content loaded from terms.html -->
+        <!-- Terms and Conditions — content loaded from terms-and-conditions.md -->
         <section id="terms-page" class="card legal-page hidden">
           <div class="cart-header">
             <div>
@@ -960,6 +999,6 @@
     </div>
 
     <script src="https://js.stripe.com/v3/"></script>
-    <script src="app.js?v=20260514-payment-element"></script>
+    <script src="app.js?v=20260516-legal-md"></script>
   </body>
 </html>

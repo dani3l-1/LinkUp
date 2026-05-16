@@ -10,8 +10,8 @@ Ride Connect Save - A university-only ride-sharing app for students to offer and
 - **Ride matching**: Browse and join rides within your university network
 - **Ride history**: View rides you've posted and rides you've joined
 - **Session management**: Secure login with sessions
-- **Driver payout information**: Drivers can save payout method/contact details in their profile so LinkUp can pay them after completed rides and commission
-- **Default payment method**: Users can save a masked default card in profile for faster checkout
+- **Driver wallet and payouts**: Drivers can track weekly earnings and connect a payout provider for completed rides
+- **Default payment method**: Users can save a masked default card through the active payment provider for faster checkout
 - **Privacy Policy and Terms**: In-app legal pages explain data handling, user responsibilities, payments, safety, and liability basics
 - **Security hardening**: Adds safer response headers, smaller request bodies, stronger session cookie settings, and rate limits on sensitive endpoints
 

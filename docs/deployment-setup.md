@@ -105,6 +105,17 @@ APP_BASE_URL=http://localhost:4000
 CORS_ORIGIN=http://localhost:4000
 ```
 
+## Payment Provider Setup
+
+LinkUp keeps payment and payout provider choice behind environment variables so Stripe can be replaced later without changing the rest of the ride workflow:
+
+```env
+PAYMENT_PROVIDER=stripe
+PAYOUT_PROVIDER=stripe
+```
+
+Stripe is the only implemented provider today. New providers should keep the same app-level records: checkout sessions use `provider`, `providerPaymentId`, and `providerSessionId`; completed payments use the same provider fields plus any provider-specific legacy ids needed for migration. Payout onboarding should use the app route `/api/profile/payout/onboarding`, and payout status refresh should use `/api/profile/payout/status`.
+
 ## Stripe Setup
 
 In Stripe Dashboard:
@@ -114,6 +125,12 @@ In Stripe Dashboard:
 
 ```txt
 https://linkuprides.com/api/stripe/webhook
+```
+
+The provider-neutral alias is also supported:
+
+```txt
+https://linkuprides.com/api/payments/webhook/stripe
 ```
 
 3. Select these events:

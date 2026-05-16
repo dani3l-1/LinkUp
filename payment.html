@@ -1,0 +1,297 @@
+<!--
+  payment.html
+  ═══════════════════════════════════════════════════════════════════════════
+  Inline Stripe Elements payment modal for LinkUp.
+
+  SETUP — paste the two blocks below into your index.html:
+
+  1.  The <style> block  →  inside <head>
+  2.  The modal <div>    →  anywhere inside <body> (before </body> is fine)
+  3.  The two <script>   →  at the bottom of <body>, in this order:
+        a. https://js.stripe.com/v3/
+        b. /payment.js
+
+  USAGE in app.js / anywhere:
+        // Open for the current cart
+        window.LinkUpPayment.openCheckout();
+
+        // Open for specific rides with a success callback
+        window.LinkUpPayment.openCheckout(['ride-id-1'], () => {
+          console.log('Booking confirmed!');
+        });
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 1.  PASTE THIS INSIDE <head>                                          -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<style>
+  /* ── Payment modal overlay ───────────────────────────────────────────── */
+  #linkup-payment-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(10, 10, 30, 0.55);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    transition: opacity 0.2s ease;
+  }
+
+  #linkup-payment-modal.hidden {
+    display: none;
+  }
+
+  /* ── Modal card ───────────────────────────────────────────────────────── */
+  .linkup-payment-sheet {
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+    width: 100%;
+    max-width: 440px;
+    padding: 2rem 2rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    animation: linkup-sheet-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes linkup-sheet-in {
+    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+
+  /* ── Header ───────────────────────────────────────────────────────────── */
+  .linkup-payment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .linkup-payment-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .linkup-payment-title::before {
+    content: "🔒";
+    font-size: 1rem;
+  }
+
+  .linkup-payment-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    font-size: 1.4rem;
+    line-height: 1;
+    padding: 0.25rem;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .linkup-payment-close:hover { color: #374151; background: #f3f4f6; }
+
+  /* ── Secure badge ─────────────────────────────────────────────────────── */
+  .linkup-secure-badge {
+    font-size: 0.72rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.45rem 0.75rem;
+  }
+
+  .linkup-secure-badge svg {
+    flex-shrink: 0;
+    color: #22c55e;
+  }
+
+  /* ── Card Element container ───────────────────────────────────────────── */
+  .linkup-field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.4rem;
+  }
+
+  #linkup-card-element {
+    background: #f9fafb;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0.85rem 0.9rem;
+    transition: border-color 0.2s;
+  }
+
+  #linkup-card-element:focus-within {
+    border-color: #4f46e5;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  }
+
+  /* ── Error message ────────────────────────────────────────────────────── */
+  #linkup-card-errors {
+    color: #ef4444;
+    font-size: 0.8rem;
+    min-height: 1.1rem;
+    font-weight: 500;
+  }
+
+  /* ── Status message ───────────────────────────────────────────────────── */
+  #linkup-payment-status {
+    color: #059669;
+    font-size: 0.82rem;
+    font-weight: 500;
+    text-align: center;
+  }
+
+  /* ── Pay button ───────────────────────────────────────────────────────── */
+  #linkup-pay-button {
+    width: 100%;
+    padding: 0.9rem 1rem;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    letter-spacing: 0.01em;
+    transition: opacity 0.15s, transform 0.12s;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+  }
+
+  #linkup-pay-button:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+  #linkup-pay-button:active:not(:disabled) { transform: translateY(0); }
+  #linkup-pay-button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #linkup-pay-spinner {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: linkup-spin 0.7s linear infinite;
+  }
+
+  @keyframes linkup-spin { to { transform: rotate(360deg); } }
+
+  /* ── Cancel link ─────────────────────────────────────────────────────── */
+  #linkup-payment-cancel {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    align-self: center;
+    transition: color 0.15s;
+  }
+  #linkup-payment-cancel:hover { color: #6b7280; }
+
+  /* ── Stripe branding note ─────────────────────────────────────────────── */
+  .linkup-stripe-note {
+    text-align: center;
+    font-size: 0.7rem;
+    color: #d1d5db;
+  }
+</style>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 2.  PASTE THIS ANYWHERE INSIDE <body>                                 -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div
+  id="linkup-payment-modal"
+  class="hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="linkup-payment-title"
+  aria-hidden="true"
+>
+  <div class="linkup-payment-sheet">
+
+    <!-- Header -->
+    <div class="linkup-payment-header">
+      <h2 class="linkup-payment-title" id="linkup-payment-title">Payment</h2>
+      <button
+        id="linkup-payment-close-x"
+        class="linkup-payment-close"
+        aria-label="Close payment"
+        onclick="window.LinkUpPayment.closeCheckout()"
+      >×</button>
+    </div>
+
+    <!-- Secure badge -->
+    <div class="linkup-secure-badge">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      Your card info is sent directly and securely to Stripe — it never touches our servers.
+    </div>
+
+    <!-- Card field -->
+    <div>
+      <div class="linkup-field-label">Card details</div>
+      <div id="linkup-card-element"></div>
+    </div>
+
+    <!-- Validation error -->
+    <div id="linkup-card-errors" role="alert" aria-live="polite"></div>
+
+    <!-- Status message (success / pending) -->
+    <div id="linkup-payment-status" aria-live="polite"></div>
+
+    <!-- Pay button -->
+    <button id="linkup-pay-button" type="button">
+      <span id="linkup-pay-spinner" aria-hidden="true"></span>
+      Pay now
+    </button>
+
+    <!-- Cancel -->
+    <button id="linkup-payment-cancel" type="button">Cancel</button>
+
+    <!-- Stripe attribution -->
+    <p class="linkup-stripe-note">Payments powered by Stripe</p>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 3.  PASTE THESE TWO SCRIPTS AT THE BOTTOM OF <body>                  -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<script src="https://js.stripe.com/v3/"></script>
+<script src="/payment.js"></script>
+
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  EXAMPLE: trigger from your existing checkout button in app.js
+
+    const checkoutBtn = document.getElementById('cart-checkout-button');
+    if (checkoutBtn) {
+      checkoutBtn.addEventListener('click', () => {
+        window.LinkUpPayment.openCheckout(null, () => {
+          // Called when payment succeeds and server confirms booking
+          loadCart();       // refresh cart UI
+          showYourRides();  // navigate to rides view
+        });
+      });
+    }
+  ═══════════════════════════════════════════════════════════════════════════
+-->
