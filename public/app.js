@@ -125,6 +125,7 @@ const defaultPaymentSummary = document.getElementById('default-payment-summary')
 const defaultPaymentMessage = document.getElementById('default-payment-message');
 const defaultPaymentError = document.getElementById('default-payment-error');
 const stripePayoutSummary = document.getElementById('stripe-payout-summary');
+const driverWalletSummary = document.getElementById('driver-wallet-summary');
 const stripePayoutConnectButton = document.getElementById('stripe-payout-connect');
 const payoutCommissionLabel = document.getElementById('payout-commission-label');
 const LINKUP_COMMISSION_RATE = 0.15;
@@ -1365,7 +1366,9 @@ function hideDashboardPages() {
 
 function updateUserHeader(user) {
   welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
-  studentUniversityLabel.textContent = user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
+  studentUniversityLabel.textContent = user.rideServicesPaused
+    ? 'Ride services temporarily paused'
+    : user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
 }
 
 function clearProfileMessages() {
@@ -1758,6 +1761,38 @@ function renderStripePayoutSummary(user) {
   stripePayoutSummary.textContent = 'Stripe payouts started. Finish onboarding to receive driver payouts.';
 }
 
+function renderDriverWalletSummary(user) {
+  if (!driverWalletSummary) return;
+  const wallet = user?.wallet || {};
+  const commissionPercent = Math.round(Number(wallet.commissionRate ?? LINKUP_COMMISSION_RATE) * 100);
+  driverWalletSummary.innerHTML = `
+    <div class="wallet-card wallet-card-primary">
+      <span>Wallet balance</span>
+      <strong>${formatCents(wallet.availableCents || 0)}</strong>
+      <small>Available for rides now. Paid out weekly.</small>
+    </div>
+    <div class="wallet-card">
+      <span>This week earned</span>
+      <strong>${formatCents(wallet.thisWeek?.netCents || 0)}</strong>
+      <small>${formatCents(wallet.thisWeek?.commissionCents || 0)} LinkUp commission withheld.</small>
+    </div>
+    <div class="wallet-card">
+      <span>Pending rides</span>
+      <strong>${formatCents(wallet.pendingRideCompletion?.netCents || 0)}</strong>
+      <small>Unlocks after completed rides end.</small>
+    </div>
+    <div class="wallet-card">
+      <span>Weekly payout</span>
+      <strong>${formatCents(wallet.payoutScheduledCents || 0)}</strong>
+      <small>After payout, this wallet balance returns to $0.00.</small>
+    </div>
+    <div class="wallet-card wallet-card-wide">
+      <span>Wallet rules</span>
+      <small>Drivers keep ${100 - commissionPercent}% of each paid seat. Available wallet money is automatically used before charging your card.</small>
+    </div>
+  `;
+}
+
 function fillDriverPayoutForm(user) {
   const info = user.payoutInfo || {};
   document.getElementById('payout-legal-name').value = info.legalName || [user.firstName, user.lastName].filter(Boolean).join(' ');
@@ -1768,6 +1803,7 @@ function fillDriverPayoutForm(user) {
   document.getElementById('payout-address').value = info.address || '';
   document.getElementById('payout-notes').value = info.notes || '';
   document.getElementById('payout-confirm').checked = Boolean(info.confirmedAt);
+  renderDriverWalletSummary(user);
   renderStripePayoutSummary(user);
   if (payoutCommissionLabel) payoutCommissionLabel.textContent = Math.round(LINKUP_COMMISSION_RATE * 100) + '%';
 }
@@ -2051,6 +2087,7 @@ function showDashboardHome() {
   hideDashboardPages();
   dashboardHome.classList.remove('hidden');
   renderBrowseRoleChoice();
+  if (currentUser?.rideServicesPaused) renderRideServicesPausedState();
 }
 
 function returnToBrowseRides() {
@@ -2165,6 +2202,10 @@ function ensureServiceAccess() {
     showRequiredSettingsRequired();
     return false;
   }
+  if (currentUser?.rideServicesPaused) {
+    showDashboardHome();
+    return false;
+  }
   return true;
 }
 
@@ -2273,7 +2314,7 @@ function showDashboard(user) {
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
   welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
-  studentUniversityLabel.textContent = user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
+  updateUserHeader(user);
   if (!user.serviceApproved) {
     showWaitlistPage(user);
     return;
@@ -2286,7 +2327,7 @@ function showDashboard(user) {
     showRequiredSettingsRequired();
     return;
   }
-  loadCart();
+  if (!user.rideServicesPaused) loadCart();
   loadProfile();
   restoreAppRoute();
 }
@@ -4429,6 +4470,11 @@ function setBrowseRole(role) {
 
 function renderBrowseRoleChoice() {
   setBrowseRole(null);
+  browseDriverButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  browseRiderButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  listRideButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  requestRideButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  cartButton.disabled = Boolean(currentUser?.rideServicesPaused);
   browseTitle.textContent = 'Browse rides';
   browseSubtitle.textContent = 'Are you a driver looking for riders, or a rider looking for a seat?';
   browseControls.classList.add('hidden');
@@ -4443,7 +4489,20 @@ function renderBrowseRoleChoice() {
   ridesList.innerHTML = '<p class="browse-start-message">Select <strong>I\'m a Driver</strong> to see ride requests from students, or <strong>I\'m a Rider</strong> to browse available seats.</p>';
 }
 
+function renderRideServicesPausedState() {
+  browseTitle.textContent = 'Ride services paused';
+  browseSubtitle.textContent = 'We are finishing payment, wallet, and weekly payout setup before allowing new rides.';
+  browseControls.classList.add('hidden');
+  browseMapPanel?.classList.add('hidden');
+  browseResultsTitle.textContent = 'Temporarily unavailable';
+  ridesList.innerHTML = '<div class="ride-empty-state"><p>Listing rides, requesting rides, reserving seats, chat, tracking, and checkout are paused for now. Your profile and account settings still work.</p></div>';
+}
+
 function showRiderBrowse() {
+  if (currentUser?.rideServicesPaused) {
+    showDashboardHome();
+    return;
+  }
   setAppRoute('browse-rider');
   setBrowseRole('rider');
   loadGoogleMapsAPI().then(() => {
@@ -4473,6 +4532,10 @@ function showRiderBrowse() {
 }
 
 function showDriverBrowse() {
+  if (currentUser?.rideServicesPaused) {
+    showDashboardHome();
+    return;
+  }
   setAppRoute('browse-driver');
   setBrowseRole('driver');
   loadGoogleMapsAPI().then(() => {
@@ -4804,6 +4867,10 @@ async function loadProfile() {
   profileRides.textContent = 'Loading your rides...';
   try {
     const data = await fetchJson('/api/profile');
+    if (currentUser) {
+      currentUser.wallet = data.wallet || currentUser.wallet || null;
+      fillDriverPayoutForm(currentUser);
+    }
     profileRides.innerHTML = '';
     const currentCreatedRides = (data.createdRides || []).filter((ride) => !isExpiredRideActivity(ride));
     const currentJoinedRides = (data.joinedRides || []).filter((ride) => !isExpiredRideActivity(ride));
@@ -5862,7 +5929,16 @@ document.getElementById('pay-cart').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rideIds: selectedRideIds }),
     });
-    paymentSummary.textContent = 'Enter your payment details below. Your card details stay with Stripe.';
+    if (data.walletOnly) {
+      paymentSummary.textContent = 'Your LinkUp wallet covers this checkout.';
+      paymentMessage.textContent = formatCents(data.walletCreditCents || 0) + ' in wallet credit will be used.';
+      paymentMessage.classList.add('show');
+      await completeStripeCheckout(data.paymentIntentId);
+      return;
+    }
+    paymentSummary.textContent = data.walletCreditCents
+      ? formatCents(data.walletCreditCents) + ' in wallet credit applied. Enter payment details for the remaining balance.'
+      : 'Enter your payment details below. Your card details stay with Stripe.';
     document.getElementById('pay-cart').classList.add('hidden');
     await mountStripePaymentElement(data.clientSecret, data.paymentIntentId);
   } catch (err) {

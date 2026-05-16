@@ -8,6 +8,9 @@
 - **LinkUp browser icon.** The site now uses the simple LinkUp logo for browser tabs, bookmarks, and Apple touch icons.
 - **Better verification email.** Email verification codes now arrive in a branded LinkUp email with a cleaner layout and plain-text fallback.
 - **Reservation confirmation email.** Riders now receive a thank-you email with ride details after a seat is successfully reserved.
+- **Wallet checkout credit.** Completed driver earnings can now be used automatically toward future LinkUp rides before charging a card.
+- **Weekly payout reset.** Driver wallet balances now use a ledger so weekly payouts can zero out paid balances cleanly.
+- **Ride service pause.** New ride browsing, requests, reservations, chat, tracking, and checkout are temporarily disabled while payment and payout setup is finalized.
 
 ### Fixed
 - **Legal pages load again.** Privacy Notice and Terms and Conditions now load from the current Markdown documents inside the app.

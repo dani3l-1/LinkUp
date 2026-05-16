@@ -3355,6 +3355,61 @@ article.card h3 {
   padding: 0.9rem 1rem;
 }
 
+.driver-wallet-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.wallet-card {
+  border: 1px solid rgba(62,207,207,0.2);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.035);
+  padding: 1rem;
+  min-width: 0;
+}
+
+.wallet-card-primary {
+  background: linear-gradient(135deg, rgba(62,207,207,0.2), rgba(90,180,120,0.12));
+  border-color: rgba(62,207,207,0.42);
+}
+
+.wallet-card-wide {
+  grid-column: 1 / -1;
+}
+
+.wallet-card span,
+.wallet-card small {
+  display: block;
+}
+
+.wallet-card span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wallet-card strong {
+  display: block;
+  margin: 0.35rem 0;
+  color: var(--accent);
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  letter-spacing: 0;
+}
+
+.wallet-card small {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+@media (max-width: 620px) {
+  .driver-wallet-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
 #driver-payout-form textarea {
   width: 100%;
   resize: vertical;

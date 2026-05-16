@@ -33,6 +33,8 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
 const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15);
+const ADMIN_PAYOUT_SECRET = process.env.ADMIN_PAYOUT_SECRET || '';
+const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
 const PAYMENT_PROVIDER = String(process.env.PAYMENT_PROVIDER || 'stripe').trim().toLowerCase();
 const PAYOUT_PROVIDER = String(process.env.PAYOUT_PROVIDER || PAYMENT_PROVIDER).trim().toLowerCase();
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
@@ -434,6 +436,7 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   socket.on('chat:join', (payload = {}, callback) => {
+    if (RIDE_SERVICES_PAUSED) return emitSocketAck(callback, { ok: false, error: 'LinkUp ride services are temporarily paused.' });
     const result = authorizeSocketRide(socket, payload.rideId);
     if (result.error) return emitSocketAck(callback, { ok: false, error: result.error });
     socket.join('ride:' + result.ride.id);
@@ -448,6 +451,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat:typing', (payload = {}) => {
+    if (RIDE_SERVICES_PAUSED) return;
     const result = authorizeSocketRide(socket, payload.rideId);
     if (result.error) return;
     socket.to('ride:' + result.ride.id).emit('chat:typing', {
@@ -458,6 +462,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat:stopTyping', (payload = {}) => {
+    if (RIDE_SERVICES_PAUSED) return;
     const result = authorizeSocketRide(socket, payload.rideId);
     if (result.error) return;
     socket.to('ride:' + result.ride.id).emit('chat:stopTyping', {
@@ -467,6 +472,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat:message', (payload = {}, callback) => {
+    if (RIDE_SERVICES_PAUSED) return emitSocketAck(callback, { ok: false, error: 'LinkUp ride services are temporarily paused.' });
     const result = authorizeSocketRide(socket, payload.rideId);
     if (result.error) return emitSocketAck(callback, { ok: false, error: result.error });
     const textValidation = validateChatText(payload.text);
@@ -563,6 +569,7 @@ function getEmptyDb() {
     carts: {},
     checkoutSessions: [],
     payments: [],
+    walletTransactions: [],
     trackingTrips: [],
     rideMessages: {},
     userReports: [],
@@ -670,6 +677,7 @@ function normalizeDbShape(db) {
   normalized.carts = normalizeCartMap(normalized.carts);
   normalized.checkoutSessions = normalizeCheckoutSessions(normalized.checkoutSessions);
   normalized.payments = uniqueById(normalized.payments);
+  normalized.walletTransactions = uniqueById(normalized.walletTransactions).filter(isPlainObject);
   normalized.trackingTrips = uniqueById(normalized.trackingTrips).map((trip) => {
     const createdAtMs = new Date(trip.createdAt || 0).getTime();
     const fallbackExpiresAt = Number.isFinite(createdAtMs) && createdAtMs > 0
@@ -1577,7 +1585,7 @@ function userNeedsRequiredSettings(user) {
   return getMissingRequiredSettings(user).length > 0;
 }
 
-function publicUser(user) {
+function publicUser(user, db = null) {
   const fallbackName = user.name || user.email.split('@')[0];
   const missingRequiredSettings = getMissingRequiredSettings(user);
   return {
@@ -1610,6 +1618,8 @@ function publicUser(user) {
     requiresPolicyConsent: userNeedsPolicyConsent(user),
     missingRequiredSettings,
     requiresRequiredSettings: missingRequiredSettings.length > 0,
+    rideServicesPaused: RIDE_SERVICES_PAUSED,
+    wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
 }
 
@@ -1764,20 +1774,178 @@ function addWalletAmounts(target, grossCents) {
   return { gross, commission, net };
 }
 
+function addWalletLedgerAmounts(target, transaction) {
+  const gross = Math.max(0, Number(transaction.grossCents || 0));
+  const commission = Math.max(0, Number(transaction.commissionCents || 0));
+  const net = Math.max(0, Number(transaction.amountCents || 0));
+  target.grossCents += gross;
+  target.commissionCents += commission;
+  target.netCents += net;
+  target.paidSeatCount += 1;
+}
+
+function isDriverWalletCredit(transaction) {
+  return transaction?.type === 'driver_earning_credit' && transaction.status !== 'void';
+}
+
+function isWalletDebit(transaction) {
+  return ['wallet_checkout_debit', 'weekly_payout_debit'].includes(transaction?.type) && transaction.status !== 'void';
+}
+
+function isWalletCreditAvailable(db, transaction, now = new Date()) {
+  if (!isDriverWalletCredit(transaction)) return false;
+  const ride = (db.rides || []).find((entry) => entry.id === transaction.rideId);
+  if (ride) return hasTripEnded(ride);
+  const availableAtMs = new Date(transaction.availableAt || transaction.createdAt || 0).getTime();
+  return Number.isFinite(availableAtMs) && availableAtMs <= now.getTime();
+}
+
+function getWalletAvailableCents(db, userId) {
+  const transactions = asArray(db.walletTransactions);
+  const credits = transactions
+    .filter((transaction) => transaction.userId === userId && isWalletCreditAvailable(db, transaction))
+    .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amountCents || 0)), 0);
+  const debits = transactions
+    .filter((transaction) => transaction.userId === userId && isWalletDebit(transaction))
+    .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amountCents || 0)), 0);
+  return Math.max(0, credits - debits);
+}
+
+function getCheckoutWalletCreditCents(db, userId, expectedAmountCents) {
+  const expected = Math.max(0, Number(expectedAmountCents || 0));
+  const available = getWalletAvailableCents(db, userId);
+  if (!expected || !available) return 0;
+  if (available >= expected) return expected;
+  const remainingAfterWallet = expected - available;
+  if (remainingAfterWallet > 0 && remainingAfterWallet < 50) {
+    return Math.max(0, expected - 50);
+  }
+  return Math.min(available, expected);
+}
+
+function addWalletCheckoutDebit(db, student, checkoutSession) {
+  const amountCents = Math.max(0, Number(checkoutSession.walletCreditCents || 0));
+  if (!amountCents || !student) return;
+  db.walletTransactions = db.walletTransactions || [];
+  const sourceCheckoutSessionId = checkoutSession.id || checkoutSession.providerPaymentId || checkoutSession.stripePaymentIntentId;
+  const exists = db.walletTransactions.some((transaction) => transaction.type === 'wallet_checkout_debit'
+    && transaction.userId === student.id
+    && transaction.sourceCheckoutSessionId === sourceCheckoutSessionId);
+  if (exists) return;
+  db.walletTransactions.push({
+    id: uuidv4(),
+    userId: student.id,
+    type: 'wallet_checkout_debit',
+    amountCents,
+    currency: checkoutSession.stripeCurrency || 'usd',
+    sourceCheckoutSessionId,
+    sourcePaymentId: checkoutSession.providerPaymentId || checkoutSession.stripePaymentIntentId || '',
+    note: 'Applied LinkUp wallet credit to checkout',
+    status: 'posted',
+    createdAt: checkoutSession.completedAt || new Date().toISOString(),
+  });
+}
+
+function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, paymentRecord) {
+  db.walletTransactions = db.walletTransactions || [];
+  const sourcePaymentId = paymentRecord?.id || checkoutSession.providerPaymentId || checkoutSession.id;
+  reservation.ridesToReserve.forEach(({ ride }) => {
+    if (!ride?.driverId) return;
+    const grossCents = Math.max(0, Number(ride.priceCents || 0));
+    if (!grossCents) return;
+    const commissionCents = Math.round(grossCents * LINKUP_COMMISSION_RATE);
+    const amountCents = Math.max(0, grossCents - commissionCents);
+    const exists = db.walletTransactions.some((transaction) => transaction.type === 'driver_earning_credit'
+      && transaction.userId === ride.driverId
+      && transaction.rideId === ride.id
+      && transaction.sourcePaymentId === sourcePaymentId);
+    if (exists) return;
+    db.walletTransactions.push({
+      id: uuidv4(),
+      userId: ride.driverId,
+      type: 'driver_earning_credit',
+      amountCents,
+      grossCents,
+      commissionCents,
+      commissionRate: LINKUP_COMMISSION_RATE,
+      currency: checkoutSession.stripeCurrency || 'usd',
+      rideId: ride.id,
+      riderId: checkoutSession.studentId || paymentRecord?.studentId || '',
+      sourceCheckoutSessionId: checkoutSession.id || '',
+      sourcePaymentId,
+      availableAt: new Date(getTripInterval(ride).end).toISOString(),
+      status: 'earned',
+      createdAt: checkoutSession.completedAt || new Date().toISOString(),
+    });
+  });
+}
+
+function createWeeklyPayoutDebits(db, userIds = []) {
+  const allowedUserIds = new Set(asArray(userIds).map((userId) => String(userId || '').trim()).filter(Boolean));
+  const users = asArray(db.users).filter((user) => !allowedUserIds.size || allowedUserIds.has(user.id));
+  const paidAt = new Date().toISOString();
+  const payouts = [];
+  db.walletTransactions = db.walletTransactions || [];
+  users.forEach((user) => {
+    const amountCents = getWalletAvailableCents(db, user.id);
+    if (!amountCents) return;
+    const payoutId = uuidv4();
+    db.walletTransactions.push({
+      id: payoutId,
+      userId: user.id,
+      type: 'weekly_payout_debit',
+      amountCents,
+      currency: 'usd',
+      status: 'posted',
+      note: 'Weekly driver payout',
+      createdAt: paidAt,
+    });
+    payouts.push({ id: payoutId, userId: user.id, email: user.email, amountCents });
+  });
+  return payouts;
+}
+
 function buildDriverWalletSummary(db, driverId) {
   const now = new Date();
   const weekRange = getCurrentWeekRange(now);
   const ridesById = new Map((db.rides || []).map((ride) => [ride.id, ride]));
+  const transactions = asArray(db.walletTransactions).filter((transaction) => transaction.userId === driverId);
+  const ledgerCredits = transactions.filter(isDriverWalletCredit);
+  const ledgerDebits = transactions.filter(isWalletDebit);
   const summary = {
     payoutCadence: 'weekly',
     commissionRate: LINKUP_COMMISSION_RATE,
     weekStart: weekRange.start.toISOString(),
     weekEnd: weekRange.end.toISOString(),
+    availableCents: getWalletAvailableCents(db, driverId),
+    payoutScheduledCents: getWalletAvailableCents(db, driverId),
+    spentFromWalletCents: ledgerDebits
+      .filter((transaction) => transaction.type === 'wallet_checkout_debit')
+      .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amountCents || 0)), 0),
+    paidOutCents: ledgerDebits
+      .filter((transaction) => transaction.type === 'weekly_payout_debit')
+      .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amountCents || 0)), 0),
     thisWeek: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
     readyForPayout: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
     pendingRideCompletion: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
     allTime: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
   };
+
+  if (ledgerCredits.length) {
+    ledgerCredits.forEach((transaction) => {
+      const createdAtMs = new Date(transaction.createdAt || 0).getTime();
+      const createdThisWeek = Number.isFinite(createdAtMs)
+        && createdAtMs >= weekRange.start.getTime()
+        && createdAtMs < weekRange.end.getTime();
+      addWalletLedgerAmounts(summary.allTime, transaction);
+      if (createdThisWeek) addWalletLedgerAmounts(summary.thisWeek, transaction);
+      const payoutBucket = isWalletCreditAvailable(db, transaction, now)
+        ? summary.readyForPayout
+        : summary.pendingRideCompletion;
+      addWalletLedgerAmounts(payoutBucket, transaction);
+    });
+    return summary;
+  }
 
   (db.payments || [])
     .filter((payment) => payment.status === 'paid')
@@ -1874,6 +2042,18 @@ function requireServiceAccess(req, res, next) {
   }
   next();
 }
+
+function requireRideServicesOpen(req, res, next) {
+  if (RIDE_SERVICES_PAUSED) {
+    return res.status(503).json({
+      error: 'LinkUp ride services are temporarily paused while we finish payment and payout setup. Your account and profile are still available.',
+      code: 'RIDE_SERVICES_PAUSED',
+    });
+  }
+  next();
+}
+
+app.use(['/api/rides', '/api/ride-requests', '/api/cart', '/api/reports', '/api/trips/track'], requireRideServicesOpen);
 
 function normalizeVehicleSeatCount(value) {
   const seatCount = Number(value);
@@ -2205,7 +2385,7 @@ app.post('/api/auth/verify-email', (req, res) => {
   }
   if (user.emailVerified === true) {
     req.session.userId = user.id;
-    return res.json(publicUser(user));
+    return res.json(publicUser(user, db));
   }
   if (!user.emailVerificationCodeHash || user.emailVerificationCodeExpiresAt <= Date.now()) {
     return res.status(400).json({ error: 'Verification code expired. Request a new code.' });
@@ -2220,7 +2400,7 @@ app.post('/api/auth/verify-email', (req, res) => {
   saveDb(db);
 
   req.session.userId = user.id;
-  res.json(publicUser(user));
+  res.json(publicUser(user, db));
 });
 
 app.post('/api/auth/resend-verification', (req, res) => {
@@ -2266,7 +2446,7 @@ app.post('/api/auth/signin', async (req, res) => {
   }
 
   req.session.userId = user.id;
-  res.json(publicUser(user));
+  res.json(publicUser(user, db));
 });
 
 app.post('/api/auth/forgot-password', (req, res) => {
@@ -2356,7 +2536,7 @@ app.get('/api/auth/me', (req, res) => {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  res.json(publicUser(user));
+  res.json(publicUser(user, db));
 });
 
 app.put('/api/profile', requireAuth, (req, res) => {
@@ -2462,7 +2642,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
   });
 
   saveDb(db);
-  res.json(publicUser(user));
+  res.json(publicUser(user, db));
 });
 
 app.put('/api/profile/policies', requireAuth, (req, res) => {
@@ -2485,7 +2665,7 @@ app.put('/api/profile/policies', requireAuth, (req, res) => {
   user.updatedAt = now;
 
   saveDb(db);
-  res.json(publicUser(user));
+  res.json(publicUser(user, db));
 });
 
 app.post('/api/profile/payment-method/setup-session', requireAuth, async (req, res) => {
@@ -2541,7 +2721,7 @@ app.post('/api/profile/payment-method/complete-setup', requireAuth, async (req, 
     };
     user.updatedAt = new Date().toISOString();
     saveDb(db);
-    res.json(publicUser(user));
+    res.json(publicUser(user, db));
   } catch (err) {
     console.error('Stripe payment setup verification error:', err);
     res.status(502).json({ error: 'Unable to verify the saved payment method. Please try again.' });
@@ -2600,7 +2780,7 @@ app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => 
   user.updatedAt = new Date().toISOString();
 
   saveDb(db);
-  res.json(publicUser(user));
+  res.json(publicUser(user, db));
 });
 
 async function startPayoutOnboarding(req, res) {
@@ -2661,7 +2841,7 @@ async function refreshPayoutStatus(req, res) {
     const account = await stripe.accounts.retrieve(accountId);
     setStripeConnectedAccount(user, account);
     saveDb(db);
-    res.json(publicUser(user));
+    res.json(publicUser(user, db));
   } catch (err) {
     console.error('Stripe Connect status error:', err);
     res.status(502).json({ error: 'Unable to check Stripe payout status. Please try again.' });
@@ -3572,11 +3752,11 @@ function finalizePaidCheckoutSession(db, student, checkoutSession) {
   db.payments = db.payments || [];
   const provider = checkoutSession.provider || (checkoutSession.stripePaymentIntentId || checkoutSession.stripeSessionId ? 'stripe' : 'local');
   const providerPaymentId = checkoutSession.providerPaymentId || checkoutSession.stripePaymentIntentId || checkoutSession.stripeSessionId || checkoutSession.id;
-  const existingPayment = db.payments.find((payment) => payment.providerPaymentId
+  let paymentRecord = db.payments.find((payment) => payment.providerPaymentId
     ? payment.provider === provider && payment.providerPaymentId === providerPaymentId
     : payment.stripePaymentIntentId && payment.stripePaymentIntentId === checkoutSession.stripePaymentIntentId);
-  if (!existingPayment) {
-    db.payments.push({
+  if (!paymentRecord) {
+    paymentRecord = {
       id: uuidv4(),
       studentId: student.id,
       rideIds: reservation.ridesToReserve.map(({ ride }) => ride.id),
@@ -3586,12 +3766,17 @@ function finalizePaidCheckoutSession(db, student, checkoutSession) {
       providerSessionId: checkoutSession.providerSessionId || checkoutSession.stripeSessionId || '',
       stripeSessionId: checkoutSession.stripeSessionId || '',
       stripePaymentIntentId: checkoutSession.stripePaymentIntentId || '',
-      amountCents: checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || null,
+      amountCents: checkoutSession.expectedAmountCents || checkoutSession.stripeAmountTotal || null,
+      stripeAmountCents: checkoutSession.stripeAmountTotal || checkoutSession.amountDueCents || 0,
+      walletCreditCents: checkoutSession.walletCreditCents || 0,
       currency: checkoutSession.stripeCurrency || 'usd',
       status: 'paid',
       createdAt: checkoutSession.completedAt,
-    });
+    };
+    db.payments.push(paymentRecord);
   }
+  addWalletCheckoutDebit(db, student, checkoutSession);
+  addDriverWalletCreditsForReservation(db, checkoutSession, reservation, paymentRecord);
   const reservedRideIds = new Set(reservation.ridesToReserve.map(({ ride }) => ride.id));
   db.carts[student.id] = cleanCartEntries(db, student.id).filter((entry) => !reservedRideIds.has(entry.rideId));
   sendReservationConfirmationEmail(db, student, reservation, checkoutSession);
@@ -3605,7 +3790,8 @@ function finalizePaidCheckoutByPaymentIntent(db, paymentIntent) {
   checkoutSession.provider = checkoutSession.provider || 'stripe';
   checkoutSession.providerPaymentId = checkoutSession.providerPaymentId || paymentIntentId;
   if (paymentIntent && typeof paymentIntent === 'object') {
-    if (checkoutSession.expectedAmountCents && paymentIntent.amount !== checkoutSession.expectedAmountCents) {
+    const expectedStripeAmountCents = checkoutSession.amountDueCents || checkoutSession.expectedAmountCents;
+    if (expectedStripeAmountCents && paymentIntent.amount !== expectedStripeAmountCents) {
       checkoutSession.status = 'failed';
       checkoutSession.failureReason = 'Stripe amount mismatch';
       return { error: 'Stripe payment amount did not match this checkout.' };
@@ -3677,9 +3863,37 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
 
   try {
     const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + Number(ride.priceCents || 0), 0);
+    const walletCreditCents = getCheckoutWalletCreditCents(db, student.id, expectedAmountCents);
+    const amountDueCents = Math.max(0, expectedAmountCents - walletCreditCents);
+    if (amountDueCents === 0) {
+      const walletSessionId = 'wallet_' + uuidv4();
+      db.checkoutSessions = db.checkoutSessions || [];
+      db.checkoutSessions.push({
+        id: walletSessionId,
+        provider: 'wallet',
+        providerPaymentId: walletSessionId,
+        studentId: student.id,
+        cartEntries: cartEntries.map((entry) => ({ ...entry })),
+        expectedAmountCents,
+        walletCreditCents,
+        amountDueCents,
+        stripeAmountTotal: 0,
+        stripeCurrency: 'usd',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      });
+      saveDb(db);
+      return res.json({
+        provider: 'wallet',
+        walletOnly: true,
+        paymentIntentId: walletSessionId,
+        walletCreditCents,
+        amountDueCents,
+      });
+    }
     const customerId = await ensureStripeCustomer(db, student);
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: expectedAmountCents,
+      amount: amountDueCents,
       currency: 'usd',
       customer: customerId,
       payment_method_types: ['card'],
@@ -3688,6 +3902,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
         linkupStudentId: student.id,
         linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
         paymentProvider: provider,
+        walletCreditCents: String(walletCreditCents),
       },
     });
 
@@ -3700,12 +3915,14 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
       studentId: student.id,
       cartEntries: cartEntries.map((entry) => ({ ...entry })),
       expectedAmountCents,
+      walletCreditCents,
+      amountDueCents,
       status: 'pending',
       createdAt: new Date().toISOString(),
     });
     saveDb(db);
 
-    res.json({ provider, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
+    res.json({ provider, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, walletCreditCents, amountDueCents });
   } catch (err) {
     console.error('Stripe checkout session error:', err);
     res.status(502).json({ error: 'Unable to start Stripe Checkout. Please try again.' });
@@ -3731,9 +3948,25 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, async
   }
 
   const provider = checkoutSession.provider || (checkoutSession.stripePaymentIntentId || checkoutSession.stripeSessionId ? 'stripe' : getPaymentProviderName());
-  if (!requireStripeBackedProvider(provider, res, 'payment verification')) return;
+  if (provider !== 'wallet' && !requireStripeBackedProvider(provider, res, 'payment verification')) return;
 
-  if (checkoutSession.stripePaymentIntentId && !checkoutSession.stripeSessionId) {
+  if (provider === 'wallet') {
+    const walletCreditCents = Math.max(0, Number(checkoutSession.walletCreditCents || 0));
+    if (!walletCreditCents || walletCreditCents !== Number(checkoutSession.expectedAmountCents || 0)) {
+      checkoutSession.status = 'failed';
+      checkoutSession.failureReason = 'Wallet amount mismatch';
+      saveDb(db);
+      return res.status(400).json({ error: 'Wallet credit did not match this checkout.' });
+    }
+    if (getWalletAvailableCents(db, student.id) < walletCreditCents) {
+      checkoutSession.status = 'failed';
+      checkoutSession.failureReason = 'Insufficient wallet balance';
+      saveDb(db);
+      return res.status(400).json({ error: 'Your wallet balance is no longer enough for this checkout.' });
+    }
+    checkoutSession.stripeAmountTotal = 0;
+    checkoutSession.stripeCurrency = 'usd';
+  } else if (checkoutSession.stripePaymentIntentId && !checkoutSession.stripeSessionId) {
     let paymentIntent;
     try {
       paymentIntent = await stripe.paymentIntents.retrieve(checkoutSession.stripePaymentIntentId);
@@ -3744,7 +3977,8 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, async
     if (paymentIntent.status !== 'succeeded') {
       return res.status(400).json({ error: 'Stripe payment is not complete yet.' });
     }
-    if (checkoutSession.expectedAmountCents && paymentIntent.amount !== checkoutSession.expectedAmountCents) {
+    const expectedStripeAmountCents = checkoutSession.amountDueCents || checkoutSession.expectedAmountCents;
+    if (expectedStripeAmountCents && paymentIntent.amount !== expectedStripeAmountCents) {
       checkoutSession.status = 'failed';
       checkoutSession.failureReason = 'Stripe amount mismatch';
       saveDb(db);
@@ -3766,7 +4000,8 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, async
     if (stripeSession.payment_status !== 'paid') {
       return res.status(400).json({ error: 'Stripe payment is not complete yet.' });
     }
-    if (checkoutSession.expectedAmountCents && stripeSession.amount_total !== checkoutSession.expectedAmountCents) {
+    const expectedStripeAmountCents = checkoutSession.amountDueCents || checkoutSession.expectedAmountCents;
+    if (expectedStripeAmountCents && stripeSession.amount_total !== expectedStripeAmountCents) {
       checkoutSession.status = 'failed';
       checkoutSession.failureReason = 'Stripe amount mismatch';
       saveDb(db);
@@ -3968,6 +4203,19 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
     riderRequests,
     driverOffers,
     wallet: buildDriverWalletSummary(db, studentId),
+  });
+});
+
+app.post('/api/admin/wallets/weekly-payouts', (req, res) => {
+  if (!ADMIN_PAYOUT_SECRET || req.get('x-admin-secret') !== ADMIN_PAYOUT_SECRET) {
+    return res.status(403).json({ error: 'Admin payout access is not configured.' });
+  }
+  const db = loadDb();
+  const payouts = createWeeklyPayoutDebits(db, req.body?.userIds);
+  saveDb(db);
+  res.json({
+    message: payouts.length ? 'Weekly payout balances reset.' : 'No available wallet balances to pay out.',
+    payouts,
   });
 });
 
