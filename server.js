@@ -1,18 +1,22 @@
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const { Pool } = require('pg');
+const { Server } = require('socket.io');
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 4000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
@@ -29,7 +33,12 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
 const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15);
+const PAYMENT_PROVIDER = String(process.env.PAYMENT_PROVIDER || 'stripe').trim().toLowerCase();
+const PAYOUT_PROVIDER = String(process.env.PAYOUT_PROVIDER || PAYMENT_PROVIDER).trim().toLowerCase();
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || `mailto:${process.env.SMTP_USER || 'no-reply@linkup.local'}`;
 const DB_SCHEMA_VERSION = 2;
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-02-25.clover' })
@@ -37,6 +46,10 @@ const stripe = process.env.STRIPE_SECRET_KEY
 const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.8';
 const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.8';
 const TRACKING_VIEWER_TTL_MS = 1000 * 60 * 60 * 8;
+const PUSH_NOTIFICATIONS_ENABLED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+if (PUSH_NOTIFICATIONS_ENABLED) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 function shouldUsePostgresSsl(databaseUrl) {
   if (process.env.DATABASE_SSL === 'true') return true;
   if (process.env.DATABASE_SSL === 'false') return false;
@@ -332,7 +345,7 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true,
   credentials: true,
 }));
-app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+async function handleStripeWebhookRequest(req, res) {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
     return res.status(503).json({ error: 'Stripe webhook is not configured' });
   }
@@ -356,7 +369,9 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
     console.error('Stripe webhook handling error:', err);
     res.status(500).json({ error: 'Webhook handling failed' });
   }
-});
+}
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookRequest);
+app.post('/api/payments/webhook/stripe', express.raw({ type: 'application/json' }), handleStripeWebhookRequest);
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/auth', authRateLimit);
 app.use('/api/profile/payment-method', sensitiveWriteRateLimit);
@@ -365,31 +380,174 @@ app.use('/api/cart/create-checkout-session', sensitiveWriteRateLimit);
 app.use('/api/cart/checkout', sensitiveWriteRateLimit);
 app.use('/api/cart/checkout/complete', sensitiveWriteRateLimit);
 app.use('/api/track', trackingRateLimit);
-app.use(
-  session({
-    name: 'linkup.sid',
-    store: USE_POSTGRES ? new PostgresSessionStore(pgPool) : new JsonSessionStore(SESSION_STORE_PATH),
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      sameSite: 'strict',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    },
-  })
-);
+const sessionMiddleware = session({
+  name: 'linkup.sid',
+  store: USE_POSTGRES ? new PostgresSessionStore(pgPool) : new JsonSessionStore(SESSION_STORE_PATH),
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  },
+});
+app.use(sessionMiddleware);
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
 }));
 
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true,
+    credentials: true,
+  },
+});
+io.engine.use(sessionMiddleware);
+
+function getSocketUserId(socket) {
+  return socket.request.session?.userId || '';
+}
+
+function emitSocketAck(callback, payload) {
+  if (typeof callback === 'function') callback(payload);
+}
+
+function authorizeSocketRide(socket, rideId) {
+  const db = loadDb();
+  const userId = getSocketUserId(socket);
+  const sender = (db.users || []).find((user) => user.id === userId);
+  const ride = (db.rides || []).find((entry) => entry.id === String(rideId || ''));
+  if (!sender) return { error: 'Sign in again to use live chat' };
+  if (!ride) return { error: 'Ride not found' };
+  if (!canUserAccessRideChat(ride, sender.id)) return { error: 'Only the driver and confirmed riders can use this chat' };
+  if (isRideChatDisabled(ride)) return { error: 'This chat is disabled because the ride ended more than a day ago' };
+  return { db, sender, ride };
+}
+
+io.use((socket, next) => {
+  if (!getSocketUserId(socket)) return next(new Error('Not authenticated'));
+  return next();
+});
+
+io.on('connection', (socket) => {
+  socket.on('chat:join', (payload = {}, callback) => {
+    const result = authorizeSocketRide(socket, payload.rideId);
+    if (result.error) return emitSocketAck(callback, { ok: false, error: result.error });
+    socket.join('ride:' + result.ride.id);
+    socket.data.activeRideId = result.ride.id;
+    return emitSocketAck(callback, { ok: true, rideId: result.ride.id });
+  });
+
+  socket.on('chat:leave', (payload = {}) => {
+    const rideId = String(payload.rideId || socket.data.activeRideId || '');
+    if (rideId) socket.leave('ride:' + rideId);
+    if (socket.data.activeRideId === rideId) socket.data.activeRideId = '';
+  });
+
+  socket.on('chat:typing', (payload = {}) => {
+    const result = authorizeSocketRide(socket, payload.rideId);
+    if (result.error) return;
+    socket.to('ride:' + result.ride.id).emit('chat:typing', {
+      rideId: result.ride.id,
+      userId: result.sender.id,
+      userName: result.sender.firstName || 'Someone',
+    });
+  });
+
+  socket.on('chat:stopTyping', (payload = {}) => {
+    const result = authorizeSocketRide(socket, payload.rideId);
+    if (result.error) return;
+    socket.to('ride:' + result.ride.id).emit('chat:stopTyping', {
+      rideId: result.ride.id,
+      userId: result.sender.id,
+    });
+  });
+
+  socket.on('chat:message', (payload = {}, callback) => {
+    const result = authorizeSocketRide(socket, payload.rideId);
+    if (result.error) return emitSocketAck(callback, { ok: false, error: result.error });
+    const textValidation = validateChatText(payload.text);
+    if (textValidation.error) return emitSocketAck(callback, { ok: false, error: textValidation.error });
+
+    const message = appendRideChatMessage(result.db, result.ride, result.sender, textValidation.text);
+    saveDb(result.db);
+    io.to('ride:' + result.ride.id).emit('chat:message', { rideId: result.ride.id, message });
+    notifyRideChatParticipants(result.db, result.ride, result.sender, message);
+    return emitSocketAck(callback, { ok: true, message });
+  });
+});
+
 app.get('/api/stripe/config', requireAuth, (req, res) => {
-  if (!STRIPE_PUBLISHABLE_KEY) {
+  const config = getPaymentProviderConfig();
+  if (config.provider !== 'stripe') {
+    return res.status(501).json({ error: getProviderDisplayName(config.provider) + ' browser payments are not implemented yet.' });
+  }
+  if (!config.publishableKey) {
     return res.status(500).json({ error: 'Stripe publishable key is not configured. Add STRIPE_PUBLISHABLE_KEY to continue.' });
   }
-  res.json({ publishableKey: STRIPE_PUBLISHABLE_KEY });
+  res.json(config);
+});
+
+app.get('/api/payments/config', requireAuth, (req, res) => {
+  const config = getPaymentProviderConfig();
+  if (config.provider === 'stripe' && !config.publishableKey) {
+    return res.status(500).json({ error: 'Stripe publishable key is not configured. Add STRIPE_PUBLISHABLE_KEY to continue.' });
+  }
+  res.json(config);
+});
+
+app.get('/api/push/config', requireAuth, (req, res) => {
+  res.json({ enabled: PUSH_NOTIFICATIONS_ENABLED, publicKey: VAPID_PUBLIC_KEY });
+});
+
+app.post('/api/push/subscribe', requireAuth, requireServiceAccess, (req, res) => {
+  if (!PUSH_NOTIFICATIONS_ENABLED) {
+    return res.status(503).json({ error: 'Push notifications are not configured' });
+  }
+  const endpoint = String(req.body.endpoint || '').trim();
+  const p256dh = String(req.body.keys?.p256dh || '').trim();
+  const auth = String(req.body.keys?.auth || '').trim();
+  if (!endpoint || !p256dh || !auth) {
+    return res.status(400).json({ error: 'Invalid push subscription' });
+  }
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.pushSubscriptions = normalizePushSubscriptions(user.pushSubscriptions);
+  const existing = user.pushSubscriptions.find((subscription) => subscription.endpoint === endpoint);
+  const now = new Date().toISOString();
+  if (existing) {
+    existing.keys = { p256dh, auth };
+    existing.userAgent = String(req.headers['user-agent'] || '').slice(0, 300);
+    existing.updatedAt = now;
+  } else {
+    user.pushSubscriptions.push({
+      endpoint,
+      keys: { p256dh, auth },
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+  user.updatedAt = now;
+  saveDb(db);
+  res.json({ message: 'Notifications enabled' });
+});
+
+app.post('/api/push/unsubscribe', requireAuth, (req, res) => {
+  const endpoint = String(req.body.endpoint || '').trim();
+  if (!endpoint) return res.json({ message: 'Notifications disabled' });
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.pushSubscriptions = normalizePushSubscriptions(user.pushSubscriptions)
+    .filter((subscription) => subscription.endpoint !== endpoint);
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json({ message: 'Notifications disabled' });
 });
 
 function getEmptyDb() {
@@ -462,6 +620,22 @@ function normalizeRideMessages(messagesByRide) {
   }, {});
 }
 
+function normalizePushSubscriptions(subscriptions) {
+  return asArray(subscriptions)
+    .filter(isPlainObject)
+    .map((subscription) => ({
+      endpoint: String(subscription.endpoint || '').slice(0, 1000),
+      keys: {
+        p256dh: String(subscription.keys?.p256dh || '').slice(0, 300),
+        auth: String(subscription.keys?.auth || '').slice(0, 300),
+      },
+      userAgent: String(subscription.userAgent || '').slice(0, 300),
+      createdAt: String(subscription.createdAt || ''),
+      updatedAt: String(subscription.updatedAt || ''),
+    }))
+    .filter((subscription) => subscription.endpoint && subscription.keys.p256dh && subscription.keys.auth);
+}
+
 function normalizeCheckoutSessions(sessions) {
   return uniqueById(sessions).map((session) => ({
     ...session,
@@ -489,6 +663,10 @@ function normalizeDbShape(db) {
   normalized.rides = uniqueById(normalized.rides);
   normalized.rideRequests = uniqueById(normalized.rideRequests);
   normalized.users = uniqueById(normalized.users);
+  normalized.users = normalized.users.map((user) => ({
+    ...user,
+    pushSubscriptions: normalizePushSubscriptions(user.pushSubscriptions),
+  }));
   normalized.carts = normalizeCartMap(normalized.carts);
   normalized.checkoutSessions = normalizeCheckoutSessions(normalized.checkoutSessions);
   normalized.payments = uniqueById(normalized.payments);
@@ -896,6 +1074,30 @@ function isRideChatDisabled(ride) {
   return Boolean(disabledAt && Date.now() >= new Date(disabledAt).getTime());
 }
 
+function validateChatText(value) {
+  const text = String(value || '').trim();
+  if (!text) return { error: 'Message cannot be empty' };
+  if (text.length > 500) return { error: 'Message must be 500 characters or fewer' };
+  return { text };
+}
+
+function appendRideChatMessage(db, ride, sender, text) {
+  db.rideMessages = db.rideMessages || {};
+  db.rideMessages[ride.id] = db.rideMessages[ride.id] || [];
+  const message = {
+    id: uuidv4(),
+    rideId: ride.id,
+    senderId: sender.id,
+    senderFirstName: sender.firstName,
+    senderLastName: sender.lastName,
+    senderRole: ride.driverId === sender.id ? 'Driver' : 'Rider',
+    text,
+    createdAt: new Date().toISOString(),
+  };
+  db.rideMessages[ride.id].push(message);
+  return message;
+}
+
 function rideForUser(ride, userId, db = null) {
   const publicRide = withRideMiles(ride, db);
   publicRide.passengers = (publicRide.passengers || []).map((passenger) => {
@@ -997,6 +1199,51 @@ function containsProhibitedFinancialData(value) {
   return text.match(/\b(?:\d[ -]?){13,19}\b/g)?.some(hasLuhnCheckDigit) || false;
 }
 
+function getRideChatParticipantIds(ride) {
+  return [...new Set([
+    ride.driverId,
+    ...(ride.passengers || []).map((passenger) => passenger.studentId),
+  ].filter(Boolean))];
+}
+
+function getChatNotificationTitle(ride) {
+  return 'New LinkUp chat message';
+}
+
+function getChatNotificationBody(ride, sender, text) {
+  const route = [ride.origin, ride.destination].filter(Boolean).join(' to ');
+  const senderName = sender.firstName || 'A rider';
+  const preview = String(text || '').slice(0, 120);
+  return route ? `${senderName} on ${route}: ${preview}` : `${senderName}: ${preview}`;
+}
+
+function sendPushNotification(user, payload) {
+  if (!PUSH_NOTIFICATIONS_ENABLED || !user?.pushSubscriptions?.length) return;
+  const body = JSON.stringify(payload);
+  user.pushSubscriptions.forEach((subscription) => {
+    webpush.sendNotification(subscription, body).catch((err) => {
+      if (![404, 410].includes(Number(err.statusCode))) {
+        console.error('Push notification failed:', err.message);
+      }
+    });
+  });
+}
+
+function notifyRideChatParticipants(db, ride, sender, message) {
+  if (!PUSH_NOTIFICATIONS_ENABLED) return;
+  const recipientIds = getRideChatParticipantIds(ride).filter((userId) => userId !== sender.id);
+  const payload = {
+    title: getChatNotificationTitle(ride),
+    body: getChatNotificationBody(ride, sender, message.text),
+    url: '/#chat',
+    tag: 'ride-chat-' + ride.id,
+    data: { rideId: ride.id, type: 'ride-chat' },
+  };
+  (db.users || [])
+    .filter((user) => recipientIds.includes(user.id))
+    .forEach((user) => sendPushNotification(user, payload));
+}
+
 function generateVerificationCode() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
@@ -1010,19 +1257,214 @@ function setEmailVerificationCode(user) {
 }
 
 function sendVerificationCode(user, code) {
+  const firstName = user.firstName || 'there';
+  const textBody = [
+    `Hi ${firstName},`,
+    '',
+    'Welcome to LinkUp. Use this code to verify your university email:',
+    '',
+    code,
+    '',
+    'This code expires in 10 minutes. If you did not create a LinkUp account, you can ignore this email.',
+    '',
+    '- LinkUp',
+  ].join('\n');
+  const htmlBody = `
+    <!doctype html>
+    <html>
+      <body style="margin:0;padding:0;background:#071719;font-family:Inter,Arial,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:32px 14px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d7fbfb;">
+                <tr>
+                  <td style="background:#082023;padding:28px 32px;text-align:center;">
+                    <div style="font-size:30px;line-height:1;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">LinkUp</div>
+                    <div style="margin-top:8px;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#61e0e0;">Student ride sharing</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:34px 32px 28px;">
+                    <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;color:#102326;">Verify your email</h1>
+                    <p style="margin:0 0 22px;font-size:16px;line-height:1.6;color:#54636a;">Hi ${escapeHtml(firstName)}, welcome to LinkUp. Enter this code in the app to finish creating your account.</p>
+                    <div style="margin:0 auto 22px;padding:22px 18px;border-radius:16px;background:#eafafa;border:1px solid #b7eeee;text-align:center;">
+                      <div style="font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#37777d;">Verification code</div>
+                      <div style="margin-top:8px;font-size:42px;line-height:1;font-weight:900;letter-spacing:10px;color:#102326;">${code}</div>
+                    </div>
+                    <p style="margin:0;font-size:14px;line-height:1.6;color:#6b747a;">This code expires in 10 minutes. If you did not create a LinkUp account, you can safely ignore this email.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 32px 28px;border-top:1px solid #edf4f4;">
+                    <p style="margin:0;font-size:12px;line-height:1.6;color:#7b878c;">LinkUp helps college students coordinate rides with campus-focused safety tools, profiles, and trip details.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
   sendAuthEmail(
     user.email,
     'Your LinkUp verification code',
-    `Hi ${user.firstName},\n\nYour LinkUp verification code is: ${code}\n\nThis code expires in 10 minutes.\n\n- LinkUp`
+    textBody,
+    htmlBody
   );
 }
 
-function writeEmailToOutbox(to, subject, body, reason = 'SMTP not configured') {
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatEmailCurrency(cents) {
+  return '$' + (Math.max(0, Number(cents || 0)) / 100).toFixed(2);
+}
+
+function formatEmailDateTime(ride) {
+  const date = String(ride?.date || '').trim();
+  const time = String(ride?.time || '').trim();
+  const parsed = new Date(date + 'T' + (time || '00:00'));
+  if (!Number.isFinite(parsed.getTime())) return [date, time].filter(Boolean).join(' ');
+  return parsed.toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function getEmailSeatLabel(ride, seatId) {
+  if (ride?.seatingChartUnavailable) return 'General shared spot';
+  return CAR_SEATS.find((seat) => seat.id === seatId)?.label || seatId || 'Selected seat';
+}
+
+function buildReservationEmailRideDetails(db, reservation) {
+  return reservation.ridesToReserve.map(({ ride, seatId, actualPickup, actualDropoff }) => {
+    const driver = (db.users || []).find((user) => user.id === ride.driverId);
+    const driverLastInitial = driver?.lastName ? driver.lastName.charAt(0) + '.' : '';
+    return {
+      route: (ride.origin || 'Pickup') + ' to ' + (ride.destination || 'Destination'),
+      when: formatEmailDateTime(ride),
+      driverName: driver ? [driver.firstName, driverLastInitial].filter(Boolean).join(' ') : (ride.driverName || 'Your driver'),
+      seat: getEmailSeatLabel(ride, seatId),
+      pickup: actualPickup || ride.origin || 'Pickup location',
+      dropoff: actualDropoff || ride.destination || 'Drop-off location',
+      price: formatEmailCurrency(ride.priceCents),
+    };
+  });
+}
+
+function sendReservationConfirmationEmail(db, student, reservation, checkoutSession) {
+  const rideDetails = buildReservationEmailRideDetails(db, reservation);
+  if (!student?.email || !rideDetails.length) return;
+
+  const firstName = student.firstName || 'there';
+  const totalCents = Number(checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || 0);
+  const tripWord = rideDetails.length === 1 ? 'trip' : 'trips';
+  const textRideDetails = rideDetails.map((detail, index) => [
+    `${index + 1}. ${detail.route}`,
+    `When: ${detail.when}`,
+    `Driver: ${detail.driverName}`,
+    `Seat: ${detail.seat}`,
+    `Pickup: ${detail.pickup}`,
+    `Drop-off: ${detail.dropoff}`,
+    `Price: ${detail.price}`,
+  ].join('\n')).join('\n\n');
+  const textBody = [
+    `Hi ${firstName},`,
+    '',
+    `Thanks for reserving your LinkUp ${tripWord}. Your seat is confirmed.`,
+    '',
+    textRideDetails,
+    '',
+    `Total paid: ${formatEmailCurrency(totalCents)}`,
+    '',
+    'You can view your ride details, chat with your driver, and manage trip safety tools in LinkUp.',
+    '',
+    '- LinkUp',
+  ].join('\n');
+
+  const htmlRows = rideDetails.map((detail) => `
+    <tr>
+      <td style="padding:18px 0;border-top:1px solid #edf4f4;">
+        <h2 style="margin:0 0 10px;font-size:20px;line-height:1.3;color:#102326;">${escapeHtml(detail.route)}</h2>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+          ${[
+            ['When', detail.when],
+            ['Driver', detail.driverName],
+            ['Seat', detail.seat],
+            ['Pickup', detail.pickup],
+            ['Drop-off', detail.dropoff],
+            ['Price', detail.price],
+          ].map(([label, value]) => `
+            <tr>
+              <td style="width:96px;padding:5px 0;font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#37777d;">${escapeHtml(label)}</td>
+              <td style="padding:5px 0;font-size:15px;line-height:1.5;color:#33474d;">${escapeHtml(value)}</td>
+            </tr>
+          `).join('')}
+        </table>
+      </td>
+    </tr>
+  `).join('');
+
+  const htmlBody = `
+    <!doctype html>
+    <html>
+      <body style="margin:0;padding:0;background:#071719;font-family:Inter,Arial,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:32px 14px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d7fbfb;">
+                <tr>
+                  <td style="background:#082023;padding:28px 32px;text-align:center;">
+                    <div style="font-size:30px;line-height:1;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">LinkUp</div>
+                    <div style="margin-top:8px;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#61e0e0;">Seat reserved</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:34px 32px 24px;">
+                    <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;color:#102326;">Thanks for riding with LinkUp</h1>
+                    <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#54636a;">Hi ${escapeHtml(firstName)}, your ${escapeHtml(tripWord)} ${rideDetails.length === 1 ? 'is' : 'are'} confirmed. Here are your reservation details.</p>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${htmlRows}</table>
+                    <div style="margin-top:20px;padding:18px;border-radius:16px;background:#eafafa;border:1px solid #b7eeee;">
+                      <div style="font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#37777d;">Total paid</div>
+                      <div style="margin-top:6px;font-size:26px;font-weight:900;color:#102326;">${escapeHtml(formatEmailCurrency(totalCents))}</div>
+                    </div>
+                    <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#6b747a;">Open LinkUp to view trip details, chat with your driver, and use safety tools before your ride.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  sendAuthEmail(
+    student.email,
+    'Your LinkUp seat is reserved',
+    textBody,
+    htmlBody
+  );
+}
+
+function writeEmailToOutbox(to, subject, body, reason = 'SMTP not configured', htmlBody = '') {
   const email = {
     id: uuidv4(),
     to,
     subject,
     body,
+    html: htmlBody || undefined,
     reason,
     createdAt: new Date().toISOString(),
   };
@@ -1054,10 +1496,10 @@ function getMailTransporter() {
   });
 }
 
-async function sendAuthEmail(to, subject, body) {
+async function sendAuthEmail(to, subject, body, htmlBody = '') {
   const transporter = getMailTransporter();
   if (!transporter) {
-    writeEmailToOutbox(to, subject, body);
+    writeEmailToOutbox(to, subject, body, 'SMTP not configured', htmlBody);
     return;
   }
 
@@ -1067,10 +1509,11 @@ async function sendAuthEmail(to, subject, body) {
       to,
       subject,
       text: body,
+      ...(htmlBody ? { html: htmlBody } : {}),
     });
     console.log('Auth email sent:', { to, subject });
   } catch (error) {
-    writeEmailToOutbox(to, subject, body, error.message);
+    writeEmailToOutbox(to, subject, body, error.message, htmlBody);
     console.error('SMTP send failed; saved email to local outbox:', error.message);
   }
 }
@@ -1156,6 +1599,10 @@ function publicUser(user) {
     nameLastChangedAt: user.nameLastChangedAt || null,
     defaultPaymentMethod: user.defaultPaymentMethod || null,
     payoutInfo: user.payoutInfo || null,
+    paymentProvider: getPaymentProviderName(),
+    paymentProviderLabel: getProviderDisplayName(getPaymentProviderName()),
+    payoutProvider: getPayoutProviderName(),
+    payoutProviderLabel: getProviderDisplayName(getPayoutProviderName()),
     termsVersion: user.termsVersion || '',
     privacyVersion: user.privacyVersion || '',
     requiredTermsVersion: REQUIRED_TERMS_VERSION,
@@ -1168,13 +1615,14 @@ function publicUser(user) {
 
 async function ensureStripeCustomer(db, user) {
   if (!stripe) throw new Error('Stripe is not configured');
-  if (user.stripeCustomerId) return user.stripeCustomerId;
+  const existingCustomerId = getStripeCustomerId(user);
+  if (existingCustomerId) return existingCustomerId;
   const customer = await stripe.customers.create({
     email: user.email,
     name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.name || user.email,
     metadata: { linkupUserId: user.id },
   });
-  user.stripeCustomerId = customer.id;
+  setStripeCustomerId(user, customer.id);
   user.updatedAt = new Date().toISOString();
   saveDb(db);
   return customer.id;
@@ -1204,6 +1652,160 @@ function summarizeStripeAccount(account) {
     requirementsDue: Array.isArray(account.requirements?.currently_due) ? account.requirements.currently_due : [],
     updatedAt: new Date().toISOString(),
   };
+}
+
+function getPaymentProviderName() {
+  return PAYMENT_PROVIDER || 'stripe';
+}
+
+function getPayoutProviderName() {
+  return PAYOUT_PROVIDER || getPaymentProviderName();
+}
+
+function getProviderDisplayName(providerName) {
+  if (providerName === 'stripe') return 'Stripe';
+  return providerName ? providerName.charAt(0).toUpperCase() + providerName.slice(1) : 'Payment provider';
+}
+
+function getPaymentProviderConfig() {
+  const provider = getPaymentProviderName();
+  return {
+    provider,
+    providerLabel: getProviderDisplayName(provider),
+    publishableKey: provider === 'stripe' ? STRIPE_PUBLISHABLE_KEY : '',
+    client: provider === 'stripe' ? 'stripe-js' : '',
+  };
+}
+
+function requireStripeBackedProvider(providerName, res, purpose = 'payment') {
+  if (providerName !== 'stripe') {
+    res.status(501).json({ error: getProviderDisplayName(providerName) + ' is not implemented for ' + purpose + ' yet.' });
+    return false;
+  }
+  if (!stripe) {
+    res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
+    return false;
+  }
+  return true;
+}
+
+function ensureProviderProfile(user) {
+  user.paymentProviders = user.paymentProviders && typeof user.paymentProviders === 'object' ? user.paymentProviders : {};
+  user.payoutProviders = user.payoutProviders && typeof user.payoutProviders === 'object' ? user.payoutProviders : {};
+  return user;
+}
+
+function getStripeCustomerId(user) {
+  return user.paymentProviders?.stripe?.customerId || user.stripeCustomerId || '';
+}
+
+function setStripeCustomerId(user, customerId) {
+  ensureProviderProfile(user);
+  user.stripeCustomerId = customerId;
+  user.paymentProviders.stripe = {
+    ...(user.paymentProviders.stripe || {}),
+    customerId,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function getStripeConnectedAccountId(user) {
+  return user.payoutProviders?.stripe?.accountId || user.stripeConnectedAccountId || user.payoutInfo?.stripe?.accountId || '';
+}
+
+function setStripeConnectedAccount(user, account) {
+  const summary = summarizeStripeAccount(account);
+  ensureProviderProfile(user);
+  user.stripeConnectedAccountId = account.id;
+  user.payoutProviders.stripe = summary;
+  user.payoutInfo = {
+    ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
+    method: user.payoutInfo?.method || 'stripe',
+    stripe: summary,
+    updatedAt: new Date().toISOString(),
+  };
+  user.updatedAt = new Date().toISOString();
+  return summary;
+}
+
+function getCurrentWeekRange(now = new Date()) {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const day = start.getDay();
+  const daysSinceMonday = (day + 6) % 7;
+  start.setDate(start.getDate() - daysSinceMonday);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { start, end };
+}
+
+function getDriverPaymentRideIds(payment) {
+  const ids = [];
+  if (Array.isArray(payment.seats)) {
+    payment.seats.forEach((seat) => {
+      if (seat?.rideId) ids.push(seat.rideId);
+    });
+  }
+  if (!ids.length && Array.isArray(payment.rideIds)) {
+    payment.rideIds.forEach((rideId) => {
+      if (rideId) ids.push(rideId);
+    });
+  }
+  return ids;
+}
+
+function addWalletAmounts(target, grossCents) {
+  const gross = Math.max(0, Number(grossCents || 0));
+  const commission = Math.round(gross * LINKUP_COMMISSION_RATE);
+  const net = Math.max(0, gross - commission);
+  target.grossCents += gross;
+  target.commissionCents += commission;
+  target.netCents += net;
+  return { gross, commission, net };
+}
+
+function buildDriverWalletSummary(db, driverId) {
+  const now = new Date();
+  const weekRange = getCurrentWeekRange(now);
+  const ridesById = new Map((db.rides || []).map((ride) => [ride.id, ride]));
+  const summary = {
+    payoutCadence: 'weekly',
+    commissionRate: LINKUP_COMMISSION_RATE,
+    weekStart: weekRange.start.toISOString(),
+    weekEnd: weekRange.end.toISOString(),
+    thisWeek: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
+    readyForPayout: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
+    pendingRideCompletion: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
+    allTime: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
+  };
+
+  (db.payments || [])
+    .filter((payment) => payment.status === 'paid')
+    .forEach((payment) => {
+      const paidAtMs = new Date(payment.createdAt || 0).getTime();
+      const paidThisWeek = Number.isFinite(paidAtMs)
+        && paidAtMs >= weekRange.start.getTime()
+        && paidAtMs < weekRange.end.getTime();
+      getDriverPaymentRideIds(payment).forEach((rideId) => {
+        const ride = ridesById.get(rideId);
+        if (!ride || ride.driverId !== driverId) return;
+        const grossCents = Number(ride.priceCents || 0);
+        if (!grossCents) return;
+        addWalletAmounts(summary.allTime, grossCents);
+        summary.allTime.paidSeatCount += 1;
+        if (paidThisWeek) {
+          addWalletAmounts(summary.thisWeek, grossCents);
+          summary.thisWeek.paidSeatCount += 1;
+        }
+        if (paidThisWeek) {
+          const payoutBucket = hasTripEnded(ride) ? summary.readyForPayout : summary.pendingRideCompletion;
+          addWalletAmounts(payoutBucket, grossCents);
+          payoutBucket.paidSeatCount += 1;
+        }
+      });
+    });
+
+  return summary;
 }
 
 function addMonths(date, months) {
@@ -1887,9 +2489,8 @@ app.put('/api/profile/policies', requireAuth, (req, res) => {
 });
 
 app.post('/api/profile/payment-method/setup-session', requireAuth, async (req, res) => {
-  if (!stripe) {
-    return res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
-  }
+  const provider = getPaymentProviderName();
+  if (!requireStripeBackedProvider(provider, res, 'payment method setup')) return;
   const db = loadDb();
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) {
@@ -1901,9 +2502,9 @@ app.post('/api/profile/payment-method/setup-session', requireAuth, async (req, r
       customer: customerId,
       payment_method_types: ['card'],
       usage: 'off_session',
-      metadata: { linkupUserId: user.id, purpose: 'default_payment_method' },
+      metadata: { linkupUserId: user.id, purpose: 'default_payment_method', paymentProvider: provider },
     });
-    res.json({ clientSecret: setupIntent.client_secret, setupIntentId: setupIntent.id });
+    res.json({ provider, clientSecret: setupIntent.client_secret, setupIntentId: setupIntent.id });
   } catch (err) {
     console.error('Stripe payment method setup error:', err);
     res.status(502).json({ error: 'Unable to start Stripe payment setup. Please try again.' });
@@ -1911,9 +2512,8 @@ app.post('/api/profile/payment-method/setup-session', requireAuth, async (req, r
 });
 
 app.post('/api/profile/payment-method/complete-setup', requireAuth, async (req, res) => {
-  if (!stripe) {
-    return res.status(500).json({ error: 'Stripe is not configured. Payment method cannot be verified.' });
-  }
+  const provider = getPaymentProviderName();
+  if (!requireStripeBackedProvider(provider, res, 'payment method verification')) return;
   const setupIntentId = String(req.body.setupIntentId || req.body.sessionId || '').trim();
   if (!setupIntentId) {
     return res.status(400).json({ error: 'Stripe setup intent is required' });
@@ -1926,7 +2526,7 @@ app.post('/api/profile/payment-method/complete-setup', requireAuth, async (req, 
   try {
     const setupIntent = await stripe.setupIntents.retrieve(setupIntentId, { expand: ['payment_method'] });
     const customerId = typeof setupIntent.customer === 'string' ? setupIntent.customer : setupIntent.customer?.id || '';
-    if (setupIntent.status !== 'succeeded' || customerId !== user.stripeCustomerId) {
+    if (setupIntent.status !== 'succeeded' || customerId !== getStripeCustomerId(user)) {
       return res.status(400).json({ error: 'Stripe payment setup did not match this account.' });
     }
     const paymentMethod = setupIntent.payment_method;
@@ -1934,7 +2534,11 @@ app.post('/api/profile/payment-method/complete-setup', requireAuth, async (req, 
       return res.status(400).json({ error: 'Only card payment methods can be saved right now.' });
     }
     await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: paymentMethod.id } });
-    user.defaultPaymentMethod = summarizeStripePaymentMethod(paymentMethod, customerId);
+    user.defaultPaymentMethod = {
+      ...summarizeStripePaymentMethod(paymentMethod, customerId),
+      provider,
+      providerLabel: getProviderDisplayName(provider),
+    };
     user.updatedAt = new Date().toISOString();
     saveDb(db);
     res.json(publicUser(user));
@@ -1999,17 +2603,16 @@ app.put('/api/profile/payout', requireAuth, requireServiceAccess, (req, res) => 
   res.json(publicUser(user));
 });
 
-app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAccess, async (req, res) => {
-  if (!stripe) {
-    return res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
-  }
+async function startPayoutOnboarding(req, res) {
+  const provider = getPayoutProviderName();
+  if (!requireStripeBackedProvider(provider, res, 'payout onboarding')) return;
   const db = loadDb();
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
   try {
-    let accountId = user.stripeConnectedAccountId || user.payoutInfo?.stripe?.accountId || '';
+    let accountId = getStripeConnectedAccountId(user);
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: 'express',
@@ -2026,13 +2629,7 @@ app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAcc
         metadata: { linkupUserId: user.id },
       });
       accountId = account.id;
-      user.stripeConnectedAccountId = accountId;
-      user.payoutInfo = {
-        ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
-        method: user.payoutInfo?.method || 'stripe',
-        stripe: summarizeStripeAccount(account),
-      };
-      user.updatedAt = new Date().toISOString();
+      setStripeConnectedAccount(user, account);
       saveDb(db);
     }
     const accountLink = await stripe.accountLinks.create({
@@ -2041,43 +2638,40 @@ app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAcc
       return_url: APP_BASE_URL + '/?connect=payout&status=return',
       type: 'account_onboarding',
     });
-    res.json({ url: accountLink.url });
+    res.json({ provider, url: accountLink.url });
   } catch (err) {
     console.error('Stripe Connect onboarding error:', err);
     res.status(502).json({ error: 'Unable to start Stripe payout onboarding. Please try again.' });
   }
-});
+}
 
-app.post('/api/profile/payout/stripe-status', requireAuth, requireServiceAccess, async (req, res) => {
-  if (!stripe) {
-    return res.status(500).json({ error: 'Stripe is not configured. Payout status cannot be checked.' });
-  }
+async function refreshPayoutStatus(req, res) {
+  const provider = getPayoutProviderName();
+  if (!requireStripeBackedProvider(provider, res, 'payout status')) return;
   const db = loadDb();
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const accountId = user.stripeConnectedAccountId || user.payoutInfo?.stripe?.accountId || '';
+  const accountId = getStripeConnectedAccountId(user);
   if (!accountId) {
     return res.status(400).json({ error: 'Stripe payouts have not been connected yet.' });
   }
   try {
     const account = await stripe.accounts.retrieve(accountId);
-    user.stripeConnectedAccountId = account.id;
-    user.payoutInfo = {
-      ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
-      method: user.payoutInfo?.method || 'stripe',
-      stripe: summarizeStripeAccount(account),
-      updatedAt: new Date().toISOString(),
-    };
-    user.updatedAt = new Date().toISOString();
+    setStripeConnectedAccount(user, account);
     saveDb(db);
     res.json(publicUser(user));
   } catch (err) {
     console.error('Stripe Connect status error:', err);
     res.status(502).json({ error: 'Unable to check Stripe payout status. Please try again.' });
   }
-});
+}
+
+app.post('/api/profile/payout/onboarding', requireAuth, requireServiceAccess, startPayoutOnboarding);
+app.post('/api/profile/payout/status', requireAuth, requireServiceAccess, refreshPayoutStatus);
+app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAccess, startPayoutOnboarding);
+app.post('/api/profile/payout/stripe-status', requireAuth, requireServiceAccess, refreshPayoutStatus);
 
 // Sign out endpoint
 app.post('/api/auth/signout', (req, res) => {
@@ -2797,13 +3391,8 @@ app.post('/api/rides/:rideId/rating', requireAuth, requireServiceAccess, (req, r
 });
 
 app.post('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req, res) => {
-  const text = String(req.body.text || '').trim();
-  if (!text) {
-    return res.status(400).json({ error: 'Message cannot be empty' });
-  }
-  if (text.length > 500) {
-    return res.status(400).json({ error: 'Message must be 500 characters or fewer' });
-  }
+  const textValidation = validateChatText(req.body.text);
+  if (textValidation.error) return res.status(400).json({ error: textValidation.error });
 
   const db = loadDb();
   const sender = (db.users || []).find((user) => user.id === req.session.userId);
@@ -2821,20 +3410,10 @@ app.post('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req,
     return res.status(403).json({ error: 'This chat is disabled because the ride ended more than a day ago' });
   }
 
-  db.rideMessages = db.rideMessages || {};
-  db.rideMessages[ride.id] = db.rideMessages[ride.id] || [];
-  const message = {
-    id: uuidv4(),
-    rideId: ride.id,
-    senderId: sender.id,
-    senderFirstName: sender.firstName,
-    senderLastName: sender.lastName,
-    senderRole: ride.driverId === sender.id ? 'Driver' : 'Rider',
-    text,
-    createdAt: new Date().toISOString(),
-  };
-  db.rideMessages[ride.id].push(message);
+  const message = appendRideChatMessage(db, ride, sender, textValidation.text);
   saveDb(db);
+  io.to('ride:' + ride.id).emit('chat:message', { rideId: ride.id, message });
+  notifyRideChatParticipants(db, ride, sender, message);
   res.json({ message, messages: db.rideMessages[ride.id] });
 });
 
@@ -2991,15 +3570,20 @@ function finalizePaidCheckoutSession(db, student, checkoutSession) {
   checkoutSession.status = 'paid';
   checkoutSession.completedAt = new Date().toISOString();
   db.payments = db.payments || [];
-  const existingPayment = db.payments.find((payment) => payment.stripePaymentIntentId
-    && payment.stripePaymentIntentId === checkoutSession.stripePaymentIntentId);
+  const provider = checkoutSession.provider || (checkoutSession.stripePaymentIntentId || checkoutSession.stripeSessionId ? 'stripe' : 'local');
+  const providerPaymentId = checkoutSession.providerPaymentId || checkoutSession.stripePaymentIntentId || checkoutSession.stripeSessionId || checkoutSession.id;
+  const existingPayment = db.payments.find((payment) => payment.providerPaymentId
+    ? payment.provider === provider && payment.providerPaymentId === providerPaymentId
+    : payment.stripePaymentIntentId && payment.stripePaymentIntentId === checkoutSession.stripePaymentIntentId);
   if (!existingPayment) {
     db.payments.push({
       id: uuidv4(),
       studentId: student.id,
       rideIds: reservation.ridesToReserve.map(({ ride }) => ride.id),
       seats: reservation.ridesToReserve.map(({ ride, seatId, actualPickup, actualDropoff }) => ({ rideId: ride.id, seatId, actualPickup, actualDropoff })),
-      provider: checkoutSession.stripeSessionId ? 'stripe' : 'local',
+      provider,
+      providerPaymentId,
+      providerSessionId: checkoutSession.providerSessionId || checkoutSession.stripeSessionId || '',
       stripeSessionId: checkoutSession.stripeSessionId || '',
       stripePaymentIntentId: checkoutSession.stripePaymentIntentId || '',
       amountCents: checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || null,
@@ -3010,13 +3594,16 @@ function finalizePaidCheckoutSession(db, student, checkoutSession) {
   }
   const reservedRideIds = new Set(reservation.ridesToReserve.map(({ ride }) => ride.id));
   db.carts[student.id] = cleanCartEntries(db, student.id).filter((entry) => !reservedRideIds.has(entry.rideId));
+  sendReservationConfirmationEmail(db, student, reservation, checkoutSession);
   return { message: 'Payment complete. Your selected seats are booked.', rides: reservation.ridesToReserve.map(({ ride }) => rideForUser(ride, student.id, db)) };
 }
 
 function finalizePaidCheckoutByPaymentIntent(db, paymentIntent) {
   const paymentIntentId = typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id;
-  const checkoutSession = (db.checkoutSessions || []).find((session) => session.stripePaymentIntentId === paymentIntentId);
+  const checkoutSession = (db.checkoutSessions || []).find((session) => session.providerPaymentId === paymentIntentId || session.stripePaymentIntentId === paymentIntentId);
   if (!checkoutSession) return { error: 'Checkout session not found' };
+  checkoutSession.provider = checkoutSession.provider || 'stripe';
+  checkoutSession.providerPaymentId = checkoutSession.providerPaymentId || paymentIntentId;
   if (paymentIntent && typeof paymentIntent === 'object') {
     if (checkoutSession.expectedAmountCents && paymentIntent.amount !== checkoutSession.expectedAmountCents) {
       checkoutSession.status = 'failed';
@@ -3035,16 +3622,10 @@ function finalizePaidCheckoutByPaymentIntent(db, paymentIntent) {
 
 function updateStripeConnectedAccountStatus(db, account) {
   const user = (db.users || []).find((entry) => entry.stripeConnectedAccountId === account.id
-    || entry.payoutInfo?.stripe?.accountId === account.id);
+    || entry.payoutInfo?.stripe?.accountId === account.id
+    || entry.payoutProviders?.stripe?.accountId === account.id);
   if (!user) return false;
-  user.stripeConnectedAccountId = account.id;
-  user.payoutInfo = {
-    ...(user.payoutInfo && typeof user.payoutInfo === 'object' ? user.payoutInfo : {}),
-    method: user.payoutInfo?.method || 'stripe',
-    stripe: summarizeStripeAccount(account),
-    updatedAt: new Date().toISOString(),
-  };
-  user.updatedAt = new Date().toISOString();
+  setStripeConnectedAccount(user, account);
   return true;
 }
 
@@ -3067,9 +3648,8 @@ app.post('/api/cart/checkout', requireAuth, requireServiceAccess, (req, res) => 
 });
 
 app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess, async (req, res) => {
-  if (!stripe) {
-    return res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
-  }
+  const provider = getPaymentProviderName();
+  if (!requireStripeBackedProvider(provider, res, 'checkout')) return;
 
   const db = loadDb();
   const student = db.users.find((u) => u.id === req.session.userId);
@@ -3107,12 +3687,15 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
       metadata: {
         linkupStudentId: student.id,
         linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
+        paymentProvider: provider,
       },
     });
 
     db.checkoutSessions = db.checkoutSessions || [];
     db.checkoutSessions.push({
       id: paymentIntent.id,
+      provider,
+      providerPaymentId: paymentIntent.id,
       stripePaymentIntentId: paymentIntent.id,
       studentId: student.id,
       cartEntries: cartEntries.map((entry) => ({ ...entry })),
@@ -3122,7 +3705,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     });
     saveDb(db);
 
-    res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
+    res.json({ provider, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
   } catch (err) {
     console.error('Stripe checkout session error:', err);
     res.status(502).json({ error: 'Unable to start Stripe Checkout. Please try again.' });
@@ -3139,7 +3722,7 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, async
 
   db.checkoutSessions = db.checkoutSessions || [];
   const checkoutSession = db.checkoutSessions.find((session) => session.studentId === student.id
-    && (session.id === sessionId || session.stripeSessionId === sessionId || session.stripePaymentIntentId === sessionId));
+    && (session.id === sessionId || session.providerPaymentId === sessionId || session.providerSessionId === sessionId || session.stripeSessionId === sessionId || session.stripePaymentIntentId === sessionId));
   if (!checkoutSession) {
     return res.status(404).json({ error: 'Checkout session not found' });
   }
@@ -3147,10 +3730,10 @@ app.post('/api/cart/checkout/complete', requireAuth, requireServiceAccess, async
     return res.json({ message: 'Payment already completed.' });
   }
 
+  const provider = checkoutSession.provider || (checkoutSession.stripePaymentIntentId || checkoutSession.stripeSessionId ? 'stripe' : getPaymentProviderName());
+  if (!requireStripeBackedProvider(provider, res, 'payment verification')) return;
+
   if (checkoutSession.stripePaymentIntentId && !checkoutSession.stripeSessionId) {
-    if (!stripe) {
-      return res.status(500).json({ error: 'Stripe is not configured. Payment cannot be verified.' });
-    }
     let paymentIntent;
     try {
       paymentIntent = await stripe.paymentIntents.retrieve(checkoutSession.stripePaymentIntentId);
@@ -3384,6 +3967,7 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
     }),
     riderRequests,
     driverOffers,
+    wallet: buildDriverWalletSummary(db, studentId),
   });
 });
 
@@ -3409,7 +3993,7 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 migrateDbOnStartup().then(() => {
-  server = app.listen(PORT, () => {
+  server = httpServer.listen(PORT, () => {
     console.log(`LinkUp server listening on http://localhost:${PORT}`);
   });
   server.on('error', (err) => {

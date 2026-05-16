@@ -10,13 +10,18 @@
 - **Stripe webhook recovery.** Closing the browser mid-checkout no longer loses a reservation — webhooks finalize the payment automatically.
 - **Exact rider stops.** Personal Car rides with flexible areas now collect exact pickup and drop-off spots before checkout. Drivers see them after confirmation.
 - **Leaderboard saved miles.** The school leaderboard now shows total miles saved across all confirmed shared rides.
+- **Driver wallet.** Drivers can now see this week's net earnings, completed-ride payout balance, pending earnings, and all-time earnings from Profile.
+- **Future-ready payment providers.** Payment and payout records now store provider-neutral ids so LinkUp can move beyond Stripe more cleanly later.
+- **Live chat notifications.** Riders and drivers can enable browser push notifications for new ride chat messages.
 
 ### Fixed
 - **Leaderboard accuracy.** Miles now count only completed rides with confirmed riders — future or unused listings no longer inflate the total.
 - **Cleaner current activity.** Departed rides and expired requests no longer appear in current activity.
 - **Cart preserves stop details.** Exact pickup and drop-off details stay attached through the full cart and payment flow.
 - **Tracking links expire reliably.** Expiry is now enforced across viewer access, location updates, and invite resends.
+- **Ride chat updates live.** Messages and typing indicators now update in real time for confirmed ride chats.
 - **Payout fields block sensitive data.** Bank account, routing, card, CVV, SSN, IBAN, and similar numbers are rejected at input.
+- **Driver payout page simplified.** Manual payout fields were removed in favor of a wallet view and Stripe payout connection.
 - **Stricter security defaults.** Helmet headers and strict session cookie same-site behavior are now active.
 - **Secret files harder to commit.** Local session files and reset backups are now excluded by Git.
 - **Google Maps setup docs updated.** All required Google Maps Platform APIs are now listed in the setup guide.
