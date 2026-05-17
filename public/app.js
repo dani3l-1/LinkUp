@@ -967,7 +967,19 @@ function validatePasswordRequirements(password) {
 
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, options);
-  const data = await res.json();
+  const contentType = res.headers.get('content-type') || '';
+  let data;
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    const error = new Error(text.trim().startsWith('<')
+      ? 'Server returned a webpage instead of API data. The running server may be missing this route or needs to be updated.'
+      : text || 'Server returned an unexpected response.');
+    error.status = res.status;
+    error.responseText = text;
+    throw error;
+  }
   if (!res.ok) {
     const error = new Error(data.error || 'Request failed');
     Object.assign(error, data);
@@ -5845,7 +5857,7 @@ stripePayoutConnectButton?.addEventListener('click', async () => {
   clearPayoutMessages();
   try {
     setButtonLoading(stripePayoutConnectButton, true);
-    const data = await fetchJson('/api/profile/payout/stripe-onboarding', { method: 'POST' });
+    const data = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
     window.location.href = data.url;
   } catch (err) {
     payoutError.textContent = err.message.includes('Stripe is not configured')
@@ -6115,7 +6127,7 @@ async function refreshStripePayoutStatus(status) {
       payoutError.textContent = 'Stripe payout onboarding needs a little more information.';
       payoutError.classList.add('show');
     }
-    currentUser = await fetchJson('/api/profile/payout/stripe-status', { method: 'POST' });
+    currentUser = await fetchJson('/api/profile/payout/status', { method: 'POST' });
     fillDriverPayoutForm(currentUser);
     if (status !== 'refresh') {
       payoutMessage.textContent = currentUser.payoutInfo?.stripe?.payoutsEnabled
