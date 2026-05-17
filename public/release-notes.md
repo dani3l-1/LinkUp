@@ -9,7 +9,9 @@
 - **Better verification email.** Email verification codes now arrive in a branded LinkUp email with a cleaner layout and plain-text fallback.
 - **Reservation confirmation email.** Riders now receive a thank-you email with ride details after a seat is successfully reserved.
 - **Wallet checkout credit.** Completed driver earnings can now be used automatically toward future LinkUp rides before charging a card.
-- **Weekly payout reset.** Driver wallet balances now use a ledger so weekly payouts can zero out paid balances cleanly.
+- **Wallet payment display.** Checkout now shows LinkUp Wallet balance, wallet applied, and remaining card amount before payment.
+- **Optional Stripe cash-out.** Driver wallet balances now use a ledger, can be spent inside LinkUp, and only need Stripe when a driver wants weekly bank payouts.
+- **Simplified driver wallet page.** Manual payout fields were removed because Stripe Connect collects bank payout details securely.
 - **Ride service pause.** New ride browsing, requests, reservations, chat, tracking, and checkout are temporarily disabled while payment and payout setup is finalized.
 
 ### Fixed

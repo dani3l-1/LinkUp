@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: process.env.LINKUP_ENV_FILE || '.env' });
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
@@ -35,6 +35,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <n
 const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15);
 const ADMIN_PAYOUT_SECRET = process.env.ADMIN_PAYOUT_SECRET || '';
 const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
+const BYPASS_EMAIL_VERIFICATION = process.env.NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
 const PAYMENT_PROVIDER = String(process.env.PAYMENT_PROVIDER || 'stripe').trim().toLowerCase();
 const PAYOUT_PROVIDER = String(process.env.PAYOUT_PROVIDER || PAYMENT_PROVIDER).trim().toLowerCase();
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
@@ -1693,10 +1694,18 @@ function requireStripeBackedProvider(providerName, res, purpose = 'payment') {
     return false;
   }
   if (!stripe) {
-    res.status(500).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to continue.' });
+    res.status(500).json({ error: 'Stripe is not configured on this server. Add STRIPE_SECRET_KEY and restart with updated environment variables.' });
     return false;
   }
   return true;
+}
+
+function getPublicStripeErrorMessage(err, fallback) {
+  const message = String(err?.raw?.message || err?.message || '').trim();
+  if (!message) return fallback;
+  return message
+    .replace(/sk_(test|live)_[A-Za-z0-9]+/g, 'sk_$1_[hidden]')
+    .replace(/rk_(test|live)_[A-Za-z0-9]+/g, 'rk_$1_[hidden]');
 }
 
 function ensureProviderProfile(user) {
@@ -1789,7 +1798,8 @@ function isDriverWalletCredit(transaction) {
 }
 
 function isWalletDebit(transaction) {
-  return ['wallet_checkout_debit', 'weekly_payout_debit'].includes(transaction?.type) && transaction.status !== 'void';
+  return ['wallet_checkout_debit', 'weekly_payout_debit'].includes(transaction?.type)
+    && !['void', 'failed'].includes(transaction.status);
 }
 
 function isWalletCreditAvailable(db, transaction, now = new Date()) {
@@ -1880,28 +1890,81 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
   });
 }
 
-function createWeeklyPayoutDebits(db, userIds = []) {
+async function createWeeklyStripePayouts(db, userIds = []) {
+  if (!stripe) throw new Error('Stripe is not configured');
+  const provider = getPayoutProviderName();
+  if (provider !== 'stripe') throw new Error(getProviderDisplayName(provider) + ' payouts are not implemented yet.');
   const allowedUserIds = new Set(asArray(userIds).map((userId) => String(userId || '').trim()).filter(Boolean));
   const users = asArray(db.users).filter((user) => !allowedUserIds.size || allowedUserIds.has(user.id));
-  const paidAt = new Date().toISOString();
+  const runId = uuidv4();
+  const startedAt = new Date().toISOString();
   const payouts = [];
   db.walletTransactions = db.walletTransactions || [];
-  users.forEach((user) => {
+  for (const user of users) {
     const amountCents = getWalletAvailableCents(db, user.id);
-    if (!amountCents) return;
+    if (!amountCents) continue;
+    const accountId = getStripeConnectedAccountId(user);
+    if (!accountId) {
+      payouts.push({ userId: user.id, email: user.email, amountCents, status: 'skipped', error: 'Driver has not connected Stripe payouts.' });
+      continue;
+    }
     const payoutId = uuidv4();
-    db.walletTransactions.push({
+    const transaction = {
       id: payoutId,
       userId: user.id,
       type: 'weekly_payout_debit',
       amountCents,
       currency: 'usd',
-      status: 'posted',
+      provider: 'stripe',
+      destinationAccountId: accountId,
+      payoutRunId: runId,
+      status: 'processing',
       note: 'Weekly driver payout',
-      createdAt: paidAt,
-    });
-    payouts.push({ id: payoutId, userId: user.id, email: user.email, amountCents });
-  });
+      createdAt: startedAt,
+    };
+    db.walletTransactions.push(transaction);
+    saveDb(db);
+
+    try {
+      const account = await stripe.accounts.retrieve(accountId);
+      setStripeConnectedAccount(user, account);
+      if (account.payouts_enabled !== true) {
+        transaction.status = 'failed';
+        transaction.failureReason = 'Stripe payout account is not ready for payouts.';
+        transaction.failedAt = new Date().toISOString();
+        payouts.push({ id: payoutId, userId: user.id, email: user.email, amountCents, status: 'failed', error: transaction.failureReason });
+        saveDb(db);
+        continue;
+      }
+
+      const transfer = await stripe.transfers.create({
+        amount: amountCents,
+        currency: 'usd',
+        destination: accountId,
+        description: 'LinkUp weekly driver payout',
+        metadata: {
+          linkupPayoutId: payoutId,
+          linkupPayoutRunId: runId,
+          linkupUserId: user.id,
+          purpose: 'weekly_driver_payout',
+        },
+      }, {
+        idempotencyKey: `linkup-weekly-payout-${payoutId}`,
+      });
+
+      transaction.status = 'posted';
+      transaction.providerTransferId = transfer.id;
+      transaction.postedAt = new Date().toISOString();
+      payouts.push({ id: payoutId, userId: user.id, email: user.email, amountCents, status: 'posted', stripeTransferId: transfer.id });
+      saveDb(db);
+    } catch (err) {
+      transaction.status = 'failed';
+      transaction.failureReason = err.message || 'Stripe transfer failed.';
+      transaction.failedAt = new Date().toISOString();
+      payouts.push({ id: payoutId, userId: user.id, email: user.email, amountCents, status: 'failed', error: transaction.failureReason });
+      saveDb(db);
+    }
+  }
   return payouts;
 }
 
@@ -2360,6 +2423,19 @@ app.post('/api/auth/signup', async (req, res) => {
     createdAt: new Date().toISOString(),
   };
 
+  if (BYPASS_EMAIL_VERIFICATION) {
+    user.emailVerified = true;
+    db.users.push(user);
+    saveDb(db);
+    req.session.userId = user.id;
+    return res.json({
+      message: 'Account created and verified for local testing.',
+      email: user.email,
+      requiresVerification: false,
+      user: publicUser(user, db),
+    });
+  }
+
   const verificationCode = setEmailVerificationCode(user);
   db.users.push(user);
   saveDb(db);
@@ -2384,6 +2460,14 @@ app.post('/api/auth/verify-email', (req, res) => {
     return res.status(400).json({ error: 'Invalid verification code' });
   }
   if (user.emailVerified === true) {
+    req.session.userId = user.id;
+    return res.json(publicUser(user, db));
+  }
+  if (BYPASS_EMAIL_VERIFICATION && String(code).trim() === '000000') {
+    user.emailVerified = true;
+    delete user.emailVerificationCodeHash;
+    delete user.emailVerificationCodeExpiresAt;
+    saveDb(db);
     req.session.userId = user.id;
     return res.json(publicUser(user, db));
   }
@@ -2821,7 +2905,7 @@ async function startPayoutOnboarding(req, res) {
     res.json({ provider, url: accountLink.url });
   } catch (err) {
     console.error('Stripe Connect onboarding error:', err);
-    res.status(502).json({ error: 'Unable to start Stripe payout onboarding. Please try again.' });
+    res.status(502).json({ error: getPublicStripeErrorMessage(err, 'Unable to start Stripe payout onboarding. Please try again.') });
   }
 }
 
@@ -4206,17 +4290,31 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
   });
 });
 
-app.post('/api/admin/wallets/weekly-payouts', (req, res) => {
+app.post('/api/admin/wallets/weekly-payouts', async (req, res) => {
   if (!ADMIN_PAYOUT_SECRET || req.get('x-admin-secret') !== ADMIN_PAYOUT_SECRET) {
     return res.status(403).json({ error: 'Admin payout access is not configured.' });
   }
+  if (!requireStripeBackedProvider(getPayoutProviderName(), res, 'weekly payouts')) return;
   const db = loadDb();
-  const payouts = createWeeklyPayoutDebits(db, req.body?.userIds);
-  saveDb(db);
-  res.json({
-    message: payouts.length ? 'Weekly payout balances reset.' : 'No available wallet balances to pay out.',
-    payouts,
-  });
+  try {
+    const payouts = await createWeeklyStripePayouts(db, req.body?.userIds);
+    saveDb(db);
+    const posted = payouts.filter((payout) => payout.status === 'posted');
+    const failed = payouts.filter((payout) => payout.status === 'failed');
+    const skipped = payouts.filter((payout) => payout.status === 'skipped');
+    res.json({
+      message: posted.length
+        ? 'Weekly Stripe payouts sent and posted wallet balances reset.'
+        : 'No Stripe payouts were sent.',
+      postedCount: posted.length,
+      failedCount: failed.length,
+      skippedCount: skipped.length,
+      payouts,
+    });
+  } catch (err) {
+    console.error('Weekly Stripe payout error:', err);
+    res.status(502).json({ error: err.message || 'Unable to run weekly Stripe payouts.' });
+  }
 });
 
 app.get('*', (req, res) => {

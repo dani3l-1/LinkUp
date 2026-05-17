@@ -5229,6 +5229,20 @@ textarea:disabled,
   opacity: 0.65;
 }
 
+.checkout-no-refund-notice {
+  border: 1px solid rgba(255, 112, 122, 0.34);
+  border-radius: var(--radius-md);
+  background: rgba(255, 112, 122, 0.08);
+  color: #ffb7bd;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  padding: 0.8rem 0.9rem;
+}
+
+.payment-no-refund-notice {
+  margin-bottom: 0.9rem;
+}
+
 /* Terms agreement inside summary panel */
 .cart-summary-panel #cart-terms-agreement {
   margin: 0 0 0.85rem;
@@ -5241,6 +5255,73 @@ textarea:disabled,
   font-size: 0.88rem;
   color: var(--text-muted);
   margin-bottom: 1.5rem;
+}
+
+.linkup-wallet-checkout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr);
+  gap: 1rem;
+  align-items: stretch;
+  border: 1px solid rgba(62, 207, 207, 0.35);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(62, 207, 207, 0.13), rgba(96, 222, 181, 0.06));
+  box-shadow: var(--shadow-soft);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.linkup-wallet-checkout.hidden {
+  display: none;
+}
+
+.wallet-checkout-copy,
+.wallet-checkout-breakdown {
+  min-width: 0;
+}
+
+.wallet-checkout-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.wallet-checkout-copy span,
+.wallet-checkout-breakdown span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wallet-checkout-copy strong {
+  color: var(--accent);
+  font-size: clamp(1.5rem, 3vw, 2.15rem);
+  letter-spacing: 0;
+}
+
+.wallet-checkout-copy small {
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
+.wallet-checkout-breakdown {
+  display: grid;
+  gap: 0.55rem;
+  border-left: 1px solid rgba(160, 224, 229, 0.18);
+  padding-left: 1rem;
+}
+
+.wallet-checkout-breakdown div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.wallet-checkout-breakdown strong {
+  color: var(--text);
+  font-size: 0.95rem;
+  letter-spacing: 0;
 }
 
 /* ── Override old cart-page padding when using new layout ────── */
@@ -5270,6 +5351,17 @@ textarea:disabled,
     position: static;
     padding: 1.25rem 1.25rem 1.75rem;
     border-top: none;
+  }
+
+  .linkup-wallet-checkout {
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-checkout-breakdown {
+    border-left: 0;
+    border-top: 1px solid rgba(160, 224, 229, 0.18);
+    padding-left: 0;
+    padding-top: 0.85rem;
   }
 
   .cart-topbar {

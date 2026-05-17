@@ -4,7 +4,8 @@
   "private": true,
   "description": "LinkUp - Ride Connect Save. University ride-sharing app for students.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:test": "LINKUP_ENV_FILE=.env.local node server.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

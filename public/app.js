@@ -141,6 +141,7 @@ const cartMessage = document.getElementById('cart-message');
 const cartError = document.getElementById('cart-error');
 const paymentPage = document.getElementById('payment-page');
 const paymentSummary = document.getElementById('payment-summary');
+const linkupWalletCheckout = document.getElementById('linkup-wallet-checkout');
 const paymentBackToCartButton = document.getElementById('payment-back-to-cart');
 const paymentMessage = document.getElementById('payment-message');
 const paymentError = document.getElementById('payment-error');
@@ -1747,18 +1748,18 @@ function renderStripePayoutSummary(user) {
   if (!stripePayoutSummary) return;
   const stripeInfo = user?.payoutInfo?.stripe || null;
   if (!stripeInfo?.accountId) {
-    stripePayoutSummary.textContent = 'Stripe payouts not connected.';
+    stripePayoutSummary.textContent = 'Stripe cash-out not connected. You can still earn and spend wallet balance inside LinkUp.';
     return;
   }
   if (stripeInfo.payoutsEnabled) {
-    stripePayoutSummary.textContent = 'Stripe payouts connected and ready.';
+    stripePayoutSummary.textContent = 'Stripe cash-out connected and ready for weekly bank payouts.';
     return;
   }
   if (stripeInfo.detailsSubmitted) {
-    stripePayoutSummary.textContent = 'Stripe payout details submitted. Stripe is finishing verification.';
+    stripePayoutSummary.textContent = 'Stripe cash-out details submitted. Stripe is finishing verification.';
     return;
   }
-  stripePayoutSummary.textContent = 'Stripe payouts started. Finish onboarding to receive driver payouts.';
+  stripePayoutSummary.textContent = 'Stripe cash-out started. Finish onboarding when you want bank payouts.';
 }
 
 function renderDriverWalletSummary(user) {
@@ -1769,7 +1770,7 @@ function renderDriverWalletSummary(user) {
     <div class="wallet-card wallet-card-primary">
       <span>Wallet balance</span>
       <strong>${formatCents(wallet.availableCents || 0)}</strong>
-      <small>Available for rides now. Paid out weekly.</small>
+      <small>Available for rides now. Stripe is only needed for bank cash-out.</small>
     </div>
     <div class="wallet-card">
       <span>This week earned</span>
@@ -1784,7 +1785,7 @@ function renderDriverWalletSummary(user) {
     <div class="wallet-card">
       <span>Weekly payout</span>
       <strong>${formatCents(wallet.payoutScheduledCents || 0)}</strong>
-      <small>After payout, this wallet balance returns to $0.00.</small>
+      <small>Only paid to a bank when Stripe cash-out is connected.</small>
     </div>
     <div class="wallet-card wallet-card-wide">
       <span>Wallet rules</span>
@@ -1794,15 +1795,6 @@ function renderDriverWalletSummary(user) {
 }
 
 function fillDriverPayoutForm(user) {
-  const info = user.payoutInfo || {};
-  document.getElementById('payout-legal-name').value = info.legalName || [user.firstName, user.lastName].filter(Boolean).join(' ');
-  document.getElementById('payout-method').value = info.method || '';
-  document.getElementById('payout-email').value = info.email || user.email || '';
-  document.getElementById('payout-phone').value = info.phone || '';
-  document.getElementById('payout-handle').value = info.handle || '';
-  document.getElementById('payout-address').value = info.address || '';
-  document.getElementById('payout-notes').value = info.notes || '';
-  document.getElementById('payout-confirm').checked = Boolean(info.confirmedAt);
   renderDriverWalletSummary(user);
   renderStripePayoutSummary(user);
   if (payoutCommissionLabel) payoutCommissionLabel.textContent = Math.round(LINKUP_COMMISSION_RATE * 100) + '%';
@@ -1810,14 +1802,14 @@ function fillDriverPayoutForm(user) {
 
 function getDriverPayoutPayload() {
   return {
-    legalName: document.getElementById('payout-legal-name').value.trim(),
-    method: document.getElementById('payout-method').value,
-    email: document.getElementById('payout-email').value.trim(),
-    phone: document.getElementById('payout-phone').value.trim(),
-    handle: document.getElementById('payout-handle').value.trim(),
-    address: document.getElementById('payout-address').value.trim(),
-    notes: document.getElementById('payout-notes').value.trim(),
-    confirmed: document.getElementById('payout-confirm').checked,
+    legalName: [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' '),
+    method: 'stripe',
+    email: currentUser?.email || '',
+    phone: '',
+    handle: '',
+    address: '',
+    notes: '',
+    confirmed: true,
   };
 }
 
@@ -2237,10 +2229,11 @@ function showPaymentPage(preselectedRideIds = null) {
 
   // Populate right-panel order summary from selected cart cards
   const orderSummaryEl = document.getElementById('payment-order-summary');
+  let totalCents = 0;
   if (orderSummaryEl) {
     const selectedCards = [...cartItems.querySelectorAll('.cart-item-card')]
       .filter((card) => selectedRideIds.includes(card.dataset.rideId));
-    const totalCents = selectedCards.reduce((sum, card) => sum + Number(card.dataset.priceCents || 0), 0);
+    totalCents = selectedCards.reduce((sum, card) => sum + Number(card.dataset.priceCents || 0), 0);
 
     const rows = selectedCards.map((card) => {
       const title = card.querySelector('h4')?.textContent?.trim() || 'Ride';
@@ -2264,6 +2257,48 @@ function showPaymentPage(preselectedRideIds = null) {
     `;
     orderSummaryEl.classList.remove('hidden');
   }
+  renderLinkUpWalletCheckout(totalCents);
+}
+
+function renderLinkUpWalletCheckout(totalCents) {
+  if (!linkupWalletCheckout) return;
+  const availableCents = Math.max(0, Number(currentUser?.wallet?.availableCents || 0));
+  const appliedCents = Math.min(availableCents, Math.max(0, Number(totalCents || 0)));
+  const remainingCents = Math.max(0, Number(totalCents || 0) - appliedCents);
+  const payCartButton = document.getElementById('pay-cart');
+  if (payCartButton) {
+    payCartButton.textContent = appliedCents > 0 && remainingCents === 0
+      ? 'Pay with LinkUp Wallet'
+      : appliedCents > 0
+        ? 'Use Wallet + Card'
+        : 'Check Out';
+  }
+
+  if (availableCents <= 0) {
+    linkupWalletCheckout.innerHTML = `
+      <div class="wallet-checkout-copy">
+        <span>LinkUp Wallet</span>
+        <strong>${formatCents(0)}</strong>
+        <small>No wallet balance available for this checkout.</small>
+      </div>
+    `;
+    linkupWalletCheckout.classList.remove('hidden');
+    return;
+  }
+
+  linkupWalletCheckout.innerHTML = `
+    <div class="wallet-checkout-copy">
+      <span>LinkUp Wallet</span>
+      <strong>${formatCents(availableCents)}</strong>
+      <small>${appliedCents > 0 ? `${formatCents(appliedCents)} will be applied before your card.` : 'Available for future LinkUp rides.'}</small>
+    </div>
+    <div class="wallet-checkout-breakdown">
+      <div><span>Trip total</span><strong>${formatCents(totalCents || 0)}</strong></div>
+      <div><span>Wallet applied</span><strong>-${formatCents(appliedCents)}</strong></div>
+      <div><span>${remainingCents > 0 ? 'Card due' : 'Due today'}</span><strong>${formatCents(remainingCents)}</strong></div>
+    </div>
+  `;
+  linkupWalletCheckout.classList.remove('hidden');
 }
 
 function restoreAppRoute() {
@@ -5060,6 +5095,11 @@ signupForm.addEventListener('submit', async (event) => {
   try {
     const data = await fetchJson('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, middleName, lastName, birthday, gender, email, password, termsAccepted, privacyAccepted }) });
     signupForm.reset();
+    if (data.requiresVerification === false) {
+      currentUser = data.user || await fetchJson('/api/auth/me');
+      showDashboard(currentUser);
+      return;
+    }
     showVerificationForm(data.email, data.message);
   } catch (err) {
     signupError.textContent = err.message;
@@ -5804,11 +5844,15 @@ driverPayoutForm.addEventListener('submit', async (event) => {
 stripePayoutConnectButton?.addEventListener('click', async () => {
   clearPayoutMessages();
   try {
+    setButtonLoading(stripePayoutConnectButton, true);
     const data = await fetchJson('/api/profile/payout/stripe-onboarding', { method: 'POST' });
     window.location.href = data.url;
   } catch (err) {
-    payoutError.textContent = err.message;
+    payoutError.textContent = err.message.includes('Stripe is not configured')
+      ? 'Stripe cash-out is not configured on this server. Add Stripe keys and restart with updated environment variables.'
+      : err.message;
     payoutError.classList.add('show');
+    setButtonLoading(stripePayoutConnectButton, false);
   }
 });
 trackTripButton.addEventListener('click', () => showTrackTripPage());
@@ -6006,7 +6050,9 @@ async function completeStripeCheckout(sessionId) {
     setAppRoute('payment');
     hideDashboardPages();
     paymentPage.classList.remove('hidden');
-    paymentSummary.textContent = 'Verifying your Stripe payment...';
+    paymentSummary.textContent = String(sessionId || '').startsWith('wallet_')
+      ? 'Applying your LinkUp wallet payment...'
+      : 'Verifying your Stripe payment...';
     destroyEmbeddedCheckout();
     const data = await fetchJson('/api/cart/checkout/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }) });
     paymentMessage.textContent = data.message;

@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=20260516-simple" />
     <link rel="icon" type="image/png" href="/favicon.png?v=20260516-simple" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260516-simple" />
-    <link rel="stylesheet" href="styles.css?v=20260516-wallet" />
+    <link rel="stylesheet" href="styles.css?v=20260516-no-refunds" />
   </head>
   <body class="app-booting">
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -413,44 +413,20 @@
                 <div id="profile-payouts-panel" class="profile-panel hidden" data-profile-panel="payouts">
                   <form id="driver-payout-form" class="profile-form payout-guide">
                     <div>
-                      <h4>Driver payout</h4>
-                      <p>Your LinkUp wallet tracks weekly earnings after commission.</p>
+                      <h4>Driver wallet</h4>
+                      <p>Earn into your LinkUp wallet, use that balance for LinkUp rides, and connect Stripe only when you want weekly bank payouts.</p>
                     </div>
                     <div id="driver-wallet-summary" class="driver-wallet-summary"></div>
-                    <div id="stripe-payout-summary" class="payment-method-summary">Stripe payouts not connected.</div>
+                    <div id="stripe-payout-summary" class="payment-method-summary">Stripe cash-out not connected. Wallet earnings still work inside LinkUp.</div>
                     <button type="button" id="stripe-payout-connect">Connect Stripe payouts</button>
-                    <div class="payout-note payout-warning">
-                      Use a payout email, phone, or handle. Do not enter raw bank account or routing numbers.
-                    </div>
-                    <div class="profile-grid">
-                      <label>Legal payout name <input type="text" id="payout-legal-name" placeholder="Name used for payout" required /></label>
-                      <label>Payout method
-                        <select id="payout-method" required>
-                          <option value="">Select method</option>
-                          <option value="zelle">Zelle</option>
-                          <option value="venmo">Venmo</option>
-                          <option value="paypal">PayPal</option>
-                          <option value="stripe">Stripe Connect</option>
-                          <option value="check">Paper check</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </label>
-                      <label>Payout email <input type="email" id="payout-email" placeholder="driver@example.com" /></label>
-                      <label>Payout phone <input type="tel" id="payout-phone" placeholder="Optional" /></label>
-                      <label>Payout handle <input type="text" id="payout-handle" placeholder="@username or account label" /></label>
-                      <label>Mailing address <input type="text" id="payout-address" placeholder="Optional for checks or records" /></label>
-                    </div>
-                    <label>Payout notes <textarea id="payout-notes" rows="3" placeholder="Any extra payout instructions"></textarea></label>
-                    <label class="checkbox-label terms-agreement">
-                      <input type="checkbox" id="payout-confirm" required />
-                      I confirm this payout information is accurate.
-                    </label>
-                    <div class="payout-note">
-                      LinkUp commission is currently <strong><span id="payout-commission-label">15%</span></strong>. Driver payout equals total paid seats minus commission.
-                    </div>
-                    <button type="submit">Save payout information</button>
                     <div id="payout-message" class="success-message"></div>
                     <div id="payout-error" class="error-message"></div>
+                    <div class="payout-note payout-warning">
+                      Stripe is optional for bank cash-out. Stripe securely collects bank details for payouts; LinkUp does not collect raw bank account or routing numbers.
+                    </div>
+                    <div class="payout-note">
+                      LinkUp commission is currently <strong><span id="payout-commission-label">15%</span></strong>. Driver wallet credit equals total paid seats minus commission.
+                    </div>
                   </form>
                 </div>
               </div>
@@ -826,6 +802,9 @@
                   <input type="checkbox" id="cart-terms-checkbox" />
                   I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> for the selected rides.
                 </label>
+                <div class="checkout-no-refund-notice">
+                  All ride reservations are final. LinkUp ride payments cannot be refunded after checkout is complete.
+                </div>
                 <button id="checkout-cart" type="button">Proceed to checkout</button>
                 <p class="cart-summary-note">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -870,6 +849,10 @@
               <!-- Left: payment form -->
               <div class="cart-items-col">
                 <p id="payment-summary" class="payment-summary-label">Review your order and enter payment details.</p>
+                <div id="linkup-wallet-checkout" class="linkup-wallet-checkout hidden"></div>
+                <div class="checkout-no-refund-notice payment-no-refund-notice">
+                  All ride reservations are final. LinkUp ride payments cannot be refunded after checkout is complete.
+                </div>
                 <button type="button" id="pay-cart">Check Out</button>
                 <p class="payment-security-note">Your payment details are encrypted and never stored by LinkUp</p>
                 <div id="stripe-checkout-container" class="stripe-payment-frame hidden">
@@ -889,6 +872,9 @@
                     <input type="text" id="cardholder-name" autocomplete="cc-name" placeholder="Name on card" />
                   </label>
                   <div id="stripe-payment-element"></div>
+                  <div class="checkout-no-refund-notice payment-no-refund-notice">
+                    By confirming payment, you understand this ride reservation is final and cannot be refunded.
+                  </div>
                   <button type="button" id="confirm-payment" class="hidden">Confirm &amp; pay</button>
                 </div>
                 <div id="payment-message" class="success-message"></div>
@@ -1004,6 +990,6 @@
     </div>
 
     <script src="https://js.stripe.com/v3/"></script>
-    <script src="app.js?v=20260516-wallet"></script>
+    <script src="app.js?v=20260517-payout-wallet"></script>
   </body>
 </html>
