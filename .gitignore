@@ -5,6 +5,8 @@ yarn-debug.log*
 yarn-error.log*
 .env
 .env.local
+.env.production
+.env.test
 /data/db.json
 /data/local-test/
 public/.DS_Store
@@ -12,3 +14,5 @@ public/.DS_Store
 /data/sessions.json
 /data/backups/
 ios/LinkUp/DerivedData/
+ios/LinkUp/LinkUp.xcodeproj/xcuserdata/
+ios/LinkUp/LinkUp.xcodeproj/project.xcworkspace/xcuserdata/

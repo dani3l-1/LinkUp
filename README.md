@@ -26,11 +26,13 @@ Ride Connect Save - A university-only ride-sharing app for students to offer and
    ```bash
    npm install
    ```
-2. Start the server:
+2. Start the local test server:
    ```bash
-   npm start
+   npm run start:test
    ```
 3. Open http://localhost:4000 in your browser
+
+`npm run start:test` uses `.env.local` and the local JSON database, so test accounts and rides do not touch production.
 
 ## Setup with Google Maps
 
@@ -59,9 +61,12 @@ SESSION_SECRET=your_session_secret_key_here
 - `public/index.html` — frontend UI with Google Maps integration
 - `public/app.js` — client-side logic for rides, authentication, and maps
 - `public/styles.css` — styling with dark theme
-- `data/db.json` — local development data store when `DATABASE_URL` is not set
+- `public/*.md` — in-app legal and release-note content loaded by the frontend
+- `data/` — local runtime data only; committed source keeps just `.gitkeep`
 - `docs/data-structure.md` — canonical local data shape and migration notes
 - `docs/deployment-setup.md` — deployment checklist for Render, Railway, or another Node host with PostgreSQL
+- `docs/environment-setup.md` — local vs production environment setup
+- `ios/LinkUp/` — iOS wrapper project for App Store builds
 - `.env.example` — environment variable template
 
 ## API Endpoints
@@ -83,7 +88,7 @@ SESSION_SECRET=your_session_secret_key_here
 
 
 ## Security notes
-- Do not commit `.env`, `data/db.json`, or `data/email-outbox.json`.
+- Do not commit `.env`, `.env.local`, `data/db.json`, or `data/email-outbox.json`.
 - Use `DATABASE_URL` with managed PostgreSQL for hosted deployments.
 - Keep database backups enabled before inviting real users.
 - Do not store full payment cards, CVV, bank account numbers, or routing numbers in LinkUp.

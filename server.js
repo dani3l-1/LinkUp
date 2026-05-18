@@ -1,4 +1,10 @@
-require('dotenv').config({ path: process.env.LINKUP_ENV_FILE || '.env' });
+// Environment loading
+// Priority: explicit LINKUP_ENV_FILE > .env
+const envFile = process.env.LINKUP_ENV_FILE || '.env';
+require('dotenv').config({ path: envFile });
+const NODE_ENV = process.env.NODE_ENV || 'development';
+console.log(`LinkUp env: ${NODE_ENV} (loading ${envFile})`);
+
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
@@ -22,11 +28,25 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 const EMAIL_OUTBOX_PATH = path.join(DATA_DIR, 'email-outbox.json');
 const SESSION_STORE_PATH = path.join(DATA_DIR, 'sessions.json');
+
+// Database mode
+// Production uses Supabase/Postgres when DATABASE_URL is set.
+// Local testing uses .env.local through npm run start:test, with no DATABASE_URL.
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const USE_POSTGRES = Boolean(DATABASE_URL);
+
+const isLocalMachine = process.cwd().startsWith('/Users/');
+const allowProductionDatabaseLocally = process.env.ALLOW_PRODUCTION_DATABASE_LOCALLY === 'true';
+if (isLocalMachine && USE_POSTGRES && !process.env.LINKUP_ENV_FILE && !allowProductionDatabaseLocally) {
+  console.error(
+    'FATAL: This local startup would use DATABASE_URL.\n' +
+    '  Run npm run start:test for local testing, or set ALLOW_PRODUCTION_DATABASE_LOCALLY=true if you intentionally need live data.'
+  );
+  process.exit(1);
+}
 const SESSION_SECRET = process.env.SESSION_SECRET;
 if (!SESSION_SECRET) {
-  console.error('FATAL: SESSION_SECRET environment variable is not set. Refusing to start.');
+  console.error(`FATAL: SESSION_SECRET is not set. Add it to your ${envFile} file and restart.`);
   process.exit(1);
 }
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
@@ -35,17 +55,23 @@ const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <n
 const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15);
 const ADMIN_PAYOUT_SECRET = process.env.ADMIN_PAYOUT_SECRET || '';
 const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
-const BYPASS_EMAIL_VERIFICATION = process.env.NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
+// Email verification can be bypassed in local test mode via .env.local.
+const BYPASS_EMAIL_VERIFICATION = NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
 const PAYMENT_PROVIDER = String(process.env.PAYMENT_PROVIDER || 'stripe').trim().toLowerCase();
 const PAYOUT_PROVIDER = String(process.env.PAYOUT_PROVIDER || PAYMENT_PROVIDER).trim().toLowerCase();
+// Stripe: use test keys locally and live keys only in production.
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || `mailto:${process.env.SMTP_USER || 'no-reply@linkup.local'}`;
 const DB_SCHEMA_VERSION = 2;
+// Stripe client — null when key is absent (payment endpoints return 503 gracefully)
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-02-25.clover' })
   : null;
+if (!stripe) {
+  console.warn(`WARNING: STRIPE_SECRET_KEY not set. Payment features are disabled (env: ${NODE_ENV}).`);
+}
 const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.8';
 const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.8';
 const TRACKING_VIEWER_TTL_MS = 1000 * 60 * 60 * 8;
@@ -53,6 +79,8 @@ const PUSH_NOTIFICATIONS_ENABLED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY
 if (PUSH_NOTIFICATIONS_ENABLED) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 }
+// SSL: auto-enabled for remote hosts (Supabase requires it).
+// Override with DATABASE_SSL=true/false in your .env file.
 function shouldUsePostgresSsl(databaseUrl) {
   if (process.env.DATABASE_SSL === 'true') return true;
   if (process.env.DATABASE_SSL === 'false') return false;
@@ -60,12 +88,21 @@ function shouldUsePostgresSsl(databaseUrl) {
 }
 const pgPool = USE_POSTGRES ? new Pool({
   connectionString: DATABASE_URL,
+  // Supabase uses a managed TLS cert; rejectUnauthorized:false allows it.
   ssl: shouldUsePostgresSsl(DATABASE_URL) ? { rejectUnauthorized: false } : false,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 }) : null;
 fs.mkdirSync(DATA_DIR, { recursive: true });
-if (process.env.NODE_ENV === 'production') {
+
+// Supabase/Postgres production connection checks.
+// Uses DATABASE_URL from .env or your production host environment.
+// Supabase requires SSL; rejectUnauthorized:false allows self-signed certs on the
+// managed host. Set DATABASE_SSL=false to override (e.g. pgBouncer in test mode).
+if (NODE_ENV === 'production') {
   const missingProductionVars = [
-    ['DATABASE_URL', DATABASE_URL],
+    ['DATABASE_URL (Supabase)', DATABASE_URL],
     ['APP_BASE_URL', APP_BASE_URL && !APP_BASE_URL.includes('localhost')],
     ['GOOGLE_MAPS_API_KEY', GOOGLE_MAPS_API_KEY],
     ['STRIPE_SECRET_KEY', process.env.STRIPE_SECRET_KEY],
@@ -74,7 +111,7 @@ if (process.env.NODE_ENV === 'production') {
     ['SMTP_HOST/SMTP_USER/SMTP_PASS', process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS],
   ].filter(([, ok]) => !ok).map(([name]) => name);
   if (missingProductionVars.length) {
-    console.error('FATAL: Missing production configuration: ' + missingProductionVars.join(', '));
+    console.error('FATAL: Missing production config variables: ' + missingProductionVars.join(', '));
     process.exit(1);
   }
 }
@@ -201,7 +238,7 @@ function securityHeaders(req, res, next) {
     'Content-Security-Policy',
     "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; frame-ancestors 'none';"
   );
-  if (process.env.NODE_ENV === 'production') {
+  if (NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
   }
   next();
@@ -390,7 +427,7 @@ const sessionMiddleware = session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: NODE_ENV === 'production',
     httpOnly: true,
     sameSite: 'strict',
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
@@ -399,7 +436,7 @@ const sessionMiddleware = session({
 app.use(sessionMiddleware);
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
-  maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+  maxAge: NODE_ENV === 'production' ? '1h' : 0,
 }));
 
 const io = new Server(httpServer, {
@@ -2566,7 +2603,7 @@ app.post('/api/auth/forgot-password', (req, res) => {
       `Hi ${user.firstName},\n\nUse this link to reset your LinkUp password. It expires in 1 hour:\n${resetUrl}\n\n- LinkUp`
     );
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (NODE_ENV !== 'production') {
       previewResetUrl = resetUrl;
     }
   }
