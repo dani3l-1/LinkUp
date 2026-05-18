@@ -13,6 +13,7 @@
 - **Optional Stripe cash-out.** Driver wallet balances now use a ledger, can be spent inside LinkUp, and only need Stripe when a driver wants weekly bank payouts.
 - **Simplified driver wallet page.** Manual payout fields were removed because Stripe Connect collects bank payout details securely.
 - **Stripe onboarding opens separately.** Driver payout onboarding now opens in a new tab so LinkUp stays open.
+- **Payout connection paused.** Stripe payout connection is temporarily disabled while setup is finalized; wallet balances still work inside LinkUp.
 - **Ride service pause.** New ride browsing, requests, reservations, chat, tracking, and checkout are temporarily disabled while payment and payout setup is finalized.
 
 ### Fixed
