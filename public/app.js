@@ -974,7 +974,7 @@ async function fetchJson(url, options = {}) {
   } else {
     const text = await res.text();
     const error = new Error(text.trim().startsWith('<')
-      ? 'Server returned a webpage instead of API data. The running server may be missing this route or needs to be updated.'
+      ? `Server returned a webpage instead of API data for ${url} (${res.status}). Refresh the site or purge the CDN cache, then try again.`
       : text || 'Server returned an unexpected response.');
     error.status = res.status;
     error.responseText = text;
