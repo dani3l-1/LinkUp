@@ -5855,11 +5855,19 @@ driverPayoutForm.addEventListener('submit', async (event) => {
 });
 stripePayoutConnectButton?.addEventListener('click', async () => {
   clearPayoutMessages();
+  const onboardingWindow = window.open('', '_blank', 'noopener');
   try {
     setButtonLoading(stripePayoutConnectButton, true);
     const data = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
-    window.location.href = data.url;
+    if (onboardingWindow) {
+      onboardingWindow.location.href = data.url;
+      payoutMessage.textContent = 'Stripe onboarding opened in a new tab. Keep this LinkUp tab open.';
+      payoutMessage.classList.add('show');
+    } else {
+      window.location.href = data.url;
+    }
   } catch (err) {
+    if (onboardingWindow) onboardingWindow.close();
     payoutError.textContent = err.message.includes('Stripe is not configured')
       ? 'Stripe cash-out is not configured on this server. Add Stripe keys and restart with updated environment variables.'
       : err.message;
