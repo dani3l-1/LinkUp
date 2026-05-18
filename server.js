@@ -2902,10 +2902,17 @@ async function startPayoutOnboarding(req, res) {
       return_url: APP_BASE_URL + '/?connect=payout&status=return',
       type: 'account_onboarding',
     });
+    if (req.method === 'GET') {
+      return res.redirect(303, accountLink.url);
+    }
     res.json({ provider, url: accountLink.url });
   } catch (err) {
     console.error('Stripe Connect onboarding error:', err);
-    res.status(502).json({ error: getPublicStripeErrorMessage(err, 'Unable to start Stripe payout onboarding. Please try again.') });
+    const message = getPublicStripeErrorMessage(err, 'Unable to start Stripe payout onboarding. Please try again.');
+    if (req.method === 'GET') {
+      return res.status(502).send(`<!doctype html><html><head><title>Stripe onboarding error</title><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body style="font-family:Arial,sans-serif;padding:32px;line-height:1.5;"><h1>Unable to open Stripe onboarding</h1><p>${escapeHtml(message)}</p><p>You can close this tab and return to LinkUp.</p></body></html>`);
+    }
+    res.status(502).json({ error: message });
   }
 }
 
@@ -2936,6 +2943,7 @@ app.post('/api/profile/payout/onboarding', requireAuth, requireServiceAccess, st
 app.post('/api/profile/payout/status', requireAuth, requireServiceAccess, refreshPayoutStatus);
 app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAccess, startPayoutOnboarding);
 app.post('/api/profile/payout/stripe-status', requireAuth, requireServiceAccess, refreshPayoutStatus);
+app.get('/api/profile/payout/onboarding/start', requireAuth, requireServiceAccess, startPayoutOnboarding);
 
 // Sign out endpoint
 app.post('/api/auth/signout', (req, res) => {

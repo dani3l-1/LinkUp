@@ -1760,7 +1760,7 @@ function renderStripePayoutSummary(user) {
   if (!stripePayoutSummary) return;
   const stripeInfo = user?.payoutInfo?.stripe || null;
   if (!stripeInfo?.accountId) {
-    stripePayoutSummary.textContent = 'Stripe cash-out not connected. You can still earn and spend wallet balance inside LinkUp.';
+    stripePayoutSummary.textContent = 'Stripe cash-out setup is temporarily unavailable. You can still earn and spend wallet balance inside LinkUp.';
     return;
   }
   if (stripeInfo.payoutsEnabled) {
@@ -5854,45 +5854,15 @@ driverPayoutForm.addEventListener('submit', async (event) => {
   }
 });
 stripePayoutConnectButton?.addEventListener('click', async () => {
+  if (stripePayoutConnectButton.disabled) return;
   clearPayoutMessages();
-  const onboardingWindow = window.open('about:blank', '_blank');
+  const onboardingWindow = window.open('/api/profile/payout/onboarding/start', '_blank', 'noopener,noreferrer');
   if (onboardingWindow) {
-    onboardingWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <title>Opening Stripe...</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <style>
-            body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #071719; color: #eafafa; font-family: Inter, Arial, sans-serif; }
-            main { text-align: center; padding: 32px; }
-            h1 { font-size: 24px; letter-spacing: 0.04em; }
-            p { color: #a9d8dd; }
-          </style>
-        </head>
-        <body><main><h1>Opening Stripe</h1><p>Please wait while LinkUp creates your secure payout setup link.</p></main></body>
-      </html>
-    `);
-    onboardingWindow.document.close();
-  }
-  try {
-    setButtonLoading(stripePayoutConnectButton, true);
-    const data = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
-    if (onboardingWindow) {
-      onboardingWindow.opener = null;
-      onboardingWindow.location.assign(data.url);
-      payoutMessage.textContent = 'Stripe onboarding opened in a new tab. Keep this LinkUp tab open.';
-      payoutMessage.classList.add('show');
-    } else {
-      window.location.href = data.url;
-    }
-  } catch (err) {
-    if (onboardingWindow) onboardingWindow.close();
-    payoutError.textContent = err.message.includes('Stripe is not configured')
-      ? 'Stripe cash-out is not configured on this server. Add Stripe keys and restart with updated environment variables.'
-      : err.message;
+    payoutMessage.textContent = 'Stripe onboarding opened in a new tab. Keep this LinkUp tab open.';
+    payoutMessage.classList.add('show');
+  } else {
+    payoutError.textContent = 'Your browser blocked the Stripe onboarding tab. Allow pop-ups for LinkUp and try again.';
     payoutError.classList.add('show');
-    setButtonLoading(stripePayoutConnectButton, false);
   }
 });
 trackTripButton.addEventListener('click', () => showTrackTripPage());

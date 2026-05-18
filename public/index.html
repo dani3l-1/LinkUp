@@ -418,7 +418,7 @@
                     </div>
                     <div id="driver-wallet-summary" class="driver-wallet-summary"></div>
                     <div id="stripe-payout-summary" class="payment-method-summary">Stripe cash-out not connected. Wallet earnings still work inside LinkUp.</div>
-                    <button type="button" id="stripe-payout-connect">Connect Stripe payouts</button>
+                    <button type="button" id="stripe-payout-connect" disabled>Connect Stripe payouts</button>
                     <div id="payout-message" class="success-message"></div>
                     <div id="payout-error" class="error-message"></div>
                     <div class="payout-note payout-warning">
@@ -990,6 +990,6 @@
     </div>
 
     <script src="https://js.stripe.com/v3/"></script>
-    <script src="app.js?v=20260518-stripe-opening-tab"></script>
+    <script src="app.js?v=20260518-payout-disabled"></script>
   </body>
 </html>
