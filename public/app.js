@@ -5855,12 +5855,32 @@ driverPayoutForm.addEventListener('submit', async (event) => {
 });
 stripePayoutConnectButton?.addEventListener('click', async () => {
   clearPayoutMessages();
-  const onboardingWindow = window.open('', '_blank', 'noopener');
+  const onboardingWindow = window.open('about:blank', '_blank');
+  if (onboardingWindow) {
+    onboardingWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>Opening Stripe...</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <style>
+            body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #071719; color: #eafafa; font-family: Inter, Arial, sans-serif; }
+            main { text-align: center; padding: 32px; }
+            h1 { font-size: 24px; letter-spacing: 0.04em; }
+            p { color: #a9d8dd; }
+          </style>
+        </head>
+        <body><main><h1>Opening Stripe</h1><p>Please wait while LinkUp creates your secure payout setup link.</p></main></body>
+      </html>
+    `);
+    onboardingWindow.document.close();
+  }
   try {
     setButtonLoading(stripePayoutConnectButton, true);
     const data = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
     if (onboardingWindow) {
-      onboardingWindow.location.href = data.url;
+      onboardingWindow.opener = null;
+      onboardingWindow.location.assign(data.url);
       payoutMessage.textContent = 'Stripe onboarding opened in a new tab. Keep this LinkUp tab open.';
       payoutMessage.classList.add('show');
     } else {
