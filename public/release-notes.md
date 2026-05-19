@@ -1,15 +1,15 @@
-# What's new in LinkUp
+# LinkUp Release Notes
 
 ---
 
-## May 17, 2026
+## v2026.05.17 BETA
 
 ### Improvements
 - **Better search previews.** LinkUp now appears with a cleaner logo and description in Google and social media link previews.
 
 ---
 
-## May 16, 2026
+## v2026.05.16 BETA
 
 ### New
 - **Branded verification email.** Email verification codes now arrive in a clean, branded LinkUp email with a plain-text fallback.
@@ -26,7 +26,7 @@
 
 ---
 
-## May 15, 2026
+## v2026.05.15 BETA
 
 ### New
 - **Checkout recovery.** Closing the browser mid-checkout no longer loses your reservation — payment finalizes automatically.
@@ -42,7 +42,7 @@
 
 ---
 
-## May 14, 2026
+## v2026.05.14 BETA
 
 ### New
 - **Pay directly in the app.** Riders enter card details inside LinkUp — no redirect to an external Stripe page.
@@ -55,7 +55,7 @@
 
 ---
 
-## May 13, 2026
+## v2026.05.13 BETA
 
 ### New
 - **Multi-trip cart.** Add multiple trips, select the ones you want, and review a subtotal before paying.
@@ -69,7 +69,7 @@
 
 ---
 
-## May 12, 2026
+## v2026.05.12 BETA
 
 ### New
 - **Same-school rides.** Drivers can list rides for same-school riders only. Riders can filter for same-school drivers.
@@ -78,7 +78,7 @@
 
 ---
 
-## May 11, 2026
+## v2026.05.11 BETA
 
 ### New
 - **Public profiles.** Tap any driver, rider, or chat sender's name to see their public profile and ride stats.
@@ -87,14 +87,14 @@
 
 ---
 
-## May 10, 2026
+## v2026.05.10 BETA
 
 ### New
 - **Personal Car and Rideshare Service.** Drivers choose a ride type when listing. Personal Car supports vehicle details and seat selection. Rideshare Service uses general spots.
 
 ---
 
-## May 9, 2026
+## v2026.05.9 BETA
 
 ### New
 - **Live route in tracking.** Track My Trip now shares your location with full route context on one map.
@@ -102,7 +102,7 @@
 
 ---
 
-## May 8, 2026
+## v2026.05.8 BETA
 
 ### New
 - **Updated Terms and Privacy Notice.** LinkUp now shows the May 8, 2026 Terms and Privacy Notice. Existing users are prompted to review and accept before using ride services.
@@ -110,7 +110,7 @@
 
 ---
 
-## May 1, 2026
+## v2026.05.1 BETA
 
 ### New
 - **Track My Trip.** Share your live location and route context together on one map with trusted people.
