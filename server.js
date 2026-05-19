@@ -2206,6 +2206,16 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function saveSessionAndJson(req, res, payload) {
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error:', err);
+      return res.status(500).json({ error: 'Could not save your login session. Please try again.' });
+    }
+    res.json(payload);
+  });
+}
+
 function requireServiceAccess(req, res, next) {
   const db = normalizeUserAccess(loadDb());
   const user = db.users.find((u) => u.id === req.session.userId);
@@ -2590,7 +2600,7 @@ app.post('/api/auth/verify-email', (req, res) => {
   }
   if (user.emailVerified === true) {
     req.session.userId = user.id;
-    return res.json(publicUser(user, db));
+    return saveSessionAndJson(req, res, publicUser(user, db));
   }
   if (BYPASS_EMAIL_VERIFICATION && String(code).trim() === '000000') {
     user.emailVerified = true;
@@ -2598,7 +2608,7 @@ app.post('/api/auth/verify-email', (req, res) => {
     delete user.emailVerificationCodeExpiresAt;
     saveDb(db);
     req.session.userId = user.id;
-    return res.json(publicUser(user, db));
+    return saveSessionAndJson(req, res, publicUser(user, db));
   }
   if (!user.emailVerificationCodeHash || user.emailVerificationCodeExpiresAt <= Date.now()) {
     return res.status(400).json({ error: 'Verification code expired. Request a new code.' });
@@ -2613,7 +2623,7 @@ app.post('/api/auth/verify-email', (req, res) => {
   saveDb(db);
 
   req.session.userId = user.id;
-  res.json(publicUser(user, db));
+  saveSessionAndJson(req, res, publicUser(user, db));
 });
 
 app.post('/api/auth/resend-verification', (req, res) => {
@@ -2659,7 +2669,7 @@ app.post('/api/auth/signin', async (req, res) => {
   }
 
   req.session.userId = user.id;
-  res.json(publicUser(user, db));
+  saveSessionAndJson(req, res, publicUser(user, db));
 });
 
 app.post('/api/auth/forgot-password', (req, res) => {

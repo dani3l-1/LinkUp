@@ -5264,8 +5264,7 @@ signinForm.addEventListener('submit', async (event) => {
   const email = document.getElementById('signin-email').value.trim();
   const password = document.getElementById('signin-password').value;
   try {
-    await fetchJson('/api/auth/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-    currentUser = await fetchJson('/api/auth/me');
+    currentUser = await fetchJson('/api/auth/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
     signinForm.reset();
     await playRideTransition();
     showDashboard(currentUser);
