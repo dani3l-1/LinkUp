@@ -1079,7 +1079,7 @@ function validatePasswordRequirements(password) {
 }
 
 async function fetchJson(url, options = {}) {
-  const res = await fetch(url, options);
+  const res = await fetch(url, { credentials: 'same-origin', ...options });
   const contentType = res.headers.get('content-type') || '';
   let data;
   if (contentType.includes('application/json')) {
@@ -5265,6 +5265,11 @@ signinForm.addEventListener('submit', async (event) => {
   const password = document.getElementById('signin-password').value;
   try {
     currentUser = await fetchJson('/api/auth/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    try {
+      currentUser = await fetchJson('/api/auth/me');
+    } catch (sessionError) {
+      throw new Error('Sign-in succeeded, but your browser did not keep the login session. Open http://localhost:4000, clear localhost cookies, then try again.');
+    }
     signinForm.reset();
     await playRideTransition();
     showDashboard(currentUser);
