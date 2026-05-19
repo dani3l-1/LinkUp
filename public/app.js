@@ -294,6 +294,7 @@ function applyThemePreference(themePreference, { persist = true } = {}) {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch (_) {}
   }
+  if (typeof window.applyGoogleMapTheme === 'function') window.applyGoogleMapTheme();
   return theme;
 }
 
@@ -379,6 +380,19 @@ const UBER_MAP_STYLES = [
   { featureType: 'administrative',   elementType: 'geometry',       stylers: [{ color: '#2a2a40' }] },
   { featureType: 'landscape',        elementType: 'geometry',       stylers: [{ color: '#16162a' }] },
 ];
+
+function getGoogleMapStylesForTheme() {
+  return document.documentElement.dataset.theme === 'light' ? null : UBER_MAP_STYLES;
+}
+
+function applyGoogleMapTheme() {
+  const styles = getGoogleMapStylesForTheme();
+  [originMap, requestOriginMap, trackingMap, sharedTrackingMap, browseRadiusMap]
+    .filter(Boolean)
+    .forEach((map) => map.setOptions({ styles }));
+}
+
+window.applyGoogleMapTheme = applyGoogleMapTheme;
 
 // Custom SVG marker icons
 function makeOriginIcon() {
@@ -596,7 +610,7 @@ function initializeOriginMap() {
   originMap = new google.maps.Map(originMapDiv, {
     zoom: 13,
     center,
-    styles: UBER_MAP_STYLES,
+    styles: getGoogleMapStylesForTheme(),
     disableDefaultUI: false,
     zoomControl: true,
     mapTypeControl: false,
@@ -997,7 +1011,7 @@ function initializeRequestMaps() {
     const center = getInitialMapCenter();
     requestOriginMap = new google.maps.Map(requestOriginMapDiv, {
       zoom: 13, center,
-      styles: UBER_MAP_STYLES,
+      styles: getGoogleMapStylesForTheme(),
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
     requestOriginMarker = new google.maps.Marker({ map: requestOriginMap, position: center, icon: makeOriginIcon(), title: 'Pick-up' });
@@ -2851,7 +2865,7 @@ function updateTrackingMap(location, pathLocations = [], rideRoute = null) {
   if (!trackingMap) {
     trackingMap = new google.maps.Map(trackingMapDiv, {
       zoom: 15, center: position,
-      styles: UBER_MAP_STYLES,
+      styles: getGoogleMapStylesForTheme(),
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
     trackingMarker = new google.maps.Marker({ map: trackingMap, position, icon: makeCarIcon(), title: 'Your current location' });
@@ -3043,7 +3057,7 @@ function updateSharedTrackingMap(location, pathLocations = [], rideRoute = null)
   if (!sharedTrackingMap) {
     sharedTrackingMap = new google.maps.Map(sharedTrackMapDiv, {
       zoom: hasPosition ? 15 : 10, center,
-      styles: UBER_MAP_STYLES,
+      styles: getGoogleMapStylesForTheme(),
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
     sharedTrackingPath = new google.maps.Polyline({ map: sharedTrackingMap, path: [], strokeColor: '#8fb8ff', strokeOpacity: 0.9, strokeWeight: 4 });
@@ -3297,7 +3311,7 @@ function ensureBrowseRadiusMap() {
     browseRadiusMap = new google.maps.Map(browseRadiusMapDiv, {
       zoom: 12,
       center: getInitialMapCenter(),
-      styles: UBER_MAP_STYLES,
+      styles: getGoogleMapStylesForTheme(),
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
     recenterMapOnBrowserLocation(browseRadiusMap, {
