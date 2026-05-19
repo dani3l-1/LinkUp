@@ -3889,6 +3889,32 @@ article.card h3 {
   margin-top: 0.3rem;
 }
 
+html[data-theme="light"] .legal-page,
+html[data-theme="light"] .legal-modal-panel {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border-color: rgba(18,91,97,0.18);
+  box-shadow: 0 20px 60px rgba(25,67,73,0.14);
+}
+
+html[data-theme="light"] .legal-content {
+  color: #284a50;
+}
+
+html[data-theme="light"] .legal-content h4,
+html[data-theme="light"] .legal-content h5,
+html[data-theme="light"] .legal-content strong {
+  color: #102326;
+}
+
+html[data-theme="light"] .legal-content ul {
+  color: #34565c;
+}
+
+html[data-theme="light"] .legal-modal-backdrop {
+  background: rgba(15, 34, 38, 0.42);
+}
+
 
 #signin-form > button[type="submit"] {
   position: relative;
@@ -4214,6 +4240,33 @@ article.card h3 {
 
 .policy-scrollbox p {
   line-height: 1.55;
+}
+
+html[data-theme="light"] .policy-release-card {
+  border-color: rgba(18,91,97,0.18);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(236,247,248,0.94));
+  box-shadow: 0 14px 34px rgba(25,67,73,0.10);
+}
+
+html[data-theme="light"] .policy-scrollbox {
+  border-color: rgba(18,91,97,0.16);
+  background: #ffffff;
+  color: #284a50;
+}
+
+html[data-theme="light"] .policy-scrollbox section + section {
+  border-top-color: rgba(18,91,97,0.14);
+}
+
+html[data-theme="light"] .policy-scrollbox h5,
+html[data-theme="light"] .policy-release-header h4 {
+  color: #102326;
+}
+
+html[data-theme="light"] .policy-scrollbox p,
+html[data-theme="light"] #policy-version-summary,
+html[data-theme="light"] #policy-required-message {
+  color: #34565c;
 }
 
 .policy-scroll-hint {
@@ -5173,6 +5226,34 @@ textarea:disabled,
 .release-note-entry + .release-note-entry {
   padding-top: 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme="light"] .release-note-card {
+  border-color: rgba(18,91,97,0.18);
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(25,67,73,0.10);
+}
+
+html[data-theme="light"] .release-note-feed {
+  scrollbar-color: rgba(19,156,163,0.42) rgba(19,156,163,0.08);
+}
+
+html[data-theme="light"] .release-note-version,
+html[data-theme="light"] .release-note-card h5 {
+  color: #102326;
+}
+
+html[data-theme="light"] .release-note-features ul,
+html[data-theme="light"] .release-note-card ul {
+  color: #34565c;
+}
+
+html[data-theme="light"] .release-note-features li::marker {
+  color: var(--accent);
+}
+
+html[data-theme="light"] .release-note-entry + .release-note-entry {
+  border-top-color: rgba(18,91,97,0.16);
 }
 
 
@@ -6934,10 +7015,14 @@ textarea:disabled,
 /* ── Footer — compact and app-like ──────────────────────────── */
 .app-footer {
   display: grid;
-  gap: 1rem;
+  width: 100%;
+  gap: 1.05rem;
   margin-top: 3rem;
-  padding: 1.4rem 0 1.8rem;
+  padding: 1.6rem clamp(1rem, 3vw, 2.5rem) 1.9rem;
   border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--surface-2), rgba(62,207,207,0.035));
   color: var(--text-muted);
 }
 
@@ -6973,18 +7058,20 @@ textarea:disabled,
 }
 
 .footer-trust-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
 }
 
 .footer-trust-item {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.42rem;
-  padding: 0.45rem 0.7rem;
+  min-height: 42px;
+  padding: 0.55rem 0.8rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   background: var(--accent-dim);
   color: var(--text-secondary);
   font-size: 0.78rem;
@@ -7054,7 +7141,7 @@ textarea:disabled,
 }
 
 .footer-bottom {
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 0.75rem 1.4rem;
   padding-top: 0.15rem;
   color: var(--text-muted);
@@ -7062,6 +7149,10 @@ textarea:disabled,
 }
 
 @media (max-width: 620px) {
+  .app-footer {
+    padding-inline: 1rem;
+  }
+
   .footer-brand-row,
   .footer-links-row,
   .footer-bottom {
@@ -7070,7 +7161,7 @@ textarea:disabled,
   }
 
   .footer-trust-bar {
-    justify-content: center;
+    grid-template-columns: 1fr;
   }
 }
 
