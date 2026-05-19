@@ -1,226 +1,118 @@
-# LinkUp Release Notes
+# What's new in LinkUp
 
 ---
 
-## v2026.05.17 BETA
+## May 17, 2026
+
+### Improvements
+- **Better search previews.** LinkUp now appears with a cleaner logo and description in Google and social media link previews.
+
+---
+
+## May 16, 2026
 
 ### New
-- **Cleaner project structure.** Setup docs now live under `docs/`, generated files are excluded from Git, and the README explains the app layout more clearly for future developers.
-- **Safer local testing.** Local test runs use `.env.local` and `data/local-test`, keeping test accounts and rides separate from the production database.
-- **Production reset.** Launch data was reset so LinkUp can start fresh with the updated environment and database structure.
-- **Better search preview.** LinkUp now provides stronger Google/social descriptions, structured logo metadata, and clean favicon sizes for search results.
+- **Branded verification email.** Email verification codes now arrive in a clean, branded LinkUp email with a plain-text fallback.
+- **Reservation confirmation email.** Riders get a thank-you email with trip details after successfully reserving a seat.
+- **Spend your wallet credits.** Completed driver earnings can now be applied automatically toward future rides before charging your card.
+- **Wallet breakdown at checkout.** Checkout now shows your LinkUp Wallet balance, how much is applied, and the remaining card charge.
 
 ### Fixed
-- **Accidental production testing guard.** Local startup now warns before using the live production database unless that is explicitly intended.
-- **Repository cleanup.** Runtime data, local backups, macOS files, and Xcode user state are kept out of source control.
+- **Legal pages load again.** Privacy Notice and Terms & Conditions now open correctly inside the app.
+- **Cleaner checkout.** The card form is tidier and Apple Pay / Google Pay buttons only appear when your device supports them.
+- **Order summary layout.** Subtotal and service fee now display cleanly, like a receipt.
+
+> **Note:** Browsing rides, making reservations, chat, tracking, and checkout are temporarily paused while payment setup is being finalized.
 
 ---
 
-## v2026.05.16 BETA
+## May 15, 2026
 
 ### New
-- **LinkUp browser icon.** The site now uses the simple LinkUp logo for browser tabs, bookmarks, and Apple touch icons.
-- **Better verification email.** Email verification codes now arrive in a branded LinkUp email with a cleaner layout and plain-text fallback.
-- **Reservation confirmation email.** Riders now receive a thank-you email with ride details after a seat is successfully reserved.
-- **Wallet checkout credit.** Completed driver earnings can now be used automatically toward future LinkUp rides before charging a card.
-- **Wallet payment display.** Checkout now shows LinkUp Wallet balance, wallet applied, and remaining card amount before payment.
-- **Optional Stripe cash-out.** Driver wallet balances now use a ledger, can be spent inside LinkUp, and only need Stripe when a driver wants weekly bank payouts.
-- **Simplified driver wallet page.** Manual payout fields were removed because Stripe Connect collects bank payout details securely.
-- **Stripe onboarding opens separately.** Driver payout onboarding now opens in a new tab so LinkUp stays open.
-- **Payout connection paused.** Stripe payout connection is temporarily disabled while setup is finalized; wallet balances still work inside LinkUp.
-- **Ride service pause.** New ride browsing, requests, reservations, chat, tracking, and checkout are temporarily disabled while payment and payout setup is finalized.
+- **Checkout recovery.** Closing the browser mid-checkout no longer loses your reservation — payment finalizes automatically.
+- **Exact pickup and drop-off.** Flexible-area rides now ask for your precise pickup and drop-off spots before checkout. Drivers see them after confirming.
+- **Leaderboard miles.** Your school's leaderboard now shows total miles saved across all confirmed shared rides.
+- **Driver earnings dashboard.** Drivers can now see this week's earnings, completed payout balance, pending earnings, and all-time totals from Profile.
+- **Live chat notifications.** Riders and drivers can enable push notifications for new messages in a confirmed ride chat.
 
 ### Fixed
-- **Legal pages load again.** Privacy Notice and Terms and Conditions now load from the current Markdown documents inside the app.
-- **Checkout polish.** The in-app card checkout is cleaner, with Link removed from the card form and real wallet buttons only shown when Apple Pay or Google Pay are available.
-- **Order summary cleanup.** Subtotal and service-fee text now display like a receipt instead of crowding the same row.
+- **Accurate leaderboard miles.** Miles now count only completed rides with confirmed riders — future or unused listings no longer inflate the total.
+- **Cleaner activity view.** Departed rides and expired requests no longer appear in current activity.
+- **Real-time chat.** Messages and typing indicators now update live in confirmed ride chats.
 
 ---
 
-## v2026.05.15 BETA
+## May 14, 2026
 
 ### New
-- **PostgreSQL support.** Production deployments now connect to PostgreSQL via `DATABASE_URL`. Local development still uses `data/db.json`.
-- **Sessions survive restarts.** Production sessions are stored outside process memory, so users stay signed in across server restarts.
-- **Stripe webhook recovery.** Closing the browser mid-checkout no longer loses a reservation — webhooks finalize the payment automatically.
-- **Exact rider stops.** Personal Car rides with flexible areas now collect exact pickup and drop-off spots before checkout. Drivers see them after confirmation.
-- **Leaderboard saved miles.** The school leaderboard now shows total miles saved across all confirmed shared rides.
-- **Driver wallet.** Drivers can now see this week's net earnings, completed-ride payout balance, pending earnings, and all-time earnings from Profile.
-- **Future-ready payment providers.** Payment and payout records now store provider-neutral ids so LinkUp can move beyond Stripe more cleanly later.
-- **Live chat notifications.** Riders and drivers can enable browser push notifications for new ride chat messages.
+- **Pay directly in the app.** Riders enter card details inside LinkUp — no redirect to an external Stripe page.
+- **Save a default card.** Set a default payment card from your Profile using a secure in-app form.
+- **Driver payout connection.** Drivers can connect bank payouts and track payout status inside the app.
 
 ### Fixed
-- **Leaderboard accuracy.** Miles now count only completed rides with confirmed riders — future or unused listings no longer inflate the total.
-- **Cleaner current activity.** Departed rides and expired requests no longer appear in current activity.
-- **Cart preserves stop details.** Exact pickup and drop-off details stay attached through the full cart and payment flow.
-- **Tracking links expire reliably.** Expiry is now enforced across viewer access, location updates, and invite resends.
-- **Ride chat updates live.** Messages and typing indicators now update in real time for confirmed ride chats.
-- **Payout fields block sensitive data.** Bank account, routing, card, CVV, SSN, IBAN, and similar numbers are rejected at input.
-- **Driver payout page simplified.** Manual payout fields were removed in favor of a wallet view and Stripe payout connection.
-- **Stricter security defaults.** Helmet headers and strict session cookie same-site behavior are now active.
-- **Secret files harder to commit.** Local session files and reset backups are now excluded by Git.
-- **Google Maps setup docs updated.** All required Google Maps Platform APIs are now listed in the setup guide.
+- **Browse shows only available rides.** Expired, full, and your own rides are no longer shown in Browse Rides.
+- **Stale pages blocked.** Checkout prevents reservations on rides that departed while the page was open.
 
 ---
 
-## v2026.05.14 BETA
+## May 13, 2026
 
 ### New
-- **Native card checkout.** Riders enter payment details directly in LinkUp — no redirect to a separate Stripe page.
-- **Save a card from Profile.** Riders can set a default card from Profile using a secure in-app Stripe form.
-- **Stripe payout connection.** Drivers can connect Stripe payouts from Profile and track payout status inside the app.
+- **Multi-trip cart.** Add multiple trips, select the ones you want, and review a subtotal before paying.
+- **Profile photos.** Upload, crop, and display a profile picture. It appears on your public profile.
+- **Academic details.** Optionally add your major and class year — both appear on your public profile.
+- **In-context legal docs.** Tapping Terms or Privacy Notice opens the full document in a popup without leaving the page.
 
 ### Fixed
-- **Expired rides hidden from Browse.** Rides whose departure has passed no longer appear in Browse Rides.
-- **Drivers don't see their own listings.** Browse Rides now shows only rides a rider can actually reserve.
-- **Full rides filtered out.** Rides with no remaining spots are excluded from Browse Rides.
-- **Stale pages can't reserve departed rides.** Checkout blocks rides that already departed, even if the page was open before they expired.
+- **Expired trips auto-removed.** Rides past their departure are cleared from your cart with a one-time notice.
+- **Password recovery improved.** Account recovery now focuses on password reset — no separate username step needed.
 
 ---
 
-## v2026.05.13 BETA
+## May 12, 2026
 
 ### New
-- **Multi-trip cart.** Add multiple trips, select individual ones or use Select all, and review a subtotal before paying.
-- **Cart reservation reminder.** The cart now makes clear that trips aren't reserved until checkout is complete.
-- **Single Terms agreement at checkout.** Riders agree to the Terms once for all selected trips — not per item.
-- **Profile photos.** Upload, preview, crop, and display a profile picture. Shown on public profiles.
-- **Academic details.** Optionally add a major and class year. Both appear on your public profile when set.
-- **Legal docs open in-context.** Tapping Terms or Privacy Notice text opens the full document in a popup without leaving the page.
-
-### Fixed
-- **Expired cart rides auto-removed.** Trips past their departure are cleared from the cart with a one-time notice.
-- **Checkout reserves only selected trips.** Unselected trips stay in the cart after payment.
-- **Past rides fully blocked.** Expired rides are blocked from cart add and checkout even on a stale open page.
-- **Password recovery is clearer.** Recovery now focuses on password reset — no separate username step.
-- **Password length enforced.** Minimum 8 characters is validated on both frontend and backend at signup and reset.
-
----
-
-## v2026.05.12 BETA
-
-### New
-- **Same-school restrictions.** Drivers can list rides for same-school riders only. Riders can filter for same-school drivers.
+- **Same-school rides.** Drivers can list rides for same-school riders only. Riders can filter for same-school drivers.
 - **More private driver names.** Full driver names are only visible to riders with a confirmed reservation. Everyone else sees first name and last initial.
-- **Driving distance mileage.** New rides and requests use actual driving distance from route data instead of straight-line estimates.
-
-### Fixed
-- **Cleaner browse cards.** Results no longer show raw coordinates, empty Notes rows, or combined detour radius text.
-- **Detour radius split into separate rows.** Pickup and drop-off radius now appear as distinct rows.
+- **Accurate driving distances.** Mileage now uses actual driving distance from route data, not straight-line estimates.
 
 ---
 
-## v2026.05.11 BETA
+## May 11, 2026
 
 ### New
-- **Public profiles.** Tap any driver's, rider's, requester's, or chat sender's name to see their public profile and ride stats.
-- **User reporting.** Report a driver or rider from ride cards and assignment lists.
-- **User blocking.** Block or unblock someone from their public profile. Blocked users won't see each other's listings or requests.
-
-### Fixed
-- **Blocking enforced across ride actions.** Blocked users can't reserve each other's rides, offer on requests, or share rides together.
-- **Blocked rides removed from carts.** If you block someone whose ride is in your cart, it's removed automatically.
-- **Rideshare-service rider reporting.** Drivers can now report riders on rides using general spots, not just exact seats.
+- **Public profiles.** Tap any driver, rider, or chat sender's name to see their public profile and ride stats.
+- **Report a user.** Report a driver or rider directly from ride cards and assignment lists.
+- **Block a user.** Block or unblock someone from their public profile. Blocked users won't see each other's listings or requests.
 
 ---
 
-## v2026.05.10.1 BETA
+## May 10, 2026
 
 ### New
-- **In-app legal and release pages.** Terms, Privacy Notice, and Release Notes are viewable from inside the app and always current.
-
-### Fixed
-- **Payment back button goes to cart.** No longer redirects to Browse Rides by mistake.
-- **Same-gender listing validation.** Drivers must have a visible gender set before offering same-gender rides.
-- **Map locations required before posting.** Pickup and drop-off must have confirmed coordinates before a ride can be listed.
-- **Empty cart blocked from checkout.** Opening payment with an empty cart redirects back with a clear message.
-- **Tracking messages clarified.** Track My Trip now gives clear messages when no sharing session or link is active.
+- **Personal Car and Rideshare Service.** Drivers choose a ride type when listing. Personal Car supports vehicle details and seat selection. Rideshare Service uses general spots.
 
 ---
 
-## v2026.05.10 BETA
+## May 9, 2026
 
 ### New
-- **Personal Car and Rideshare Service.** Drivers choose a ride type at the start of listing. Personal Car supports vehicle details and exact seat selection. Rideshare Service uses general rider spots without car details.
-- **Ride type-aware summaries.** Ride cards, cart items, and profile summaries reflect the correct language for each ride type.
-
-### Fixed
-- **Rideshare Service summaries no longer show seat assignments.** Driver summaries for Rideshare Service listings are now correct.
+- **Live route in tracking.** Track My Trip now shares your location with full route context on one map.
+- **Add a trusted person mid-trip.** Invite or resend a trusted-person link while location sharing is already active.
 
 ---
 
-## v2026.05.9 BETA
+## May 8, 2026
 
 ### New
-- **Live route context in tracking.** Track My Trip shares location updates with route context when available.
-- **Better tracking fallback.** While the embedded map loads, a visible location pin and Google Maps link keep trusted viewers oriented.
-- **Add trusted person mid-trip.** Invite or resend a trusted-person link while location sharing is already active.
-- **More reliable campus routing.** Ride maps stay focused on supported school regions more consistently.
-
-### Fixed
-- **Track My Trip map updates correctly.** The map no longer stalls on raw coordinates after Google Maps loads.
-- **Shared links refresh route data.** Tracking sessions update route context when location updates arrive or a shared link opens.
-- **Campus searches stay on-region.** Ambiguous school searches are less likely to route to the wrong state or region.
+- **Updated Terms and Privacy Notice.** LinkUp now shows the May 8, 2026 Terms and Privacy Notice. Existing users are prompted to review and accept before using ride services.
+- **Required profile fields.** Name, birthday, and gender must be completed before accessing ride services. Older accounts can fill these in once.
 
 ---
 
-## v2026.05.8.1 BETA
+## May 1, 2026
 
 ### New
-- **Required profile fields gated before ride access.** Name, birthday, and gender must be completed before using ride services.
-- **Legacy account identity completion.** Older accounts can fill in missing birthday or gender once — those fields lock after.
-- **Payment method is optional.** Riders can use LinkUp without saving a default payment method first.
-- **Profile prompts go to the right section.** Policy and profile prompts send users directly to the relevant Profile tab.
-
-### Fixed
-- **Gender saves for incomplete accounts.** Users who still need to complete identity settings can now save gender correctly.
-- **Payment method not required for identity prompts.** Identity and policy requirements are separate from saved payment method.
-
----
-
-## v2026.05.8 BETA
-
-### New
-- **Updated Terms and Privacy Notice.** LinkUp now shows the May 8, 2026 Terms and Privacy Notice.
-- **Policy re-acceptance flow.** Existing users are prompted to review and accept updated policies before using ride services.
-
-### Fixed
-- **Legal page back button restored.** Returns users to the page they were on, not the home screen.
-- **Policy prompts re-trigger on version change.** Users are prompted again whenever a required policy version updates.
-
----
-
-## v2026.05.3 BETA
-
-### New
-- **Newest release shown first.** Release notes now open to the most recent version.
-
-### Fixed
-- **Release note ordering corrected.** Newer releases no longer appear below older ones.
-
----
-
-## v2026.05.2 BETA
-
-### New
-- **Reset browse filters.** Browse Rides now has a reset filters button.
-- **Sort controls in results.** Sort by appears inside the available rides area, not above it.
-- **Clearer radius labels.** Walking radius and detour radius are easier to tell apart.
-
-### Fixed
-- **Empty coordinates no longer default to 0,0.** Blank map fields no longer register as a real location.
-- **Map clicks don't change routes accidentally.** Browsing or viewing a route is less likely to be disrupted by accidental taps.
-
----
-
-## v2026.05.1 BETA
-
-### New
-- **Track My Trip with route sharing.** Share live location and route context together on one map.
-- **Policy agreement flow.** Review and accept updated Terms and Privacy Notice from Profile.
-- **Payment and payout sections in Profile.** Riders manage payment details. Drivers manage payout details. Each in a dedicated section.
-- **Core ride workflow.** Requested rides, ride history, chat, ratings, and seat reservations — the full flow from request to review.
-
-### Fixed
-- **Tracking route displays correctly.** Location and route context appear together more reliably.
-- **Ride history easier to review.** Current and past trips are better organized and accessible.
+- **Track My Trip.** Share your live location and route context together on one map with trusted people.
+- **Payment and payout in Profile.** Riders manage payment details. Drivers manage payout details. Each in a dedicated section.
+- **Full ride workflow.** Requested rides, ride history, chat, ratings, and seat reservations — the complete flow from request to review.
