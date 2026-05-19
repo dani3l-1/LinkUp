@@ -6,7 +6,12 @@ function showToast(message, type = 'info', duration = 3800) {
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
-  toast.innerHTML = `<span aria-hidden="true">${icon}</span><span>${message}</span>`;
+  const iconNode = document.createElement('span');
+  iconNode.setAttribute('aria-hidden', 'true');
+  iconNode.textContent = icon;
+  const messageNode = document.createElement('span');
+  messageNode.textContent = String(message || '');
+  toast.append(iconNode, messageNode);
   toastContainer.appendChild(toast);
   const remove = () => {
     toast.classList.add('removing');
@@ -448,10 +453,18 @@ const VEHICLE_SEAT_LAYOUTS = {
 };
 
 const KNOWN_LOCATION_ALIASES = new Map([
+  ['saddleback', { name: 'Saddleback College', lat: 33.55290, lng: -117.66730 }],
+  ['saddleback college', { name: 'Saddleback College', lat: 33.55290, lng: -117.66730 }],
+  ['saddleback edu', { name: 'Saddleback College', lat: 33.55290, lng: -117.66730 }],
+  ['ivc', { name: 'Irvine Valley College', lat: 33.67690, lng: -117.77990 }],
+  ['ivc edu', { name: 'Irvine Valley College', lat: 33.67690, lng: -117.77990 }],
+  ['irvine valley college', { name: 'Irvine Valley College', lat: 33.67690, lng: -117.77990 }],
   ['ucla', { name: 'University of California, Los Angeles', lat: 34.06892, lng: -118.44518 }],
+  ['ucla edu', { name: 'University of California, Los Angeles', lat: 34.06892, lng: -118.44518 }],
   ['uc los angeles', { name: 'University of California, Los Angeles', lat: 34.06892, lng: -118.44518 }],
   ['university of california los angeles', { name: 'University of California, Los Angeles', lat: 34.06892, lng: -118.44518 }],
   ['uci', { name: 'University of California, Irvine', lat: 33.64050, lng: -117.84430 }],
+  ['uci edu', { name: 'University of California, Irvine', lat: 33.64050, lng: -117.84430 }],
   ['uc irvine', { name: 'University of California, Irvine', lat: 33.64050, lng: -117.84430 }],
   ['university of california irvine', { name: 'University of California, Irvine', lat: 33.64050, lng: -117.84430 }],
 ]);
@@ -460,6 +473,8 @@ const LOCATION_REGIONS = {
   CA: { state: 'CA', minLat: 32.45, maxLat: 42.1, minLng: -124.6, maxLng: -114.0 },
   ON: { state: 'ON', minLat: 41.6, maxLat: 56.9, minLng: -95.2, maxLng: -74.3 },
 };
+const FALLBACK_MAP_CENTER = { lat: 34.069, lng: -118.445 };
+let browserMapCenterPromise = null;
 
 const UNIVERSITY_LOCATION_REGIONS = {
   'berkeley.edu': LOCATION_REGIONS.CA,
@@ -508,8 +523,39 @@ async function loadGoogleMapsAPI() {
   return _googleMapsPromise;
 }
 
+function getBrowserMapCenter() {
+  if (browserMapCenterPromise) return browserMapCenterPromise;
+  browserMapCenterPromise = new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = Number(position.coords.latitude);
+        const lng = Number(position.coords.longitude);
+        resolve(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null);
+      },
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 1000 * 60 * 10 }
+    );
+  });
+  return browserMapCenterPromise;
+}
+
+function recenterMapOnBrowserLocation(map, options = {}) {
+  if (!map) return;
+  getBrowserMapCenter().then((center) => {
+    if (!center) return;
+    if (typeof options.shouldApply === 'function' && !options.shouldApply()) return;
+    map.setCenter(center);
+    if (options.zoom) map.setZoom(options.zoom);
+    if (options.marker) options.marker.setPosition(center);
+  });
+}
+
 function initializeOriginMap() {
-  const center = { lat: 34.069, lng: -118.445 };
+  const center = getInitialMapCenter();
   originMap = new google.maps.Map(originMapDiv, {
     zoom: 13,
     center,
@@ -521,6 +567,11 @@ function initializeOriginMap() {
     fullscreenControl: false,
   });
   originMarker = new google.maps.Marker({ map: originMap, position: center, icon: makeOriginIcon() });
+  recenterMapOnBrowserLocation(originMap, {
+    zoom: 13,
+    marker: originMarker,
+    shouldApply: () => !document.getElementById('origin-lat')?.value && !document.getElementById('origin-lng')?.value,
+  });
   originSearchInput?.addEventListener('input', () => clearOfferLocationCoordinates('origin'));
   wireTypedLocationLookup(originSearchInput, (result) => updateOriginLocation(result.name, result.lat, result.lng));
   originAutocomplete = new google.maps.places.Autocomplete(originSearchInput, { componentRestrictions: { country: 'us' } });
@@ -536,6 +587,12 @@ function getLocationAliasKey(value) {
 
 function getKnownLocationAlias(value) {
   return KNOWN_LOCATION_ALIASES.get(getLocationAliasKey(value)) || null;
+}
+
+function getInitialMapCenter() {
+  const schoolCenter = getKnownLocationAlias(currentUser?.university)
+    || getKnownLocationAlias(currentUser?.universityDomain);
+  return schoolCenter ? { lat: schoolCenter.lat, lng: schoolCenter.lng } : FALLBACK_MAP_CENTER;
 }
 
 function getSouthernCaliforniaBounds() {
@@ -898,15 +955,20 @@ async function ensureRequestCoordinates() {
 
 function initializeRequestMaps() {
   if (!window.google?.maps) return;
-  const center = { lat: 34.069, lng: -118.445 };
   const requestOriginMapDiv = document.getElementById('request-origin-map');
   if (requestOriginMapDiv && !requestOriginMap) {
+    const center = getInitialMapCenter();
     requestOriginMap = new google.maps.Map(requestOriginMapDiv, {
       zoom: 13, center,
       styles: UBER_MAP_STYLES,
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
     requestOriginMarker = new google.maps.Marker({ map: requestOriginMap, position: center, icon: makeOriginIcon(), title: 'Pick-up' });
+    recenterMapOnBrowserLocation(requestOriginMap, {
+      zoom: 13,
+      marker: requestOriginMarker,
+      shouldApply: () => !document.getElementById('request-origin-lat')?.value && !document.getElementById('request-origin-lng')?.value,
+    });
   }
 }
 
@@ -3186,9 +3248,13 @@ function ensureBrowseRadiusMap() {
   if (!browseRadiusMap) {
     browseRadiusMap = new google.maps.Map(browseRadiusMapDiv, {
       zoom: 12,
-      center: { lat: 34.069, lng: -118.445 },
+      center: getInitialMapCenter(),
       styles: UBER_MAP_STYLES,
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+    });
+    recenterMapOnBrowserLocation(browseRadiusMap, {
+      zoom: 12,
+      shouldApply: () => !getRadiusCenter(pickupRadiusLocationInput) && !getRadiusCenter(dropoffRadiusLocationInput),
     });
   }
   return browseRadiusMap;
@@ -5856,12 +5922,20 @@ driverPayoutForm.addEventListener('submit', async (event) => {
 stripePayoutConnectButton?.addEventListener('click', async () => {
   if (stripePayoutConnectButton.disabled) return;
   clearPayoutMessages();
-  const onboardingWindow = window.open('/api/profile/payout/onboarding/start', '_blank', 'noopener,noreferrer');
-  if (onboardingWindow) {
+  const onboardingWindow = window.open('', '_blank', 'noopener,noreferrer');
+  if (!onboardingWindow) {
+    payoutError.textContent = 'Your browser blocked the Stripe onboarding tab. Allow pop-ups for LinkUp and try again.';
+    payoutError.classList.add('show');
+    return;
+  }
+  try {
+    const response = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
+    onboardingWindow.location = response.url;
     payoutMessage.textContent = 'Stripe onboarding opened in a new tab. Keep this LinkUp tab open.';
     payoutMessage.classList.add('show');
-  } else {
-    payoutError.textContent = 'Your browser blocked the Stripe onboarding tab. Allow pop-ups for LinkUp and try again.';
+  } catch (err) {
+    onboardingWindow.close();
+    payoutError.textContent = err.message;
     payoutError.classList.add('show');
   }
 });

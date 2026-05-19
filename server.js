@@ -139,6 +139,57 @@ const SUPPORTED_UNIVERSITY_DOMAINS = {
   'uwaterloo.ca': 'Waterloo University',
 };
 
+function normalizeOrigin(value) {
+  try {
+    return new URL(String(value || '').trim()).origin;
+  } catch (_) {
+    return '';
+  }
+}
+
+function getConfiguredOrigins() {
+  const origins = new Set();
+  normalizeOrigin(APP_BASE_URL) && origins.add(normalizeOrigin(APP_BASE_URL));
+  String(process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map(normalizeOrigin)
+    .filter(Boolean)
+    .forEach((origin) => origins.add(origin));
+  if (NODE_ENV !== 'production') {
+    origins.add(`http://localhost:${PORT}`);
+    origins.add(`http://127.0.0.1:${PORT}`);
+  }
+  return origins;
+}
+
+const ALLOWED_REQUEST_ORIGINS = getConfiguredOrigins();
+
+function isAllowedRequestOrigin(origin) {
+  if (!origin) return true;
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (!normalizedOrigin) return false;
+  if (ALLOWED_REQUEST_ORIGINS.has(normalizedOrigin)) return true;
+  return NODE_ENV !== 'production' && /^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(normalizedOrigin);
+}
+
+function corsOriginDelegate(origin, callback) {
+  if (!origin || isAllowedRequestOrigin(origin)) return callback(null, true);
+  return callback(null, false);
+}
+
+function rejectCrossSiteWrites(req, res, next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const origin = req.get('origin');
+  if (!origin || isAllowedRequestOrigin(origin)) return next();
+  return res.status(403).json({ error: 'Request origin is not allowed' });
+}
+
+function noStoreApiResponses(req, res, next) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+}
+
 const UNIVERSITY_DIRECTORY = {
   'berkeley.edu': { name: 'University of California, Berkeley', city: 'Berkeley', state: 'CA' },
   'ucla.edu': { name: 'University of California, Los Angeles', city: 'Los Angeles', state: 'CA' },
@@ -232,7 +283,7 @@ function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), geolocation=(self)');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(self), geolocation=(self)');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
@@ -277,6 +328,7 @@ function makeRateLimiter({ windowMs, max, message }) {
 const authRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 60, message: 'Too many authentication attempts. Please wait and try again.' });
 const sensitiveWriteRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 40, message: 'Too many sensitive updates. Please wait and try again.' });
 const trackingRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many tracking requests. Please slow down.' });
+const adminRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many admin requests. Please wait and try again.' });
 
 class JsonSessionStore extends session.Store {
   constructor(filePath) {
@@ -382,9 +434,10 @@ class PostgresSessionStore extends session.Store {
 
 app.use(securityHeaders);
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true,
+  origin: corsOriginDelegate,
   credentials: true,
 }));
+app.use('/api', noStoreApiResponses);
 async function handleStripeWebhookRequest(req, res) {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
     return res.status(503).json({ error: 'Stripe webhook is not configured' });
@@ -413,6 +466,7 @@ async function handleStripeWebhookRequest(req, res) {
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookRequest);
 app.post('/api/payments/webhook/stripe', express.raw({ type: 'application/json' }), handleStripeWebhookRequest);
 app.use(express.json({ limit: '1mb' }));
+app.use('/api', rejectCrossSiteWrites);
 app.use('/api/auth', authRateLimit);
 app.use('/api/profile/payment-method', sensitiveWriteRateLimit);
 app.use('/api/profile/payout', sensitiveWriteRateLimit);
@@ -441,7 +495,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true,
+    origin: corsOriginDelegate,
     credentials: true,
   },
 });
@@ -1218,6 +1272,13 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function timingSafeEqualText(left, right) {
+  const leftBuffer = Buffer.from(String(left || ''));
+  const rightBuffer = Buffer.from(String(right || ''));
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
 function hasLuhnCheckDigit(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length < 13 || digits.length > 19) return false;
@@ -1615,6 +1676,30 @@ function validateProfilePictureDataUrl(value) {
   const byteLength = Buffer.byteLength(match[2], 'base64');
   if (byteLength > 512 * 1024) {
     return { valid: false, error: 'Profile picture must be 512 KB or smaller' };
+  }
+  const buffer = Buffer.from(match[2], 'base64');
+  const mimeType = match[1].toLowerCase();
+  const isPng = mimeType === 'image/png'
+    && buffer.length >= 8
+    && buffer[0] === 0x89
+    && buffer[1] === 0x50
+    && buffer[2] === 0x4e
+    && buffer[3] === 0x47
+    && buffer[4] === 0x0d
+    && buffer[5] === 0x0a
+    && buffer[6] === 0x1a
+    && buffer[7] === 0x0a;
+  const isJpeg = (mimeType === 'image/jpeg' || mimeType === 'image/jpg')
+    && buffer.length >= 3
+    && buffer[0] === 0xff
+    && buffer[1] === 0xd8
+    && buffer[2] === 0xff;
+  const isWebp = mimeType === 'image/webp'
+    && buffer.length >= 12
+    && buffer.toString('ascii', 0, 4) === 'RIFF'
+    && buffer.toString('ascii', 8, 12) === 'WEBP';
+  if (!isPng && !isJpeg && !isWebp) {
+    return { valid: false, error: 'Profile picture data does not match a supported image type' };
   }
   return { valid: true, dataUrl };
 }
@@ -2980,7 +3065,9 @@ app.post('/api/profile/payout/onboarding', requireAuth, requireServiceAccess, st
 app.post('/api/profile/payout/status', requireAuth, requireServiceAccess, refreshPayoutStatus);
 app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAccess, startPayoutOnboarding);
 app.post('/api/profile/payout/stripe-status', requireAuth, requireServiceAccess, refreshPayoutStatus);
-app.get('/api/profile/payout/onboarding/start', requireAuth, requireServiceAccess, startPayoutOnboarding);
+app.get('/api/profile/payout/onboarding/start', requireAuth, requireServiceAccess, (req, res) => {
+  res.status(405).send(`<!doctype html><html><head><title>Stripe onboarding unavailable</title><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body style="font-family:Arial,sans-serif;padding:32px;line-height:1.5;"><h1>Stripe onboarding is unavailable</h1><p>Please return to LinkUp and start Stripe payouts from your profile.</p></body></html>`);
+});
 
 // Sign out endpoint
 app.post('/api/auth/signout', (req, res) => {
@@ -4335,8 +4422,8 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
   });
 });
 
-app.post('/api/admin/wallets/weekly-payouts', async (req, res) => {
-  if (!ADMIN_PAYOUT_SECRET || req.get('x-admin-secret') !== ADMIN_PAYOUT_SECRET) {
+app.post('/api/admin/wallets/weekly-payouts', adminRateLimit, async (req, res) => {
+  if (!ADMIN_PAYOUT_SECRET || !timingSafeEqualText(req.get('x-admin-secret'), ADMIN_PAYOUT_SECRET)) {
     return res.status(403).json({ error: 'Admin payout access is not configured.' });
   }
   if (!requireStripeBackedProvider(getPayoutProviderName(), res, 'weekly payouts')) return;

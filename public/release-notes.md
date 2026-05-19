@@ -6,6 +6,9 @@
 
 ### Improvements
 - **Better search previews.** LinkUp now appears with a cleaner logo and description in Google and social media link previews.
+- **Security hardening.** API writes now reject untrusted origins, sensitive API responses avoid browser/CDN storage, and profile photo uploads verify real image data.
+- **Safer Stripe payout onboarding.** Stripe onboarding now starts from a protected action and opens in a separate tab instead of using a state-changing link.
+- **Safer admin payouts.** Weekly payout admin access now has tighter request limits and safer secret checks.
 
 ---
 
