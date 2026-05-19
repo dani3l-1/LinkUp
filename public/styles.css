@@ -7388,6 +7388,10 @@ html[data-theme="light"] body.dashboard-mode #main-content > .card {
 }
 
 html[data-theme="light"] body.dashboard-mode header {
+  position: relative;
+  top: auto;
+  z-index: 2;
+  margin-bottom: 2.25rem;
   border-bottom: 1px solid rgba(18,91,97,0.10);
 }
 
