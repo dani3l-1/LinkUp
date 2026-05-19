@@ -214,6 +214,10 @@ const policyTermsButton = document.getElementById('policy-terms-button');
 const policyPrivacyButton = document.getElementById('policy-privacy-button');
 const policyCollapseButton = document.getElementById('policy-collapse-button');
 const policyReleaseCard = document.querySelector('.policy-release-card');
+const appearanceForm = document.getElementById('appearance-form');
+const appearanceMessage = document.getElementById('appearance-message');
+const appearanceError = document.getElementById('appearance-error');
+const themePreferenceInputs = document.querySelectorAll('input[name="theme-preference"]');
 
 let currentUser = null;
 let originMap = null;
@@ -269,6 +273,37 @@ let currentVehicleSeatCount = 5;
 let driverAvailableSeatIds = new Set();
 let isRestoringRoute = false;
 let legalReturnRoute = '';
+const THEME_STORAGE_KEY = 'linkup.theme';
+
+function normalizeThemePreference(themePreference) {
+  return String(themePreference || '').toLowerCase() === 'light' ? 'light' : 'dark';
+}
+
+function applyThemePreference(themePreference, { persist = true } = {}) {
+  const theme = normalizeThemePreference(themePreference);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f6fbfb' : '#071819');
+  themePreferenceInputs.forEach((input) => {
+    input.checked = input.value === theme;
+  });
+  if (persist) {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (_) {}
+  }
+  return theme;
+}
+
+function getStoredThemePreference() {
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY);
+  } catch (_) {
+    return '';
+  }
+}
+
+applyThemePreference(getStoredThemePreference() || 'dark', { persist: false });
 
 function getAppRoute() {
   return decodeURIComponent(window.location.hash.replace(/^#/, '')).trim();
@@ -1267,6 +1302,7 @@ function closeLegalModal() {
 async function checkAuth() {
   try {
     currentUser = await fetchJson('/api/auth/me');
+    applyThemePreference(currentUser.themePreference);
     showDashboard(currentUser);
   } catch (error) {
     const route = getAppRoute();
@@ -1466,8 +1502,16 @@ function fillProfileForm(user) {
   document.getElementById('profile-email').value = user.email || '';
   pendingProfilePictureDataUrl = user.profilePictureDataUrl || '';
   renderProfilePicturePreview(user);
+  applyThemePreference(user.themePreference || getStoredThemePreference() || 'dark');
   birthdayInput.disabled = Boolean(user.birthday);
   genderInput.disabled = Boolean(user.gender);
+}
+
+function clearAppearanceMessages() {
+  appearanceMessage.textContent = '';
+  appearanceMessage.classList.remove('show');
+  appearanceError.textContent = '';
+  appearanceError.classList.remove('show');
 }
 
 function getProfileInitials(user = currentUser) {
@@ -1608,6 +1652,7 @@ function showProfileTab(tabName) {
   if (tabName === 'payment') fillDefaultPaymentForm(currentUser || {});
   if (tabName === 'payouts') fillDriverPayoutForm(currentUser || {});
   if (tabName === 'policies') fillPolicyConsentForm(currentUser || {});
+  if (tabName === 'appearance') applyThemePreference(currentUser?.themePreference || getStoredThemePreference() || 'dark');
 }
 
 function clearDefaultPaymentMessages() {
@@ -2392,6 +2437,7 @@ function restoreAppRoute() {
     else if (route === 'profile-payment') showProfilePage('payment');
     else if (route === 'profile-payouts') showProfilePage('payouts');
     else if (route === 'profile-policies') showProfilePage('policies');
+    else if (route === 'profile-appearance') showProfilePage('appearance');
     else if (route === 'profile-release-notes') showProfilePage('release-notes');
     else if (route === 'profile-about') showProfilePage('about');
     else if (route === 'profile') showProfilePage('info');
@@ -5434,7 +5480,29 @@ profileSidebarButtons.forEach((button) => {
   button.addEventListener('click', () => {
     clearDefaultPaymentMessages();
     clearPayoutMessages();
+    clearAppearanceMessages();
     showProfileTab(button.dataset.profileTab);
+  });
+});
+
+themePreferenceInputs.forEach((input) => {
+  input.addEventListener('change', async () => {
+    if (!input.checked) return;
+    clearAppearanceMessages();
+    const nextTheme = applyThemePreference(input.value);
+    try {
+      currentUser = await fetchJson('/api/profile/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ themePreference: nextTheme }),
+      });
+      applyThemePreference(currentUser.themePreference || nextTheme);
+      appearanceMessage.textContent = 'Appearance saved.';
+      appearanceMessage.classList.add('show');
+    } catch (err) {
+      appearanceError.textContent = err.message;
+      appearanceError.classList.add('show');
+    }
   });
 });
 
@@ -6263,3 +6331,7 @@ if (trackingViewerToken) {
 } else {
   checkAuth().finally(finishAppBoot);
 }
+
+// Footer — dynamic copyright year
+const footerYear = document.getElementById('footer-year');
+if (footerYear) footerYear.textContent = new Date().getFullYear();

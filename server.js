@@ -946,6 +946,11 @@ function normalizeGender(gender) {
   return allowed.includes(value) ? value : '';
 }
 
+function normalizeThemePreference(themePreference) {
+  const value = String(themePreference || '').trim().toLowerCase();
+  return ['dark', 'light'].includes(value) ? value : 'dark';
+}
+
 function canMatchSameGender(riderGender, driverGender) {
   if (!riderGender || !driverGender) return false;
   if (riderGender === 'prefer-not-to-say' || driverGender === 'prefer-not-to-say') return false;
@@ -1721,6 +1726,7 @@ function publicUser(user, db = null) {
     profilePictureDataUrl: user.profilePictureDataUrl || '',
     classYear: user.classYear || '',
     major: user.major || '',
+    themePreference: normalizeThemePreference(user.themePreference),
     email: user.email,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
@@ -2537,6 +2543,7 @@ app.post('/api/auth/signup', async (req, res) => {
     waitlistedAt: serviceApproved ? null : new Date().toISOString(),
     passwordHash: hashedPassword,
     emailVerified: false,
+    themePreference: 'dark',
     termsAcceptedAt: new Date().toISOString(),
     privacyAcceptedAt: new Date().toISOString(),
     termsVersion: REQUIRED_TERMS_VERSION,
@@ -2813,6 +2820,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
   }
   user.classYear = classYear;
   user.major = major;
+  user.themePreference = normalizeThemePreference(req.body.themePreference ?? user.themePreference);
   user.updatedAt = new Date().toISOString();
 
   (db.rides || []).forEach((ride) => {
@@ -2847,6 +2855,18 @@ app.put('/api/profile', requireAuth, (req, res) => {
     }
   });
 
+  saveDb(db);
+  res.json(publicUser(user, db));
+});
+
+app.put('/api/profile/preferences', requireAuth, (req, res) => {
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  user.themePreference = normalizeThemePreference(req.body.themePreference);
+  user.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json(publicUser(user, db));
 });
