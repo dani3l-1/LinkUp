@@ -2176,6 +2176,10 @@ button:disabled::before { display: none; }
 /* Avatar wrap with animated ring */
 .profile-avatar-wrap {
   position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
   flex: 0 0 96px;
 }
 
@@ -2206,16 +2210,10 @@ button:disabled::before { display: none; }
 /* Subtle rotating ring around avatar */
 .profile-avatar-ring {
   position: absolute;
-  inset: -5px;
+  inset: -6px;
   border-radius: 50%;
-  border: 1.5px dashed rgba(62,207,207,0.22);
-  animation: ring-rotate 18s linear infinite;
+  border: 1px solid rgba(62,207,207,0.24);
   pointer-events: none;
-}
-
-@keyframes ring-rotate {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
 }
 
 .profile-picture-preview img,
