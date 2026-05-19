@@ -8,6 +8,7 @@
 - **Cleaner project structure.** Setup docs now live under `docs/`, generated files are excluded from Git, and the README explains the app layout more clearly for future developers.
 - **Safer local testing.** Local test runs use `.env.local` and `data/local-test`, keeping test accounts and rides separate from the production database.
 - **Production reset.** Launch data was reset so LinkUp can start fresh with the updated environment and database structure.
+- **Better search preview.** LinkUp now provides stronger Google/social descriptions, structured logo metadata, and clean favicon sizes for search results.
 
 ### Fixed
 - **Accidental production testing guard.** Local startup now warns before using the live production database unless that is explicitly intended.
