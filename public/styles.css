@@ -198,6 +198,10 @@ body.app-booting .app-shell {
   flex: 1 0 auto;
 }
 
+body:not(.dashboard-mode) #main-content {
+  padding-bottom: clamp(2.75rem, 6vh, 5rem);
+}
+
 /* ─── Header ────────────────────────────────────────────────── */
 header {
   text-align: center;
@@ -7423,6 +7427,10 @@ html[data-theme="light"] #auth-section {
   background: rgba(255,255,255,0.82);
   border-color: rgba(18,91,97,0.14);
   box-shadow: 0 22px 70px rgba(18,91,97,0.13);
+}
+
+html[data-theme="light"] body:not(.dashboard-mode) #main-content {
+  padding-bottom: clamp(3.25rem, 7vh, 5.75rem);
 }
 
 html[data-theme="light"] .auth-tabs {
