@@ -3673,11 +3673,7 @@ article.card h3 {
 .app-footer .footer-social-link svg {
   width: 1rem;
   height: 1rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  fill: currentColor;
 }
 
 .app-footer .footer-social-link:hover {
