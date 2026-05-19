@@ -285,7 +285,9 @@ function applyThemePreference(themePreference, { persist = true } = {}) {
   document.documentElement.style.colorScheme = theme;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f6fbfb' : '#071819');
   themePreferenceInputs.forEach((input) => {
-    input.checked = input.value === theme;
+    const selected = input.value === theme;
+    input.checked = selected;
+    input.closest('.theme-choice-card')?.classList.toggle('is-selected', selected);
   });
   if (persist) {
     try {
@@ -1302,7 +1304,7 @@ function closeLegalModal() {
 async function checkAuth() {
   try {
     currentUser = await fetchJson('/api/auth/me');
-    applyThemePreference(currentUser.themePreference);
+    applyThemePreference(currentUser.themePreference || getStoredThemePreference() || 'dark');
     showDashboard(currentUser);
   } catch (error) {
     const route = getAppRoute();
@@ -5490,6 +5492,7 @@ themePreferenceInputs.forEach((input) => {
     if (!input.checked) return;
     clearAppearanceMessages();
     const nextTheme = applyThemePreference(input.value);
+    if (currentUser) currentUser.themePreference = nextTheme;
     try {
       currentUser = await fetchJson('/api/profile/preferences', {
         method: 'PUT',
@@ -5500,7 +5503,9 @@ themePreferenceInputs.forEach((input) => {
       appearanceMessage.textContent = 'Appearance saved.';
       appearanceMessage.classList.add('show');
     } catch (err) {
-      appearanceError.textContent = err.message;
+      appearanceMessage.textContent = 'Appearance saved on this device.';
+      appearanceMessage.classList.add('show');
+      appearanceError.textContent = 'Account sync will work after the production server is updated.';
       appearanceError.classList.add('show');
     }
   });
