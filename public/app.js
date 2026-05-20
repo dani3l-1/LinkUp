@@ -5319,14 +5319,6 @@ async function sendRecoveryRequest(endpoint) {
   try {
     const data = await fetchJson(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     recoveryMessage.textContent = data.message;
-    if (data.previewResetUrl) {
-      const resetLink = document.createElement('a');
-      resetLink.href = data.previewResetUrl;
-      resetLink.textContent = 'Open local reset link';
-      resetLink.className = 'inline-link';
-      recoveryMessage.appendChild(document.createElement('br'));
-      recoveryMessage.appendChild(resetLink);
-    }
     recoveryMessage.classList.add('show');
   } catch (err) {
     recoveryError.textContent = err.message;

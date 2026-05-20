@@ -326,7 +326,8 @@ function makeRateLimiter({ windowMs, max, message }) {
   };
 }
 
-const authRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 60, message: 'Too many authentication attempts. Please wait and try again.' });
+const authRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many authentication attempts. Please wait and try again.' });
+const forgotPasswordRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many password reset requests. Please wait and try again.' });
 const sensitiveWriteRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 40, message: 'Too many sensitive updates. Please wait and try again.' });
 const trackingRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many tracking requests. Please slow down.' });
 const adminRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many admin requests. Please wait and try again.' });
@@ -465,10 +466,10 @@ async function handleStripeWebhookRequest(req, res) {
   }
 }
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookRequest);
-app.post('/api/payments/webhook/stripe', express.raw({ type: 'application/json' }), handleStripeWebhookRequest);
 app.use(express.json({ limit: '1mb' }));
 app.use('/api', rejectCrossSiteWrites);
 app.use('/api/auth', authRateLimit);
+app.use('/api/auth/forgot-password', forgotPasswordRateLimit);
 app.use('/api/profile/payment-method', sensitiveWriteRateLimit);
 app.use('/api/profile/payout', sensitiveWriteRateLimit);
 app.use('/api/cart/create-checkout-session', sensitiveWriteRateLimit);
@@ -680,7 +681,7 @@ function getEmptyDb() {
 }
 
 function isPlainObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 function asArray(value) {
@@ -1275,6 +1276,12 @@ function isRideRequestVisibleToUser(db, request, userId) {
   return !areUsersBlocked(db, userId, request.riderId);
 }
 
+function publicRideRequest(request, viewerId) {
+  const { riderEmail, riderLastName, ...safe } = request;
+  safe.riderLastName = request.riderId === viewerId ? riderLastName : getMaskedLastName(riderLastName);
+  return safe;
+}
+
 function canUserSeeProfileFullName(db, profileUserId, viewerId) {
   if (!profileUserId || !viewerId) return false;
   if (profileUserId === viewerId) return true;
@@ -1374,6 +1381,7 @@ function setEmailVerificationCode(user) {
   user.emailVerified = false;
   user.emailVerificationCodeHash = hashToken(code);
   user.emailVerificationCodeExpiresAt = Date.now() + 1000 * 60 * 10;
+  delete user.emailVerificationAttempts;
   return code;
 }
 
@@ -2216,14 +2224,28 @@ function requireAuth(req, res, next) {
   next();
 }
 
-function saveSessionAndJson(req, res, payload) {
-  req.session.save((err) => {
-    if (err) {
-      console.error('Session save error:', err);
-      return res.status(500).json({ error: 'Could not save your login session. Please try again.' });
-    }
-    res.json(payload);
-  });
+function saveSessionAndJson(req, res, payload, newUserId = null) {
+  const doSave = () => {
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Could not save your login session. Please try again.' });
+      }
+      res.json(payload);
+    });
+  };
+  if (newUserId) {
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('Session regeneration error:', err);
+        return res.status(500).json({ error: 'Could not save your login session. Please try again.' });
+      }
+      req.session.userId = newUserId;
+      doSave();
+    });
+  } else {
+    doSave();
+  }
 }
 
 function requireServiceAccess(req, res, next) {
@@ -2528,6 +2550,15 @@ app.post('/api/auth/signup', async (req, res) => {
     return res.status(400).json({ error: 'You must agree to the Terms and Conditions and Privacy Notice before creating an account' });
   }
 
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
+    return res.status(400).json({ error: 'Enter a valid birthday' });
+  }
+  const birthdayDate = new Date(birthday + 'T00:00:00');
+  const ageDays = (Date.now() - birthdayDate.getTime()) / (1000 * 60 * 60 * 24);
+  if (isNaN(ageDays) || ageDays < 365 * 13 || ageDays > 365 * 120) {
+    return res.status(400).json({ error: 'Enter a valid birthday' });
+  }
+
   const normalizedEmail = normalizeEmail(email);
   if (!isUniversityEmail(normalizedEmail)) {
     return res.status(400).json({ error: 'Please use a valid university email address' });
@@ -2576,13 +2607,12 @@ app.post('/api/auth/signup', async (req, res) => {
     user.emailVerified = true;
     db.users.push(user);
     saveDb(db);
-    req.session.userId = user.id;
-    return res.json({
+    return saveSessionAndJson(req, res, {
       message: 'Account created and verified for local testing.',
       email: user.email,
       requiresVerification: false,
       user: publicUser(user, db),
-    });
+    }, user.id);
   }
 
   const verificationCode = setEmailVerificationCode(user);
@@ -2609,31 +2639,35 @@ app.post('/api/auth/verify-email', (req, res) => {
     return res.status(400).json({ error: 'Invalid verification code' });
   }
   if (user.emailVerified === true) {
-    req.session.userId = user.id;
-    return saveSessionAndJson(req, res, publicUser(user, db));
+    return saveSessionAndJson(req, res, publicUser(user, db), user.id);
   }
   if (BYPASS_EMAIL_VERIFICATION && String(code).trim() === '000000') {
     user.emailVerified = true;
     delete user.emailVerificationCodeHash;
     delete user.emailVerificationCodeExpiresAt;
     saveDb(db);
-    req.session.userId = user.id;
-    return saveSessionAndJson(req, res, publicUser(user, db));
+    return saveSessionAndJson(req, res, publicUser(user, db), user.id);
   }
   if (!user.emailVerificationCodeHash || user.emailVerificationCodeExpiresAt <= Date.now()) {
     return res.status(400).json({ error: 'Verification code expired. Request a new code.' });
   }
+  const MAX_VERIFY_ATTEMPTS = 5;
+  if ((user.emailVerificationAttempts || 0) >= MAX_VERIFY_ATTEMPTS) {
+    return res.status(429).json({ error: 'Too many verification attempts. Please request a new code.' });
+  }
   if (hashToken(String(code).trim()) !== user.emailVerificationCodeHash) {
+    user.emailVerificationAttempts = (user.emailVerificationAttempts || 0) + 1;
+    saveDb(db);
     return res.status(400).json({ error: 'Invalid verification code' });
   }
 
   user.emailVerified = true;
   delete user.emailVerificationCodeHash;
   delete user.emailVerificationCodeExpiresAt;
+  delete user.emailVerificationAttempts;
   saveDb(db);
 
-  req.session.userId = user.id;
-  saveSessionAndJson(req, res, publicUser(user, db));
+  saveSessionAndJson(req, res, publicUser(user, db), user.id);
 });
 
 app.post('/api/auth/resend-verification', (req, res) => {
@@ -2718,8 +2752,7 @@ app.post('/api/auth/signin', async (req, res) => {
     return res.status(403).json({ error: 'Please verify your email before signing in' });
   }
 
-  req.session.userId = user.id;
-  saveSessionAndJson(req, res, publicUser(user, db));
+  saveSessionAndJson(req, res, publicUser(user, db), user.id);
 });
 
 app.post('/api/auth/forgot-password', (req, res) => {
@@ -2731,7 +2764,6 @@ app.post('/api/auth/forgot-password', (req, res) => {
   const db = loadDb();
   const normalizedEmail = normalizeEmail(email);
   const user = db.users.find((u) => u.email === normalizedEmail);
-  let previewResetUrl;
 
   if (user) {
     const token = crypto.randomBytes(32).toString('hex');
@@ -2756,14 +2788,11 @@ app.post('/api/auth/forgot-password', (req, res) => {
     );
 
     if (NODE_ENV !== 'production') {
-      previewResetUrl = resetUrl;
+      console.log('[dev] Password reset link:', resetUrl);
     }
   }
 
-  res.json({
-    message: 'If an account exists for that email, we sent password reset instructions.',
-    previewResetUrl,
-  });
+  res.json({ message: 'If an account exists for that email, we sent password reset instructions.' });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {
@@ -3237,7 +3266,7 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting
-app.get('/api/config/google-maps-key', (req, res) => {
+app.get('/api/config/google-maps-key', requireAuth, (req, res) => {
   if (!GOOGLE_MAPS_API_KEY) {
     return res.status(503).json({ error: 'Google Maps API key is not configured' });
   }
@@ -3246,6 +3275,9 @@ app.get('/api/config/google-maps-key', (req, res) => {
 
 app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res) => {
   const trustedEmail = normalizeEmail(req.body.trustedEmail);
+  if (trustedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trustedEmail)) {
+    return res.status(400).json({ error: 'Enter a valid email address for your trusted person' });
+  }
 
   const db = loadDb();
   const user = db.users.find((u) => u.id === req.session.userId);
@@ -3426,13 +3458,22 @@ app.get('/api/track/:viewerToken', (req, res) => {
 
 app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
   const db = expireUnclaimedRideRequests(loadDb());
-  res.json((db.rideRequests || []).filter((request) => isRideRequestVisibleToUser(db, request, req.session.userId)));
+  const userId = req.session.userId;
+  res.json((db.rideRequests || [])
+    .filter((request) => isRideRequestVisibleToUser(db, request, userId))
+    .map((request) => publicRideRequest(request, userId)));
 });
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
   const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, estimatedDurationMinutes, distanceMiles, notes } = req.body;
   if (!origin || !destination || !date || !time || !riderCount || willingToPay === undefined) {
     return res.status(400).json({ error: 'Missing trip request information' });
+  }
+  if (String(origin).length > 200 || String(destination).length > 200) {
+    return res.status(400).json({ error: 'Location names must be 200 characters or fewer' });
+  }
+  if (notes && String(notes).length > 500) {
+    return res.status(400).json({ error: 'Notes must be 500 characters or fewer' });
   }
 
   if (!isValidTripDateTime(date, time)) {
@@ -3513,7 +3554,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
 
   db.rideRequests.push(request);
   saveDb(db);
-  res.json(request);
+  res.json(publicRideRequest(request, rider.id));
 });
 
 app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAccess, (req, res) => {

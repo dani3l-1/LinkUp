@@ -18,7 +18,9 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || '/#chat', self.location.origin).href;
+  const parsed = new URL(event.notification.data?.url || '/#chat', self.location.origin);
+  if (parsed.origin !== self.location.origin) return;
+  const targetUrl = parsed.href;
   event.waitUntil((async () => {
     const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existingClient = clientsList.find((client) => client.url.startsWith(self.location.origin));
