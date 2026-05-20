@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260519-auth-footer-gap" />
+    <link rel="stylesheet" href="styles.css?v=20260520-light-inputs" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -38,7 +38,7 @@
     </script>
   </head>
   <body class="app-booting">
-    <script src="boot.js?v=20260519-boot-guard"></script>
+    <script src="boot.js?v=20260520-profile-tabs-fallback"></script>
     <a href="#main-content" class="skip-link">Skip to content</a>
     <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
     <div id="ride-transition" class="ride-transition hidden" aria-hidden="true">
@@ -65,47 +65,80 @@
         <!-- ── Auth ──────────────────────────────────────────── -->
         <section id="auth-section" class="card">
 
+          <div class="auth-brand">
+            <div class="auth-brand-badge">✦ University rides</div>
+            <h1 class="auth-headline">Rides for students,<br>by students.</h1>
+            <p class="auth-sub">Verified .edu emails only. Campus-to-campus, no strangers.</p>
+          </div>
+
           <div class="auth-tabs">
-            <button class="tab-button active" data-tab="signin">Log In</button>
-            <button class="tab-button" data-tab="signup">Sign Up</button>
+            <button class="tab-button active" data-tab="signin">Sign In</button>
+            <button class="tab-button" data-tab="signup">Create Account</button>
           </div>
 
           <!-- Sign in -->
           <form id="signin-form" class="tab-content active">
-            <h2>Welcome back</h2>
-            <label>Email <input type="email" id="signin-email" placeholder="you@university.edu" required /></label>
-            <label>Password <input type="password" id="signin-password" placeholder="••••••••" required /></label>
-            <button type="submit">Let's Ride</button>
-            <button type="button" id="forgot-auth-link" class="text-button">Forgot your password?</button>
+            <div class="form-field">
+              <label for="signin-email">University Email</label>
+              <input type="email" id="signin-email" placeholder="you@university.edu" autocomplete="email" required />
+            </div>
+            <div class="form-field">
+              <label for="signin-password">Password</label>
+              <input type="password" id="signin-password" placeholder="••••••••" autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="btn-primary">Continue →</button>
+            <button type="button" id="forgot-auth-link" class="text-button">Forgot password?</button>
             <div id="signin-error" class="error-message"></div>
           </form>
 
           <!-- Sign up -->
           <form id="signup-form" class="tab-content">
-            <h2>Create your account</h2>
-            <label>First Name <input type="text" id="signup-first-name" placeholder="Xnonymous" required /></label>
-            <label>Middle Name <input type="text" id="signup-middle-name" placeholder="Optional" /></label>
-            <label>Last Name <input type="text" id="signup-last-name" placeholder="Last Name" required /></label>
-            <label>Birthday <input type="date" id="signup-birthday" required /></label>
-            <label>Gender
-              <select id="signup-gender" required>
-                <option value="">Select gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="nonbinary">Non-binary</option>
-                <option value="prefer-not-to-say">Prefer not to say</option>
-              </select>
-            </label>
-            <label>University Email <input type="email" id="signup-email" placeholder="name@university.edu" required /></label>
-            <label>Password <input type="password" id="signup-password" placeholder="Create a strong password" minlength="8" required /></label>
+            <div class="form-row-2">
+              <div class="form-field">
+                <label for="signup-first-name">First Name</label>
+                <input type="text" id="signup-first-name" placeholder="First" autocomplete="given-name" required />
+              </div>
+              <div class="form-field">
+                <label for="signup-last-name">Last Name</label>
+                <input type="text" id="signup-last-name" placeholder="Last" autocomplete="family-name" required />
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="signup-middle-name">Middle Name <span class="label-optional">(optional)</span></label>
+              <input type="text" id="signup-middle-name" placeholder="Middle" autocomplete="additional-name" />
+            </div>
+            <div class="form-row-2">
+              <div class="form-field">
+                <label for="signup-birthday">Birthday</label>
+                <input type="date" id="signup-birthday" autocomplete="bday" required />
+              </div>
+              <div class="form-field">
+                <label for="signup-gender">Gender</label>
+                <select id="signup-gender" required>
+                  <option value="">Select…</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="nonbinary">Non-binary</option>
+                  <option value="prefer-not-to-say">Prefer not to say</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="signup-email">University Email</label>
+              <input type="email" id="signup-email" placeholder="you@university.edu" autocomplete="email" required />
+            </div>
+            <div class="form-field">
+              <label for="signup-password">Password</label>
+              <input type="password" id="signup-password" placeholder="Create a strong password" minlength="8" autocomplete="new-password" required />
+            </div>
             <div class="password-requirements">
-              <p>Password must include</p>
+              <p>Must include</p>
               <ul>
-                <li id="req-length"><span class="check-icon">✓</span> At least 8 characters</li>
-                <li id="req-uppercase"><span class="check-icon">✓</span> One uppercase letter</li>
-                <li id="req-lowercase"><span class="check-icon">✓</span> One lowercase letter</li>
-                <li id="req-number"><span class="check-icon">✓</span> One number</li>
-                <li id="req-special"><span class="check-icon">✓</span> One special character (!@#$%^&*…)</li>
+                <li id="req-length"><span class="check-icon">✓</span> 8+ characters</li>
+                <li id="req-uppercase"><span class="check-icon">✓</span> Uppercase letter</li>
+                <li id="req-lowercase"><span class="check-icon">✓</span> Lowercase letter</li>
+                <li id="req-number"><span class="check-icon">✓</span> Number</li>
+                <li id="req-special"><span class="check-icon">✓</span> Special char (!@#$…)</li>
               </ul>
             </div>
             <label class="checkbox-label terms-agreement signup-consent">
@@ -116,18 +149,19 @@
               <input type="checkbox" id="signup-privacy-agree" required />
               I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="privacy">Privacy Notice</button>.
             </label>
-            <button type="submit">Create Account</button>
+            <button type="submit" class="btn-primary">Create Account →</button>
             <div id="signup-error" class="error-message"></div>
           </form>
 
           <!-- Email verification -->
           <form id="verification-form" class="tab-content">
-            <h2>Check your email</h2>
+            <h2>Check your inbox</h2>
             <p id="verification-email-label"></p>
-            <label>Verification Code
-              <input type="text" id="verification-code" inputmode="numeric" maxlength="6" placeholder="000000" required />
-            </label>
-            <button type="submit">Verify Email</button>
+            <div class="form-field">
+              <label for="verification-code">6-Digit Code</label>
+              <input type="text" id="verification-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" required />
+            </div>
+            <button type="submit" class="btn-primary">Verify →</button>
             <button type="button" id="resend-verification" class="text-button">Resend code</button>
             <button type="button" id="verification-back-to-signin" class="text-button">Back to sign in</button>
             <div id="verification-message" class="success-message"></div>
@@ -136,10 +170,13 @@
 
           <!-- Account recovery -->
           <form id="recovery-form" class="tab-content">
-            <h2>Password recovery</h2>
+            <h2>Reset password</h2>
             <p>Enter your university email and we'll send a reset link.</p>
-            <label>University Email <input type="email" id="recovery-email" placeholder="you@university.edu" required /></label>
-            <button type="button" id="send-password-reset">Send password reset</button>
+            <div class="form-field">
+              <label for="recovery-email">University Email</label>
+              <input type="email" id="recovery-email" placeholder="you@university.edu" autocomplete="email" required />
+            </div>
+            <button type="button" id="send-password-reset" class="btn-primary">Send reset link →</button>
             <button type="button" id="back-to-signin" class="text-button">Back to sign in</button>
             <div id="recovery-message" class="success-message"></div>
             <div id="recovery-error" class="error-message"></div>
@@ -148,8 +185,11 @@
           <!-- Reset password -->
           <form id="reset-password-form" class="tab-content">
             <h2>Set a new password</h2>
-            <label>New Password <input type="password" id="reset-password" placeholder="New password" minlength="8" required /></label>
-            <button type="submit">Update Password</button>
+            <div class="form-field">
+              <label for="reset-password">New Password</label>
+              <input type="password" id="reset-password" placeholder="New password" minlength="8" autocomplete="new-password" required />
+            </div>
+            <button type="submit" class="btn-primary">Update Password →</button>
             <button type="button" id="reset-back-to-signin" class="text-button">Back to sign in</button>
             <div id="reset-message" class="success-message"></div>
             <div id="reset-error" class="error-message"></div>
@@ -239,46 +279,76 @@
               <div class="profile-content">
                 <div id="profile-info-panel" class="profile-panel" data-profile-panel="info">
                   <form id="profile-form" class="profile-form">
-                    <div class="profile-picture-editor">
-                      <div class="profile-avatar-wrap">
+
+                    <!-- Avatar hero — Instagram-style edit on hover/click -->
+                    <div class="profile-editor-hero">
+                      <div class="profile-avatar-edit-wrap">
                         <div id="profile-picture-preview" class="profile-picture-preview">U</div>
-                        <div class="profile-avatar-ring" aria-hidden="true"></div>
-                      </div>
-                      <div class="profile-picture-info">
-                        <p class="profile-picture-label">Profile Photo</p>
-                        <label id="profile-picture-dropzone" class="profile-picture-dropzone" for="profile-picture-input" tabindex="0" aria-label="Upload profile picture — drag and drop or click to browse">
-                          <input type="file" id="profile-picture-input" accept="image/png,image/jpeg,image/webp" aria-label="Choose profile picture file" />
-                          <div class="dropzone-icon" aria-hidden="true">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
-                          </div>
-                          <span class="dropzone-text">Drop image here or <span class="dropzone-link">browse</span></span>
-                          <span class="dropzone-hint">PNG, JPG or WebP · max 512 KB</span>
-                        </label>
-                        <button type="button" id="profile-picture-remove" class="profile-picture-remove-btn">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-                          Remove photo
+                        <button type="button" id="profile-avatar-edit-btn" class="profile-avatar-edit-overlay" aria-label="Edit profile photo" aria-haspopup="menu" aria-expanded="false">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                          <span>Edit</span>
                         </button>
+                        <span class="profile-avatar-camera-badge" aria-hidden="true">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </span>
+                        <input type="file" id="profile-picture-input" accept="image/png,image/jpeg,image/webp" aria-hidden="true" tabindex="-1" class="profile-picture-input-hidden" />
+                        <div id="profile-photo-menu" class="profile-photo-menu" role="menu">
+                          <button type="button" id="profile-photo-upload" class="profile-photo-menu-item" role="menuitem">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                            Upload photo
+                          </button>
+                          <button type="button" id="profile-picture-remove" class="profile-photo-menu-item profile-photo-menu-danger" role="menuitem">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                            Remove photo
+                          </button>
+                        </div>
+                      </div>
+                      <div class="profile-editor-identity">
+                        <p id="profile-display-name" class="profile-editor-name">Your Name</p>
+                        <p id="profile-display-university" class="profile-editor-university"></p>
+                        <p id="profile-display-details" class="profile-editor-details"></p>
+                        <p id="profile-display-joined" class="profile-editor-joined"></p>
                       </div>
                     </div>
-                    <div class="profile-grid">
-                      <label>First Name <input type="text" id="profile-first-name" required /></label>
-                      <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
-                      <label>Last Name <input type="text" id="profile-last-name" required /></label>
-                      <label>Class of <input type="number" id="profile-class-year" min="1900" max="2100" placeholder="2028" /></label>
-                      <label>Major <input type="text" id="profile-major" maxlength="80" placeholder="Optional" /></label>
-                      <label>Birthday <input type="date" id="profile-birthday" disabled /></label>
-                      <label>Gender
-                        <select id="profile-gender" disabled>
-                          <option value="">Select gender</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="nonbinary">Non-binary</option>
-                          <option value="prefer-not-to-say">Prefer not to say</option>
-                        </select>
-                      </label>
-                      <label>University Email <input type="email" id="profile-email" disabled /></label>
+
+                    <div class="profile-fields-section">
+                      <div class="profile-grid">
+                        <label>First Name <input type="text" id="profile-first-name" required /></label>
+                        <label>Last Name <input type="text" id="profile-last-name" required /></label>
+                        <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
+                        <label>Class of <input type="number" id="profile-class-year" min="1900" max="2100" placeholder="2028" /></label>
+                        <label>Major <input type="text" id="profile-major" maxlength="80" placeholder="Optional" /></label>
+                        <label class="profile-field-locked">Birthday
+                          <span class="profile-lock-badge" aria-hidden="true">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+                            locked
+                          </span>
+                          <input type="date" id="profile-birthday" disabled />
+                        </label>
+                        <label class="profile-field-locked">Gender
+                          <span class="profile-lock-badge" aria-hidden="true">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+                            locked
+                          </span>
+                          <select id="profile-gender" disabled>
+                            <option value="">Select gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="nonbinary">Non-binary</option>
+                            <option value="prefer-not-to-say">Prefer not to say</option>
+                          </select>
+                        </label>
+                        <label class="profile-field-locked">University Email
+                          <span class="profile-lock-badge" aria-hidden="true">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+                            locked
+                          </span>
+                          <input type="email" id="profile-email" disabled />
+                        </label>
+                      </div>
+                      <p class="profile-note">Birthday and gender can only be set once. Names can be updated once every 6 months.</p>
                     </div>
-                    <p class="profile-note">Birthday and gender can only be set once. University email cannot be changed. Names can be updated once every 6 months.</p>
+
                     <button type="submit">Save Profile</button>
                     <div id="profile-message" class="success-message"></div>
                     <div id="profile-error" class="error-message"></div>
@@ -321,6 +391,21 @@
                           <span class="theme-choice-copy">
                             <strong>Light mode</strong>
                             <small>Brighter, cleaner daytime view.</small>
+                          </span>
+                        </label>
+                        <label class="theme-choice-card theme-choice-auto">
+                          <input type="radio" name="theme-preference" value="auto" aria-label="Auto mode, follows time of day" />
+                          <span class="theme-preview" aria-hidden="true">
+                            <span class="theme-preview-top"></span>
+                            <span class="theme-preview-body">
+                              <span></span>
+                              <span></span>
+                              <span></span>
+                            </span>
+                          </span>
+                          <span class="theme-choice-copy">
+                            <strong>Auto</strong>
+                            <small>Switches with the sun. Light from 6&thinsp;AM to 7&thinsp;PM, dark otherwise.</small>
                           </span>
                         </label>
                       </div>
@@ -582,7 +667,9 @@
                     </select>
                   </label>
                 </div>
-                <div id="rides-list">Loading rides…</div>
+                <div id="rides-list">
+                  <p class="browse-start-message">Select <strong>I'm a Driver</strong> to see ride requests from students, or <strong>I'm a Rider</strong> to browse available seats.</p>
+                </div>
               </article>
 
             </div><!-- /.browse-rider-layout -->
@@ -929,28 +1016,7 @@
                 </div>
                 <button type="button" id="pay-cart">Check Out</button>
                 <p class="payment-security-note">Your payment details are encrypted and never stored by LinkUp</p>
-                <div id="stripe-checkout-container" class="stripe-payment-frame hidden">
-                  <div id="stripe-express-checkout-wrap" class="wallet-checkout hidden">
-                    <span class="wallet-checkout-label">Express checkout</span>
-                    <div id="stripe-express-checkout-element"></div>
-                    <div class="wallet-card-divider"><span>or use card</span></div>
-                  </div>
-                  <div class="payment-form-header">
-                    <span class="payment-form-title">Card</span>
-                    <span class="payment-secure-badge">
-                      <svg width="11" height="13" viewBox="0 0 11 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5.5 0L1 2v4c0 2.76 1.97 5.34 4.5 6C8.03 11.34 10 8.76 10 6V2L5.5 0z" fill="currentColor" opacity="0.9"/></svg>
-                      Secure
-                    </span>
-                  </div>
-                  <label class="cardholder-field">Name on Card
-                    <input type="text" id="cardholder-name" autocomplete="cc-name" placeholder="Name on card" />
-                  </label>
-                  <div id="stripe-payment-element"></div>
-                  <div class="checkout-no-refund-notice payment-no-refund-notice">
-                    By confirming payment, you understand this ride reservation is final and cannot be refunded.
-                  </div>
-                  <button type="button" id="confirm-payment" class="hidden">Confirm &amp; pay</button>
-                </div>
+                <div id="stripe-embedded-checkout-container" class="hidden"></div>
                 <div id="payment-message" class="success-message"></div>
                 <div id="payment-error" class="error-message"></div>
               </div>
@@ -1101,6 +1167,6 @@
     </div>
 
     <script src="https://js.stripe.com/v3/"></script>
-    <script src="app.js?v=20260519-login-session-check"></script>
+    <script src="app.js?v=20260520-profile-tabs-fallback"></script>
   </body>
 </html>

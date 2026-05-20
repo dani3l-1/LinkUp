@@ -122,6 +122,13 @@ const profilePanels = document.querySelectorAll('[data-profile-panel]');
 const profilePictureInput = document.getElementById('profile-picture-input');
 const profilePicturePreview = document.getElementById('profile-picture-preview');
 const profilePictureRemoveButton = document.getElementById('profile-picture-remove');
+const profileAvatarEditBtn = document.getElementById('profile-avatar-edit-btn');
+const profilePhotoMenu = document.getElementById('profile-photo-menu');
+const profilePhotoUploadBtn = document.getElementById('profile-photo-upload');
+const profileDisplayName = document.getElementById('profile-display-name');
+const profileDisplayUniversity = document.getElementById('profile-display-university');
+const profileDisplayDetails = document.getElementById('profile-display-details');
+const profileDisplayJoined = document.getElementById('profile-display-joined');
 const driverPayoutForm = document.getElementById('driver-payout-form');
 const payoutMessage = document.getElementById('payout-message');
 const payoutError = document.getElementById('payout-error');
@@ -150,13 +157,8 @@ const linkupWalletCheckout = document.getElementById('linkup-wallet-checkout');
 const paymentBackToCartButton = document.getElementById('payment-back-to-cart');
 const paymentMessage = document.getElementById('payment-message');
 const paymentError = document.getElementById('payment-error');
-const stripeCheckoutContainer = document.getElementById('stripe-checkout-container');
+const embeddedCheckoutContainer = document.getElementById('stripe-embedded-checkout-container');
 const defaultPaymentStripeContainer = document.getElementById('default-payment-stripe-container');
-const stripePaymentElementNode = document.getElementById('stripe-payment-element');
-const stripeExpressCheckoutWrap = document.getElementById('stripe-express-checkout-wrap');
-const stripeExpressCheckoutNode = document.getElementById('stripe-express-checkout-element');
-const cardholderNameInput = document.getElementById('cardholder-name');
-const confirmPaymentButton = document.getElementById('confirm-payment');
 const defaultPaymentElementNode = document.getElementById('default-payment-element');
 const defaultPaymentConfirmButton = document.getElementById('default-payment-confirm');
 const trackTripButton = document.getElementById('track-trip-button');
@@ -275,27 +277,70 @@ let isRestoringRoute = false;
 let legalReturnRoute = '';
 const THEME_STORAGE_KEY = 'linkup.theme';
 
+// ── Uber-style dark map theme ───────────────────────────────────
+const UBER_MAP_STYLES = [
+  { elementType: 'geometry',        stylers: [{ color: '#1a1a2e' }] },
+  { elementType: 'labels.text.fill',stylers: [{ color: '#7a8fa6' }] },
+  { elementType: 'labels.text.stroke',stylers:[{ color: '#0d1117' }] },
+  { featureType: 'road',             elementType: 'geometry',       stylers: [{ color: '#2d2d44' }] },
+  { featureType: 'road',             elementType: 'geometry.stroke', stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'road.highway',     elementType: 'geometry',       stylers: [{ color: '#3a3a5c' }] },
+  { featureType: 'road.highway',     elementType: 'geometry.stroke', stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'water',            elementType: 'geometry',       stylers: [{ color: '#0f1923' }] },
+  { featureType: 'water',            elementType: 'labels.text.fill',stylers:[{ color: '#3d5a73' }] },
+  { featureType: 'poi',              elementType: 'geometry',       stylers: [{ color: '#1c1c30' }] },
+  { featureType: 'poi.park',         elementType: 'geometry',       stylers: [{ color: '#1a2e1a' }] },
+  { featureType: 'transit',          elementType: 'geometry',       stylers: [{ color: '#22223a' }] },
+  { featureType: 'administrative',   elementType: 'geometry',       stylers: [{ color: '#2a2a40' }] },
+  { featureType: 'landscape',        elementType: 'geometry',       stylers: [{ color: '#16162a' }] },
+];
+
 function normalizeThemePreference(themePreference) {
-  return String(themePreference || '').toLowerCase() === 'light' ? 'light' : 'dark';
+  const val = String(themePreference || '').toLowerCase();
+  if (val === 'light') return 'light';
+  if (val === 'auto') return 'auto';
+  return 'dark';
+}
+
+function resolveTimeBasedTheme() {
+  const hour = new Date().getHours();
+  return (hour >= 6 && hour < 19) ? 'light' : 'dark';
+}
+
+let autoThemeInterval = null;
+
+function startAutoThemeWatcher() {
+  if (autoThemeInterval) return;
+  autoThemeInterval = setInterval(() => {
+    applyThemePreference('auto', { persist: false });
+  }, 60000);
+}
+
+function stopAutoThemeWatcher() {
+  clearInterval(autoThemeInterval);
+  autoThemeInterval = null;
 }
 
 function applyThemePreference(themePreference, { persist = true } = {}) {
-  const theme = normalizeThemePreference(themePreference);
+  const pref = normalizeThemePreference(themePreference);
+  const theme = pref === 'auto' ? resolveTimeBasedTheme() : pref;
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f6fbfb' : '#071819');
   themePreferenceInputs.forEach((input) => {
-    const selected = input.value === theme;
+    const selected = input.value === pref;
     input.checked = selected;
     input.closest('.theme-choice-card')?.classList.toggle('is-selected', selected);
   });
   if (persist) {
     try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+      window.localStorage.setItem(THEME_STORAGE_KEY, pref);
     } catch (_) {}
   }
   if (typeof window.applyGoogleMapTheme === 'function') window.applyGoogleMapTheme();
-  return theme;
+  if (pref === 'auto') startAutoThemeWatcher();
+  else stopAutoThemeWatcher();
+  return pref;
 }
 
 function getStoredThemePreference() {
@@ -348,6 +393,78 @@ let browseDropoffMarker = null;
 let browseRouteRenderer = null;
 let browseRouteLine = null;
 let browseResultMarkers = [];
+
+document.addEventListener('click', async (event) => {
+  const target = event.target.closest?.('button');
+  if (!target) return;
+  if (target.classList.contains('tab-button') && target.dataset.tab) {
+    event.preventDefault();
+    showAuthForm(target.dataset.tab + '-form');
+    return;
+  }
+  if (target.classList.contains('profile-sidebar-button') && target.dataset.profileTab) {
+    event.preventDefault();
+    showProfileTab(target.dataset.profileTab);
+    return;
+  }
+  const actionMap = {
+    'browse-driver-button': () => showDriverBrowse(),
+    'browse-rider-button': () => showRiderBrowse(),
+    'request-ride-button': () => showRequestRidePage(),
+    'list-ride-button': () => showListRidePage(),
+    'track-trip-button': () => showTrackTripPage(),
+    'your-rides-button': () => showYourRidesPage(),
+    'leaderboard-button': () => showLeaderboardPage(),
+    'profile-button': () => showProfilePage(),
+    'cart-button': () => showCartPage(),
+    'leaderboard-back-home': () => returnToBrowseRides(),
+    'public-profile-back-home': () => returnToBrowseRides(),
+    'profile-back-home': () => returnToBrowseRides(),
+    'request-ride-back-home': () => returnToBrowseRides(),
+    'list-ride-back-home': () => returnToBrowseRides(),
+    'track-back-home': () => returnToBrowseRides(),
+    'chat-back-home': () => returnToBrowseRides(),
+    'your-rides-back-home': () => returnToBrowseRides(),
+    'continue-shopping': () => returnToBrowseRides(),
+    'privacy-link': () => showLegalPage('privacy'),
+    'terms-link': () => showLegalPage('terms'),
+    'forgot-auth-link': () => {
+      clearRecoveryMessages();
+      showAuthForm('recovery-form');
+    },
+    'back-to-signin': () => {
+      clearRecoveryMessages();
+      recoveryForm?.reset();
+      showAuthForm('signin-form');
+    },
+    'verification-back-to-signin': () => {
+      clearRecoveryMessages();
+      verificationForm?.reset();
+      showAuthForm('signin-form');
+    },
+    'reset-back-to-signin': () => {
+      clearRecoveryMessages();
+      resetPasswordForm?.reset();
+      window.history.replaceState({}, document.title, window.location.pathname);
+      showAuthForm('signin-form');
+    },
+  };
+  const action = actionMap[target.id];
+  if (!action && target.id !== 'signout') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (target.disabled) return;
+  if (target.id === 'signout') {
+    try {
+      await fetchJson('/api/auth/signout', { method: 'POST' });
+    } catch (_) {}
+    clearAppRoute();
+    showAuthSection();
+    return;
+  }
+  action();
+}, true);
+window.__linkupCriticalNavAttached = true;
 let browseRideRoutes = [];        // per-ride/request polylines
 let browseRideOriginMarkers = []; // small pickup dot per ride/request
 let browsePinLabels = new Map();
@@ -358,39 +475,21 @@ let stripeSetupElements = null;
 let activeExpressCheckoutElement = null;
 let activePaymentElement = null;
 let activeSetupElement = null;
+let activeEmbeddedCheckout = null;
 let activePaymentIntentId = '';
 let activePaymentClientSecret = '';
 let activeSetupIntentId = '';
 const selectedSeatByRide = new Map();
 
-// ── Uber-style dark map theme ───────────────────────────────────
-const UBER_MAP_STYLES = [
-  { elementType: 'geometry',        stylers: [{ color: '#1a1a2e' }] },
-  { elementType: 'labels.text.fill',stylers: [{ color: '#7a8fa6' }] },
-  { elementType: 'labels.text.stroke',stylers:[{ color: '#0d1117' }] },
-  { featureType: 'road',             elementType: 'geometry',       stylers: [{ color: '#2d2d44' }] },
-  { featureType: 'road',             elementType: 'geometry.stroke', stylers: [{ color: '#1a1a2e' }] },
-  { featureType: 'road.highway',     elementType: 'geometry',       stylers: [{ color: '#3a3a5c' }] },
-  { featureType: 'road.highway',     elementType: 'geometry.stroke', stylers: [{ color: '#1a1a2e' }] },
-  { featureType: 'water',            elementType: 'geometry',       stylers: [{ color: '#0f1923' }] },
-  { featureType: 'water',            elementType: 'labels.text.fill',stylers:[{ color: '#3d5a73' }] },
-  { featureType: 'poi',              elementType: 'geometry',       stylers: [{ color: '#1c1c30' }] },
-  { featureType: 'poi.park',         elementType: 'geometry',       stylers: [{ color: '#1a2e1a' }] },
-  { featureType: 'transit',          elementType: 'geometry',       stylers: [{ color: '#22223a' }] },
-  { featureType: 'administrative',   elementType: 'geometry',       stylers: [{ color: '#2a2a40' }] },
-  { featureType: 'landscape',        elementType: 'geometry',       stylers: [{ color: '#16162a' }] },
-];
+const getGoogleMapStylesForTheme = () =>
+  document.documentElement.dataset.theme === 'light' ? null : UBER_MAP_STYLES;
 
-function getGoogleMapStylesForTheme() {
-  return document.documentElement.dataset.theme === 'light' ? null : UBER_MAP_STYLES;
-}
-
-function applyGoogleMapTheme() {
+const applyGoogleMapTheme = () => {
   const styles = getGoogleMapStylesForTheme();
   [originMap, requestOriginMap, trackingMap, sharedTrackingMap, browseRadiusMap]
     .filter(Boolean)
     .forEach((map) => map.setOptions({ styles }));
-}
+};
 
 window.applyGoogleMapTheme = applyGoogleMapTheme;
 
@@ -572,6 +671,20 @@ async function loadGoogleMapsAPI() {
     }
   })();
   return _googleMapsPromise;
+}
+
+function showBrowseMapLoadError(error) {
+  const message = error?.message || 'Google Maps could not load.';
+  browseMapPanel?.classList.remove('hidden');
+  browseRiderLayout?.classList.add('rider-active');
+  if (browseRadiusMapDiv) {
+    browseRadiusMapDiv.innerHTML = '<div class="map-error-state">Google Maps is unavailable right now.</div>';
+  }
+  if (browseMapHintPanel) {
+    browseMapHintPanel.textContent = message.includes('Google Maps API key')
+      ? 'Add GOOGLE_MAPS_API_KEY to your local .env.local file, then restart localhost.'
+      : message;
+  }
 }
 
 function getBrowserMapCenter() {
@@ -1079,7 +1192,19 @@ function validatePasswordRequirements(password) {
 }
 
 async function fetchJson(url, options = {}) {
-  const res = await fetch(url, { credentials: 'same-origin', ...options });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 25000);
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'same-origin', signal: controller.signal, ...options });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('The server took too long to respond. Refresh and try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
   const contentType = res.headers.get('content-type') || '';
   let data;
   if (contentType.includes('application/json')) {
@@ -1116,6 +1241,69 @@ async function fetchJson(url, options = {}) {
     throw error;
   }
   return data;
+}
+
+let signinHandlerAttached = false;
+let authFlowVersion = 0;
+
+async function handleSigninSubmit(event) {
+  event.preventDefault();
+  authFlowVersion += 1;
+  if (!signinForm || !signinError) return;
+  signinError.textContent = '';
+  signinError.classList.remove('show');
+  const email = document.getElementById('signin-email')?.value.trim();
+  const password = document.getElementById('signin-password')?.value;
+  const submitButton = signinForm.querySelector('button[type="submit"]');
+  setButtonLoading(submitButton, true);
+  try {
+    currentUser = await fetchJson('/api/auth/signin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    try {
+      currentUser = await fetchJson('/api/auth/me');
+    } catch (_) {
+      throw new Error('Sign-in worked, but the browser did not keep the login session. Clear localhost cookies, hard refresh, and try again.');
+    }
+    signinForm.reset();
+    clearAppRoute();
+    setButtonLoading(submitButton, false);
+    enterDashboard(currentUser);
+  } catch (err) {
+    setButtonLoading(submitButton, false);
+    if (err.message === 'Please verify your email before signing in') {
+      showVerificationForm(email, err.message);
+      return;
+    }
+    signinError.textContent = err.message || 'Unable to sign in. Please try again.';
+    signinError.classList.add('show');
+  }
+}
+
+function attachSigninHandler() {
+  if (!signinForm || signinHandlerAttached) return;
+  signinHandlerAttached = true;
+  window.__linkupSigninHandlerAttached = true;
+  signinForm.addEventListener('submit', handleSigninSubmit);
+}
+
+attachSigninHandler();
+
+function enterDashboard(user) {
+  try {
+    showDashboard(user);
+    window.__linkupDashboardRendered = true;
+  } catch (error) {
+    console.error('Dashboard render error:', error);
+    showDashboardShell(user);
+    try {
+      showDashboardHome();
+    } catch (homeError) {
+      console.error('Dashboard home render error:', homeError);
+    }
+  }
 }
 
 function escapeHtml(value) {
@@ -1316,11 +1504,14 @@ function closeLegalModal() {
 }
 
 async function checkAuth() {
+  const authCheckVersion = ++authFlowVersion;
   try {
     currentUser = await fetchJson('/api/auth/me');
+    if (authCheckVersion !== authFlowVersion) return;
     applyThemePreference(currentUser.themePreference || getStoredThemePreference() || 'dark');
-    showDashboard(currentUser);
+    enterDashboard(currentUser);
   } catch (error) {
+    if (authCheckVersion !== authFlowVersion || currentUser) return;
     const route = getAppRoute();
     if (route === 'privacy' || route === 'terms') showLegalPage(route);
     else showAuthSection();
@@ -1521,6 +1712,21 @@ function fillProfileForm(user) {
   applyThemePreference(user.themePreference || getStoredThemePreference() || 'dark');
   birthdayInput.disabled = Boolean(user.birthday);
   genderInput.disabled = Boolean(user.gender);
+  if (profileDisplayName) {
+    const name = [user.firstName, user.lastName].filter(Boolean).join(' ');
+    profileDisplayName.textContent = name || 'Your Name';
+  }
+  if (profileDisplayUniversity) profileDisplayUniversity.textContent = user.university || '';
+  if (profileDisplayDetails) {
+    const parts = [user.major, user.classYear ? `Class of ${user.classYear}` : ''].filter(Boolean);
+    profileDisplayDetails.textContent = parts.join(' · ');
+  }
+  if (profileDisplayJoined && user.createdAt) {
+    const joined = new Date(user.createdAt);
+    if (!isNaN(joined)) {
+      profileDisplayJoined.textContent = `Member since ${joined.toLocaleString('default', { month: 'long', year: 'numeric' })}`;
+    }
+  }
 }
 
 function clearAppearanceMessages() {
@@ -1737,11 +1943,6 @@ function destroyStripePaymentElements() {
   stripeCardElements = null;
   activePaymentIntentId = '';
   activePaymentClientSecret = '';
-  stripeCheckoutContainer?.classList.add('hidden');
-  stripeExpressCheckoutWrap?.classList.add('hidden');
-  if (stripeExpressCheckoutNode) stripeExpressCheckoutNode.innerHTML = '';
-  confirmPaymentButton?.classList.add('hidden');
-  if (stripePaymentElementNode) stripePaymentElementNode.innerHTML = '';
 }
 
 function destroyStripeSetupElements() {
@@ -1757,100 +1958,28 @@ function destroyStripeSetupElements() {
 }
 
 function destroyEmbeddedCheckout() {
+  if (activeEmbeddedCheckout) {
+    try { activeEmbeddedCheckout.destroy(); } catch (_) {}
+    activeEmbeddedCheckout = null;
+  }
+  if (embeddedCheckoutContainer) {
+    embeddedCheckoutContainer.innerHTML = '';
+    embeddedCheckoutContainer.classList.add('hidden');
+  }
   destroyStripePaymentElements();
   destroyStripeSetupElements();
 }
 
-async function mountStripePaymentElement(clientSecret, paymentIntentId) {
+async function mountEmbeddedCheckout(clientSecret) {
   if (!clientSecret) throw new Error('Stripe payment could not be started.');
-  if (!stripeCheckoutContainer || !stripePaymentElementNode) throw new Error('Stripe payment container is missing.');
-  destroyStripePaymentElements();
+  if (!embeddedCheckoutContainer) throw new Error('Stripe payment container is missing.');
+  destroyEmbeddedCheckout();
   const stripe = await getStripeInstance();
-  stripePaymentElements = stripe.elements({ clientSecret, appearance: getStripeAppearance() });
-  stripeCardElements = stripe.elements();
-  if (stripeExpressCheckoutNode) {
-    activeExpressCheckoutElement = stripePaymentElements.create('expressCheckout', {
-      buttonHeight: 48,
-      layout: {
-        maxColumns: 1,
-        maxRows: 2,
-        overflow: 'never',
-      },
-      paymentMethods: {
-        applePay: 'auto',
-        googlePay: 'auto',
-        link: 'never',
-        paypal: 'never',
-        amazonPay: 'never',
-        klarna: 'never',
-      },
-      buttonTheme: {
-        applePay: 'black',
-        googlePay: 'black',
-      },
-      buttonType: {
-        applePay: 'buy',
-        googlePay: 'buy',
-      },
-    });
-    activeExpressCheckoutElement.on('ready', (event = {}) => {
-      const availableMethods = event.availablePaymentMethods || {};
-      const hasWallet = Object.values(availableMethods).some(Boolean);
-      stripeExpressCheckoutWrap?.classList.toggle('hidden', !hasWallet);
-      stripeExpressCheckoutNode.classList.toggle('hidden', !hasWallet);
-    });
-    activeExpressCheckoutElement.on('confirm', async (event) => {
-      paymentMessage.textContent = '';
-      paymentMessage.classList.remove('show');
-      paymentError.textContent = '';
-      paymentError.classList.remove('show');
-      try {
-        const result = await stripe.confirmPayment({
-          elements: stripePaymentElements,
-          confirmParams: { return_url: window.location.origin + window.location.pathname + '?checkout=success' },
-          redirect: 'if_required',
-        });
-        if (result.error) {
-          if (typeof event.paymentFailed === 'function') event.paymentFailed({ reason: 'fail' });
-          throw new Error(result.error.message || 'Unable to complete wallet payment.');
-        }
-        if (result.paymentIntent?.status !== 'succeeded') {
-          paymentMessage.textContent = 'Stripe is still processing this payment. Refresh the cart in a moment.';
-          paymentMessage.classList.add('show');
-          return;
-        }
-        await completeStripeCheckout(result.paymentIntent.id);
-      } catch (err) {
-        paymentError.textContent = err.message;
-        paymentError.classList.add('show');
-      }
-    });
-  }
-  activePaymentElement = stripeCardElements.create('card', {
-    disableLink: true,
-    hidePostalCode: false,
-    style: {
-      base: {
-        color: '#1e2429',
-        fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        fontSize: '18px',
-        fontWeight: '700',
-        lineHeight: '52px',
-        '::placeholder': { color: '#789ca3' },
-      },
-      invalid: {
-        color: '#b8323a',
-        iconColor: '#b8323a',
-      },
-    },
-  });
-  stripeCheckoutContainer.classList.remove('hidden');
-  activeExpressCheckoutElement?.mount(stripeExpressCheckoutNode);
-  activePaymentElement.mount(stripePaymentElementNode);
-  activePaymentIntentId = paymentIntentId || '';
-  activePaymentClientSecret = clientSecret;
-  confirmPaymentButton?.classList.remove('hidden');
+  activeEmbeddedCheckout = await stripe.initEmbeddedCheckout({ clientSecret });
+  embeddedCheckoutContainer.classList.remove('hidden');
+  activeEmbeddedCheckout.mount(embeddedCheckoutContainer);
 }
+
 
 async function mountStripeSetupElement(clientSecret, setupIntentId) {
   if (!clientSecret) throw new Error('Stripe setup could not be started.');
@@ -2360,7 +2489,7 @@ function showPaymentPage(preselectedRideIds = null) {
   paymentPage.classList.remove('hidden');
   if (paymentSummary) paymentSummary.textContent = `${selectedRideIds.length} trip${selectedRideIds.length === 1 ? '' : 's'} ready for payment`;
   document.getElementById('pay-cart')?.classList.remove('hidden');
-  destroyStripePaymentElements();
+  destroyEmbeddedCheckout();
 
   // Populate right-panel order summary from selected cart cards
   const orderSummaryEl = document.getElementById('payment-order-summary');
@@ -4690,6 +4819,9 @@ function showRiderBrowse() {
       const map = ensureBrowseRadiusMap();
       if (map) google.maps.event.trigger(map, 'resize');
     }, 100);
+  }).catch((error) => {
+    console.error('Browse map failed to load:', error);
+    showBrowseMapLoadError(error);
   });
   browseTitle.textContent = 'Browse available rides';
   browseSubtitle.textContent = 'Find rides near your pickup and drop-off.';
@@ -4722,6 +4854,9 @@ function showDriverBrowse() {
       const map = ensureBrowseRadiusMap();
       if (map) google.maps.event.trigger(map, 'resize');
     }, 100);
+  }).catch((error) => {
+    console.error('Browse map failed to load:', error);
+    showBrowseMapLoadError(error);
   });
   browseTitle.textContent = 'Browse requested rides';
   browseSubtitle.textContent = 'Find riders near your route.';
@@ -5120,8 +5255,12 @@ rideProviderChoices.forEach((button) => {
   button.addEventListener('click', () => chooseOfferProviderType(button.dataset.providerType));
 });
 changeRideProviderButton?.addEventListener('click', () => resetOfferProviderSelection());
-renderDriverSeatLayout();
-updateOfferProviderFields();
+try {
+  renderDriverSeatLayout();
+  updateOfferProviderFields();
+} catch (error) {
+  console.error('Ride listing controls failed to initialize:', error);
+}
 browseDriverButton.addEventListener('click', () => showDriverBrowse());
 browseRiderButton.addEventListener('click', () => showRiderBrowse());
 sameGenderDriversOnlyFilter.addEventListener('change', () => refreshActiveBrowse());
@@ -5256,32 +5395,7 @@ signupForm.addEventListener('submit', async (event) => {
     }
   }
 });
-
-signinForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  signinError.textContent = '';
-  signinError.classList.remove('show');
-  const email = document.getElementById('signin-email').value.trim();
-  const password = document.getElementById('signin-password').value;
-  try {
-    currentUser = await fetchJson('/api/auth/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-    try {
-      currentUser = await fetchJson('/api/auth/me');
-    } catch (sessionError) {
-      throw new Error('Sign-in succeeded, but your browser did not keep the login session. Open http://localhost:4000, clear localhost cookies, then try again.');
-    }
-    signinForm.reset();
-    await playRideTransition();
-    showDashboard(currentUser);
-  } catch (err) {
-    if (err.message === 'Please verify your email before signing in') {
-      showVerificationForm(email, err.message);
-      return;
-    }
-    signinError.textContent = err.message;
-    signinError.classList.add('show');
-  }
-});
+window.__linkupSignupHandlerAttached = true;
 
 offerForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -5310,12 +5424,7 @@ offerForm.addEventListener('submit', async (event) => {
   const pickupRadiusMiles = getRadiusInputMiles(offerPickupRadiusInput);
   const dropoffRadiusMiles = getRadiusInputMiles(offerDropoffRadiusInput);
   const notes = document.getElementById('notes').value.trim();
-  const rideMetrics = await estimateRideMetrics(
-    { lat: Number(originLat), lng: Number(originLng) },
-    { lat: Number(destinationLat), lng: Number(destinationLng) },
-    date,
-    time
-  );
+  // Validate all fields BEFORE firing the Google Maps metrics API call to avoid wasting quota
   if (!origin || !destination || !date || !time || !rideProviderType || !price || !termsAccepted) {
     showToast('Fill in all required fields and select both locations.', 'error');
     return;
@@ -5340,6 +5449,13 @@ offerForm.addEventListener('submit', async (event) => {
     showToast('Set a visible gender on your profile before offering same-gender rides.', 'error');
     return;
   }
+  // All validation passed — now estimate route metrics
+  const rideMetrics = await estimateRideMetrics(
+    { lat: Number(originLat), lng: Number(originLng) },
+    { lat: Number(destinationLat), lng: Number(destinationLng) },
+    date,
+    time
+  );
   try {
     await fetchJson('/api/rides', {
       method: 'POST',
@@ -5536,32 +5652,46 @@ profilePictureInput?.addEventListener('change', () => {
   handleProfilePictureFile(file);
 });
 
-// Drag-and-drop on the dropzone
+// ── Profile photo menu ─────────────────────────────────────
+function closeProfilePhotoMenu() {
+  profilePhotoMenu?.classList.remove('open');
+  profileAvatarEditBtn?.setAttribute('aria-expanded', 'false');
+}
+
+profileAvatarEditBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isOpen = profilePhotoMenu?.classList.contains('open');
+  profilePhotoMenu?.classList.toggle('open', !isOpen);
+  profileAvatarEditBtn.setAttribute('aria-expanded', String(!isOpen));
+});
+
+profilePhotoUploadBtn?.addEventListener('click', () => {
+  closeProfilePhotoMenu();
+  profilePictureInput?.click();
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest?.('.profile-avatar-edit-wrap')) closeProfilePhotoMenu();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeProfilePhotoMenu();
+});
+
+// Drag-and-drop directly onto the avatar
 (function () {
-  const dropzone = document.getElementById('profile-picture-dropzone');
-  if (!dropzone) return;
-
+  const wrap = document.querySelector('.profile-avatar-edit-wrap');
+  if (!wrap) return;
   function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-
   ['dragenter', 'dragover'].forEach(evt => {
-    dropzone.addEventListener(evt, e => { preventDefaults(e); dropzone.classList.add('drag-over'); });
+    wrap.addEventListener(evt, e => { preventDefaults(e); wrap.classList.add('drag-over'); });
   });
   ['dragleave', 'dragend', 'drop'].forEach(evt => {
-    dropzone.addEventListener(evt, e => { preventDefaults(e); dropzone.classList.remove('drag-over'); });
+    wrap.addEventListener(evt, e => { preventDefaults(e); wrap.classList.remove('drag-over'); });
   });
-
-  dropzone.addEventListener('drop', e => {
+  wrap.addEventListener('drop', e => {
     const file = e.dataTransfer?.files?.[0];
-    if (file) handleProfilePictureFile(file);
-  });
-
-  // Keyboard accessibility — label's `for` handles Enter natively in most browsers,
-  // but Space needs a nudge since labels don't respond to Space by default
-  dropzone.addEventListener('keydown', e => {
-    if (e.key === ' ') {
-      e.preventDefault();
-      profilePictureInput?.click();
-    }
+    if (file) { closeProfilePhotoMenu(); handleProfilePictureFile(file); }
   });
 })();
 
@@ -5887,6 +6017,7 @@ function handleProfilePictureFile(file) {
 }
 
 profilePictureRemoveButton?.addEventListener('click', () => {
+  closeProfilePhotoMenu();
   clearProfileMessages();
   pendingProfilePictureDataUrl = '';
   if (profilePictureInput) profilePictureInput.value = '';
@@ -6143,7 +6274,7 @@ document.getElementById('pay-cart').addEventListener('click', async () => {
       showCartPage();
       return;
     }
-    const data = await fetchJson('/api/cart/create-checkout-session', {
+    const data = await fetchJson('/api/cart/create-embedded-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rideIds: selectedRideIds }),
@@ -6152,52 +6283,24 @@ document.getElementById('pay-cart').addEventListener('click', async () => {
       paymentSummary.textContent = 'Your LinkUp wallet covers this checkout.';
       paymentMessage.textContent = formatCents(data.walletCreditCents || 0) + ' in wallet credit will be used.';
       paymentMessage.classList.add('show');
-      await completeStripeCheckout(data.paymentIntentId);
+      await completeStripeCheckout(data.sessionId);
       return;
     }
     paymentSummary.textContent = data.walletCreditCents
-      ? formatCents(data.walletCreditCents) + ' in wallet credit applied. Enter payment details for the remaining balance.'
-      : 'Enter your payment details below. Your card details stay with Stripe.';
+      ? formatCents(data.walletCreditCents) + ' in wallet credit applied.'
+      : '';
     document.getElementById('pay-cart').classList.add('hidden');
-    await mountStripePaymentElement(data.clientSecret, data.paymentIntentId);
+    await mountEmbeddedCheckout(data.clientSecret);
   } catch (err) {
     paymentError.textContent = err.message;
     paymentError.classList.add('show');
   }
 });
 
-confirmPaymentButton?.addEventListener('click', async () => {
-  paymentMessage.textContent = '';
-  paymentMessage.classList.remove('show');
-  paymentError.textContent = '';
-  paymentError.classList.remove('show');
-  if (!activePaymentElement || !activePaymentClientSecret || !activePaymentIntentId) {
-    paymentError.textContent = 'Load the payment form first.';
-    paymentError.classList.add('show');
-    return;
-  }
-  try {
-    confirmPaymentButton.disabled = true;
-    const stripe = await getStripeInstance();
-    const cardholderName = cardholderNameInput?.value.trim() || '';
-    const result = await stripe.confirmCardPayment(activePaymentClientSecret, {
-      payment_method: {
-        card: activePaymentElement,
-        billing_details: cardholderName ? { name: cardholderName } : {},
-      },
-    });
-    if (result.error) throw new Error(result.error.message || 'Unable to complete payment.');
-    if (result.paymentIntent?.status !== 'succeeded') {
-      paymentMessage.textContent = 'Stripe is still processing this payment. Refresh the cart in a moment.';
-      paymentMessage.classList.add('show');
-      return;
-    }
-    await completeStripeCheckout(result.paymentIntent.id);
-  } catch (err) {
-    paymentError.textContent = err.message;
-    paymentError.classList.add('show');
-  } finally {
-    confirmPaymentButton.disabled = false;
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && getStoredThemePreference() === 'auto') {
+    applyThemePreference('auto', { persist: false });
   }
 });
 
@@ -6245,9 +6348,9 @@ async function completeStripeCheckout(sessionId) {
       return;
     }
     showDashboard(currentUser);
-    showPaymentPage();
-    paymentError.textContent = err.message;
-    paymentError.classList.add('show');
+    showCartPage();
+    cartError.textContent = err.message;
+    cartError.classList.add('show');
   }
 }
 

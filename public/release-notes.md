@@ -2,6 +2,18 @@
 
 ---
 
+## v2026.05.20 BETA
+
+### New
+- **Stripe Embedded Checkout.** Checkout now uses Stripe's fully hosted payment form — Apple Pay, Google Pay, Link, and card are all supported without a redirect. Your card details never touch LinkUp servers.
+- **Auto theme.** A new Auto option in Appearance automatically switches between light and dark mode based on the time of day — light from 6 AM to 7 PM, dark outside those hours. The app updates live while it's open.
+
+### Improvements
+- **Redesigned Personal Info page.** Your profile photo now works like Instagram — hover over the avatar to see the edit overlay, then click to choose Upload photo or Remove photo. A profile tag next to the avatar shows your name, university, major, class year, and when you joined LinkUp. Locked fields (birthday, gender, email) now display a lock badge so it's clear they can't be changed.
+- **Sharper light mode.** Text throughout the app — labels, navigation items, subtitles, form fields, and placeholder text — is now noticeably darker and easier to read in light mode, meeting accessibility contrast standards.
+
+---
+
 ## v2026.05.17 BETA
 
 ### Improvements

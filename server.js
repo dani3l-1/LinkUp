@@ -472,6 +472,7 @@ app.use('/api/auth', authRateLimit);
 app.use('/api/profile/payment-method', sensitiveWriteRateLimit);
 app.use('/api/profile/payout', sensitiveWriteRateLimit);
 app.use('/api/cart/create-checkout-session', sensitiveWriteRateLimit);
+app.use('/api/cart/create-embedded-checkout', sensitiveWriteRateLimit);
 app.use('/api/cart/checkout', sensitiveWriteRateLimit);
 app.use('/api/cart/checkout/complete', sensitiveWriteRateLimit);
 app.use('/api/track', trackingRateLimit);
@@ -492,6 +493,13 @@ app.use(sessionMiddleware);
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   maxAge: NODE_ENV === 'production' ? '1h' : 0,
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  },
 }));
 
 const io = new Server(httpServer, {
@@ -949,7 +957,7 @@ function normalizeGender(gender) {
 
 function normalizeThemePreference(themePreference) {
   const value = String(themePreference || '').trim().toLowerCase();
-  return ['dark', 'light'].includes(value) ? value : 'dark';
+  return ['dark', 'light', 'auto'].includes(value) ? value : 'dark';
 }
 
 function canMatchSameGender(riderGender, driverGender) {
@@ -1748,6 +1756,7 @@ function publicUser(user, db = null) {
     requiresPolicyConsent: userNeedsPolicyConsent(user),
     missingRequiredSettings,
     requiresRequiredSettings: missingRequiredSettings.length > 0,
+    createdAt: user.createdAt || null,
     rideServicesPaused: RIDE_SERVICES_PAUSED,
     wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
@@ -4212,6 +4221,103 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     res.json({ provider, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id, walletCreditCents, amountDueCents });
   } catch (err) {
     console.error('Stripe checkout session error:', err);
+    res.status(502).json({ error: 'Unable to start Stripe Checkout. Please try again.' });
+  }
+});
+
+app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess, async (req, res) => {
+  const provider = getPaymentProviderName();
+  if (!requireStripeBackedProvider(provider, res, 'checkout')) return;
+
+  const db = loadDb();
+  const student = db.users.find((u) => u.id === req.session.userId);
+  if (!student) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const cartEntries = getSelectedCartEntries(cleanCartEntries(db, student.id), req.body.rideIds);
+  if (!cartEntries.length) {
+    return res.status(400).json({ error: 'Select at least one ride before checkout' });
+  }
+
+  const checkoutRides = [];
+  for (const entry of cartEntries) {
+    if (!entry.termsAcceptedAt) return res.status(400).json({ error: 'Please agree to the Terms and Conditions again before checkout' });
+    const ride = db.rides.find((r) => r.id === entry.rideId);
+    const reserveError = canStudentReserveRide(student, ride, entry.seatId, db);
+    if (reserveError) return res.status(400).json({ error: reserveError });
+    checkoutRides.push(ride);
+  }
+  const internalConflict = findInternalRideConflict(checkoutRides);
+  if (internalConflict) {
+    return res.status(400).json({ error: 'Two rides in your cart overlap: ' + describeTripTime(internalConflict[0]) + ' and ' + describeTripTime(internalConflict[1]) });
+  }
+
+  try {
+    const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + Number(ride.priceCents || 0), 0);
+    const walletCreditCents = getCheckoutWalletCreditCents(db, student.id, expectedAmountCents);
+    const amountDueCents = Math.max(0, expectedAmountCents - walletCreditCents);
+    if (amountDueCents === 0) {
+      const walletSessionId = 'wallet_' + uuidv4();
+      db.checkoutSessions = db.checkoutSessions || [];
+      db.checkoutSessions.push({
+        id: walletSessionId,
+        provider: 'wallet',
+        providerPaymentId: walletSessionId,
+        studentId: student.id,
+        cartEntries: cartEntries.map((entry) => ({ ...entry })),
+        expectedAmountCents,
+        walletCreditCents,
+        amountDueCents,
+        stripeAmountTotal: 0,
+        stripeCurrency: 'usd',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      });
+      saveDb(db);
+      return res.json({
+        provider: 'wallet',
+        walletOnly: true,
+        sessionId: walletSessionId,
+        walletCreditCents,
+        amountDueCents,
+      });
+    }
+
+    const lineItems = getCheckoutLineItems(checkoutRides);
+    const session = await stripe.checkout.sessions.create({
+      ui_mode: 'embedded',
+      mode: 'payment',
+      line_items: lineItems,
+      customer_email: student.email,
+      return_url: APP_BASE_URL + '/?checkout=success&session_id={CHECKOUT_SESSION_ID}',
+      metadata: {
+        linkupStudentId: student.id,
+        linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
+        paymentProvider: provider,
+        walletCreditCents: String(walletCreditCents),
+      },
+    });
+
+    db.checkoutSessions = db.checkoutSessions || [];
+    db.checkoutSessions.push({
+      id: session.id,
+      provider,
+      providerPaymentId: session.id,
+      stripeSessionId: session.id,
+      studentId: student.id,
+      cartEntries: cartEntries.map((entry) => ({ ...entry })),
+      expectedAmountCents,
+      walletCreditCents,
+      amountDueCents,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    saveDb(db);
+
+    res.json({ provider, clientSecret: session.client_secret, sessionId: session.id, walletCreditCents, amountDueCents });
+  } catch (err) {
+    console.error('Stripe embedded checkout error:', err);
     res.status(502).json({ error: 'Unable to start Stripe Checkout. Please try again.' });
   }
 });
