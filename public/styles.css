@@ -219,6 +219,19 @@ header {
   filter: var(--logo-filter);
 }
 
+body:not(.dashboard-mode) .site-logo {
+  width: min(200px, 50vw);
+}
+
+body:not(.dashboard-mode) header {
+  padding-top: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+body:not(.dashboard-mode) .app-shell {
+  padding-top: 1rem;
+}
+
 body.dashboard-mode header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -353,11 +366,11 @@ strong { font-weight: 600; color: var(--text-primary); }
 /* ─── Auth section ──────────────────────────────────────────── */
 #auth-section {
   width: min(480px, 100%);
-  margin: 1.5rem auto 0;
+  margin: 0.5rem auto 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  padding: 2.75rem 2.5rem 2.5rem;
+  padding: 2rem 2.5rem 2rem;
   box-shadow: var(--shadow-lg), 0 0 80px rgba(62,207,207,0.06), inset 0 1px 0 rgba(255,255,255,0.05);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -380,8 +393,8 @@ strong { font-weight: 600; color: var(--text-primary); }
 
 /* Auth brand hero */
 .auth-brand {
-  margin-bottom: 2rem;
-  padding-bottom: 1.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--border);
 }
 
@@ -399,17 +412,17 @@ strong { font-weight: 600; color: var(--text-primary); }
   border: 1px solid rgba(62,207,207,0.18);
   border-radius: 100px;
   padding: 0.3rem 0.8rem;
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.6rem;
 }
 
 .auth-headline {
   font-family: var(--font-display);
-  font-size: clamp(1.7rem, 4vw, 2.25rem);
+  font-size: clamp(1.45rem, 3.5vw, 1.85rem);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: var(--text-primary);
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.4rem;
 }
 
 .auth-sub {
@@ -422,7 +435,7 @@ strong { font-weight: 600; color: var(--text-primary); }
 .auth-tabs {
   display: flex;
   gap: 0;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.25rem;
   background: rgba(0,0,0,0.35);
   border-radius: var(--radius-md);
   padding: 3px;
@@ -4246,8 +4259,8 @@ article.card h3 {
 
   /* Sticky bottom action bar feel */
   #auth-section {
-    margin-top: 1.5rem;
-    padding: 1.75rem 1.25rem;
+    margin-top: 0.5rem;
+    padding: 1.5rem 1.25rem;
   }
 
   .header-actions {
