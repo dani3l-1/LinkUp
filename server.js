@@ -182,6 +182,10 @@ function rejectCrossSiteWrites(req, res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const origin = req.get('origin');
   if (!origin || isAllowedRequestOrigin(origin)) return next();
+  // Fallback: allow if origin matches this server's own host (handles misconfigured APP_BASE_URL)
+  const host = req.get('host');
+  const proto = (req.secure || req.get('x-forwarded-proto') === 'https') ? 'https' : 'http';
+  if (host && origin === `${proto}://${host}`) return next();
   return res.status(403).json({ error: 'Request origin is not allowed' });
 }
 
