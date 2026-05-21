@@ -1,3 +1,4 @@
+import SafariServices
 import SwiftUI
 
 struct ContentView: View {
@@ -6,6 +7,7 @@ struct ContentView: View {
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var reloadToken = UUID()
+    @State private var popupURL: URL?
 
     private let appURL = URL(string: "https://linkuprides.com")!
 
@@ -18,9 +20,11 @@ struct ContentView: View {
                 LinkUpWebView(
                     url: appURL,
                     reloadToken: reloadToken,
+                    pushToken: nativeServices.pushToken,
                     canGoBack: $canGoBack,
                     isLoading: $isLoading,
-                    loadError: $loadError
+                    loadError: $loadError,
+                    popupURL: $popupURL
                 )
                 .ignoresSafeArea(edges: .bottom)
 
@@ -76,8 +80,32 @@ struct ContentView: View {
                 }
             }
         }
+        // In-app sheet for window.open() popups (e.g. Stripe Connect flows)
+        .sheet(isPresented: Binding(
+            get: { popupURL != nil },
+            set: { if !$0 { popupURL = nil } }
+        )) {
+            if let url = popupURL {
+                SafariView(url: url)
+                    .ignoresSafeArea()
+            }
+        }
+        // Route notification taps to the correct page
+        .onReceive(nativeServices.$pendingNavigationURL.compactMap { $0 }) { url in
+            NotificationCenter.default.post(name: .linkUpNavigate, object: url)
+            nativeServices.pendingNavigationURL = nil
+        }
+        // Forward web → native permission requests
+        .onReceive(NotificationCenter.default.publisher(for: .linkUpRequestLocation)) { _ in
+            nativeServices.requestLocationWhenNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .linkUpRequestNotifications)) { _ in
+            nativeServices.requestNotifications()
+        }
     }
 }
+
+// MARK: - Private views
 
 private struct LaunchOverlay: View {
     var body: some View {
@@ -177,4 +205,12 @@ private struct PermissionNudge: View {
             alignment: .top
         )
     }
+}
+
+private struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }

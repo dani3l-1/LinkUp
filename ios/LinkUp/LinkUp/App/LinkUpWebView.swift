@@ -1,16 +1,22 @@
+import SafariServices
 import SwiftUI
 import WebKit
 
 extension Notification.Name {
     static let linkUpGoBack = Notification.Name("linkUpGoBack")
+    static let linkUpNavigate = Notification.Name("linkUpNavigate")
+    static let linkUpRequestLocation = Notification.Name("linkUpRequestLocation")
+    static let linkUpRequestNotifications = Notification.Name("linkUpRequestNotifications")
 }
 
 struct LinkUpWebView: UIViewRepresentable {
     let url: URL
     let reloadToken: UUID
+    let pushToken: String?
     @Binding var canGoBack: Bool
     @Binding var isLoading: Bool
     @Binding var loadError: String?
+    @Binding var popupURL: URL?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -20,6 +26,10 @@ struct LinkUpWebView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.allowsInlineMediaPlayback = true
         configuration.websiteDataStore = .default()
+
+        // JS bridge — uses weak proxy to avoid retain cycle with WKUserContentController
+        let controller = configuration.userContentController
+        controller.add(WeakScriptHandler(context.coordinator), name: "linkupBridge")
 
         let preferences = WKWebpagePreferences()
         preferences.allowsContentJavaScript = true
@@ -34,13 +44,21 @@ struct LinkUpWebView: UIViewRepresentable {
         webView.load(URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 20))
 
         context.coordinator.webView = webView
+
         context.coordinator.backObserver = NotificationCenter.default.addObserver(
-            forName: .linkUpGoBack,
-            object: nil,
-            queue: .main
+            forName: .linkUpGoBack, object: nil, queue: .main
         ) { [weak webView] _ in
-            if webView?.canGoBack == true {
-                webView?.goBack()
+            webView?.canGoBack == true ? webView?.goBack() : nil
+        }
+
+        context.coordinator.navigateObserver = NotificationCenter.default.addObserver(
+            forName: .linkUpNavigate, object: nil, queue: .main
+        ) { [weak webView, weak coordinator = context.coordinator] notification in
+            guard let url = notification.object as? URL else { return }
+            if url.host == coordinator?.parent.url.host {
+                webView?.load(URLRequest(url: url))
+            } else {
+                UIApplication.shared.open(url)
             }
         }
 
@@ -53,13 +71,21 @@ struct LinkUpWebView: UIViewRepresentable {
             loadError = nil
             webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20))
         }
+        if let token = pushToken, token != context.coordinator.lastInjectedPushToken {
+            context.coordinator.lastInjectedPushToken = token
+            context.coordinator.injectPushToken(token, into: webView)
+        }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    // MARK: - Coordinator
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var parent: LinkUpWebView
         weak var webView: WKWebView?
         var lastReloadToken: UUID
+        var lastInjectedPushToken: String?
         var backObserver: NSObjectProtocol?
+        var navigateObserver: NSObjectProtocol?
 
         init(_ parent: LinkUpWebView) {
             self.parent = parent
@@ -67,10 +93,81 @@ struct LinkUpWebView: UIViewRepresentable {
         }
 
         deinit {
-            if let backObserver {
-                NotificationCenter.default.removeObserver(backObserver)
+            [backObserver, navigateObserver].compactMap { $0 }.forEach {
+                NotificationCenter.default.removeObserver($0)
             }
         }
+
+        // MARK: - WKScriptMessageHandler (messages from web JS)
+
+        func userContentController(_ userContentController: WKUserContentController,
+                                   didReceive message: WKScriptMessage) {
+            guard let body = message.body as? [String: Any],
+                  let action = body["action"] as? String else { return }
+            DispatchQueue.main.async {
+                switch action {
+                case "requestLocation":
+                    NotificationCenter.default.post(name: .linkUpRequestLocation, object: nil)
+                case "requestNotifications":
+                    NotificationCenter.default.post(name: .linkUpRequestNotifications, object: nil)
+                default:
+                    break
+                }
+            }
+        }
+
+        // MARK: - Injection helpers
+
+        func injectPushToken(_ token: String, into webView: WKWebView) {
+            let js = """
+            window.dispatchEvent(new CustomEvent('linkupnative', {
+              detail: { action: 'pushToken', token: \(jsString(token)) }
+            }));
+            """
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+
+        private func injectBridge(into webView: WKWebView) {
+            let js = """
+            (function() {
+              if (window.LinkUpNative) return;
+              window.LinkUpNative = {
+                isNative: true,
+                platform: 'ios',
+                postMessage: function(payload) {
+                  if (window.webkit?.messageHandlers?.linkupBridge) {
+                    window.webkit.messageHandlers.linkupBridge.postMessage(payload);
+                  }
+                }
+              };
+              window.dispatchEvent(new CustomEvent('linkupnative', { detail: { action: 'ready' } }));
+            })();
+            """
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+
+        private func injectSafeAreaInsets(into webView: WKWebView) {
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = scene.windows.first else { return }
+            let i = window.safeAreaInsets
+            let js = """
+            var r = document.documentElement.style;
+            r.setProperty('--native-safe-top', '\(i.top)px');
+            r.setProperty('--native-safe-bottom', '\(i.bottom)px');
+            r.setProperty('--native-safe-left', '\(i.left)px');
+            r.setProperty('--native-safe-right', '\(i.right)px');
+            """
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+
+        private func jsString(_ value: String) -> String {
+            let escaped = value
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+            return "'\(escaped)'"
+        }
+
+        // MARK: - WKNavigationDelegate
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             parent.isLoading = true
@@ -81,6 +178,12 @@ struct LinkUpWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.isLoading = false
             parent.canGoBack = webView.canGoBack
+            injectBridge(into: webView)
+            injectSafeAreaInsets(into: webView)
+            if let token = parent.pushToken {
+                injectPushToken(token, into: webView)
+                lastInjectedPushToken = token
+            }
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -91,24 +194,42 @@ struct LinkUpWebView: UIViewRepresentable {
             handle(error, webView: webView)
         }
 
-        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let targetURL = navigationAction.request.url else {
                 decisionHandler(.cancel)
                 return
             }
-
             if targetURL.host == parent.url.host || targetURL.scheme == "about" {
                 decisionHandler(.allow)
                 return
             }
-
             UIApplication.shared.open(targetURL)
             decisionHandler(.cancel)
         }
 
-        func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        // MARK: - WKUIDelegate
+
+        func webView(_ webView: WKWebView,
+                     runJavaScriptAlertPanelWithMessage message: String,
+                     initiatedByFrame frame: WKFrameInfo,
+                     completionHandler: @escaping () -> Void) {
             presentAlert(message: message, completion: completionHandler)
         }
+
+        // Handle window.open() — open URL in an in-app Safari sheet
+        func webView(_ webView: WKWebView,
+                     createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction,
+                     windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url {
+                DispatchQueue.main.async { self.parent.popupURL = url }
+            }
+            return nil
+        }
+
+        // MARK: - Private
 
         private func handle(_ error: Error, webView: WKWebView) {
             let nsError = error as NSError
@@ -128,5 +249,15 @@ struct LinkUpWebView: UIViewRepresentable {
             alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completion() })
             controller.present(alert, animated: true)
         }
+    }
+}
+
+// Breaks the WKUserContentController → Coordinator retain cycle
+private final class WeakScriptHandler: NSObject, WKScriptMessageHandler {
+    weak var delegate: WKScriptMessageHandler?
+    init(_ delegate: WKScriptMessageHandler) { self.delegate = delegate }
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        delegate?.userContentController(userContentController, didReceive: message)
     }
 }
