@@ -1919,13 +1919,30 @@ async function getStripeInstance() {
   return stripeInstance;
 }
 
+let _stripeConnectReady = null;
+function awaitStripeConnect() {
+  if (_stripeConnectReady) return _stripeConnectReady;
+  _stripeConnectReady = new Promise((resolve, reject) => {
+    if (window.StripeConnect?.init) {
+      resolve();
+      return;
+    }
+    window.StripeConnect = window.StripeConnect || {};
+    const prev = window.StripeConnect.onLoad;
+    window.StripeConnect.onLoad = () => {
+      if (prev) prev();
+      resolve();
+    };
+    setTimeout(() => reject(new Error('Stripe Connect timed out. Please refresh and try again.')), 15000);
+  });
+  return _stripeConnectReady;
+}
+
 async function getStripeConnectInstance() {
   if (stripeConnectInst) return stripeConnectInst;
-  if (!window.StripeConnect?.loadConnectAndInitialize) {
-    throw new Error('Stripe Connect could not load. Check your internet connection and refresh.');
-  }
+  await awaitStripeConnect();
   const config = await fetchJson('/api/stripe/config');
-  stripeConnectInst = StripeConnect.loadConnectAndInitialize({
+  stripeConnectInst = StripeConnect.init({
     publishableKey: config.publishableKey,
     fetchClientSecret: async () => {
       const r = await fetch('/api/stripe/account-session', {
@@ -1960,7 +1977,6 @@ async function mountStripeConnectComponent(componentName) {
       component.setOnExit(async () => {
         stripeConnectContainer.classList.add('hidden');
         stripeConnectContainer.innerHTML = '';
-        stripeConnectInst = null;
         try {
           currentUser = await fetchJson('/api/profile/payout/status', { method: 'POST' });
           fillDriverPayoutForm(currentUser);
