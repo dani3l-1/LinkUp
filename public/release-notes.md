@@ -6,6 +6,7 @@
 
 ### New
 - **Stripe Embedded Checkout.** Checkout now uses Stripe's fully hosted payment form — Apple Pay, Google Pay, Link, and card are all supported without a redirect. Your card details never touch LinkUp servers.
+- **In-app Stripe payout onboarding.** Drivers can now complete their Stripe Connect setup without ever leaving LinkUp — the full onboarding flow renders inside the app. A new "View bank payout history" button also lets verified drivers see their Stripe payout ledger directly in-app.
 - **Auto theme.** A new Auto option in Appearance automatically switches between light and dark mode based on the time of day — light from 6 AM to 7 PM, dark outside those hours. The app updates live while it's open.
 
 ### Improvements

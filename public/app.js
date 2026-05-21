@@ -140,6 +140,8 @@ const stripePayoutSummary = document.getElementById('stripe-payout-summary');
 const driverWalletSummary = document.getElementById('driver-wallet-summary');
 const stripePayoutConnectButton = document.getElementById('stripe-payout-connect');
 const stripePayoutRefreshButton = document.getElementById('stripe-payout-refresh');
+const stripePayoutHistoryButton = document.getElementById('stripe-payout-history');
+const stripeConnectContainer = document.getElementById('stripe-connect-container');
 const payoutCommissionLabel = document.getElementById('payout-commission-label');
 const LINKUP_COMMISSION_RATE = 0.15;
 const cartCount = document.getElementById('cart-count');
@@ -469,6 +471,7 @@ let browseRideRoutes = [];        // per-ride/request polylines
 let browseRideOriginMarkers = []; // small pickup dot per ride/request
 let browsePinLabels = new Map();
 let stripeInstance = null;
+let stripeConnectInst = null;
 let stripePaymentElements = null;
 let stripeCardElements = null;
 let stripeSetupElements = null;
@@ -1916,6 +1919,65 @@ async function getStripeInstance() {
   return stripeInstance;
 }
 
+async function getStripeConnectInstance() {
+  if (stripeConnectInst) return stripeConnectInst;
+  if (!window.StripeConnect?.loadConnectAndInitialize) {
+    throw new Error('Stripe Connect could not load. Check your internet connection and refresh.');
+  }
+  const config = await fetchJson('/api/stripe/config');
+  stripeConnectInst = StripeConnect.loadConnectAndInitialize({
+    publishableKey: config.publishableKey,
+    fetchClientSecret: async () => {
+      const r = await fetch('/api/stripe/account-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Failed to create Stripe session');
+      return data.clientSecret;
+    },
+    appearance: {
+      overlays: 'dialog',
+      variables: {
+        colorPrimary: '#1f8f8f',
+        fontFamily: 'Sora, Inter, system-ui, sans-serif',
+        borderRadius: '10px',
+      },
+    },
+  });
+  return stripeConnectInst;
+}
+
+async function mountStripeConnectComponent(componentName) {
+  if (!stripeConnectContainer) return;
+  stripeConnectContainer.innerHTML = '';
+  stripeConnectContainer.classList.remove('hidden');
+  try {
+    const inst = await getStripeConnectInstance();
+    const component = inst.create(componentName);
+    if (componentName === 'account-onboarding') {
+      component.setOnExit(async () => {
+        stripeConnectContainer.classList.add('hidden');
+        stripeConnectContainer.innerHTML = '';
+        stripeConnectInst = null;
+        try {
+          currentUser = await fetchJson('/api/profile/payout/status', { method: 'POST' });
+          fillDriverPayoutForm(currentUser);
+        } catch (_) {}
+      });
+    }
+    stripeConnectContainer.appendChild(component);
+  } catch (err) {
+    stripeConnectContainer.classList.add('hidden');
+    stripeConnectContainer.innerHTML = '';
+    if (payoutError) {
+      payoutError.textContent = err.message || 'Failed to load Stripe component. Please try again.';
+      payoutError.classList.add('show');
+    }
+  }
+}
+
 function getStripeAppearance() {
   return {
     theme: 'stripe',
@@ -2037,6 +2099,11 @@ function renderStripePayoutSummary(user) {
 
   stripePayoutConnectButton?.classList.add('hidden');
   stripePayoutRefreshButton?.classList.add('hidden');
+  stripePayoutHistoryButton?.classList.add('hidden');
+  if (stripeConnectContainer) {
+    stripeConnectContainer.classList.add('hidden');
+    stripeConnectContainer.innerHTML = '';
+  }
 
   if (provider !== 'stripe') {
     stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--warn';
@@ -2058,6 +2125,7 @@ function renderStripePayoutSummary(user) {
     stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--active';
     stripePayoutSummary.textContent = 'Stripe connected — wallet earnings are paid out to your bank weekly.';
     stripePayoutRefreshButton?.classList.remove('hidden');
+    stripePayoutHistoryButton?.classList.remove('hidden');
     return;
   }
 
@@ -6303,7 +6371,12 @@ driverPayoutForm.addEventListener('submit', async (event) => {
 });
 stripePayoutConnectButton?.addEventListener('click', () => {
   clearPayoutMessages();
-  window.location.href = '/api/profile/payout/onboarding/start';
+  mountStripeConnectComponent('account-onboarding');
+});
+
+stripePayoutHistoryButton?.addEventListener('click', () => {
+  clearPayoutMessages();
+  mountStripeConnectComponent('payouts');
 });
 
 stripePayoutRefreshButton?.addEventListener('click', async () => {

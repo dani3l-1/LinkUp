@@ -4294,6 +4294,13 @@ article.card h3 {
   min-width: 140px;
 }
 
+.stripe-connect-container {
+  margin-top: 1rem;
+  border-radius: 14px;
+  overflow: hidden;
+  min-height: 200px;
+}
+
 .stripe-payment-frame {
   display: grid;
   gap: 1.15rem;

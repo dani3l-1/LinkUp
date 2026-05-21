@@ -292,7 +292,7 @@ function securityHeaders(req, res, next) {
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com https://connect-js.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://connect-js.stripe.com; frame-ancestors 'none';"
   );
   if (NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
@@ -3181,6 +3181,46 @@ app.post('/api/profile/payout/status', requireAuth, requireServiceAccess, refres
 app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAccess, startPayoutOnboarding);
 app.post('/api/profile/payout/stripe-status', requireAuth, requireServiceAccess, refreshPayoutStatus);
 app.get('/api/profile/payout/onboarding/start', requireAuth, requireServiceAccess, startPayoutOnboarding);
+
+app.post('/api/stripe/account-session', requireAuth, requireServiceAccess, async (req, res) => {
+  const provider = getPayoutProviderName();
+  if (!requireStripeBackedProvider(provider, res, 'account session')) return;
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  try {
+    let accountId = getStripeConnectedAccountId(user);
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: 'US',
+        email: user.email,
+        business_type: 'individual',
+        business_profile: {
+          name: 'LinkUp driver payouts',
+          product_description: 'Peer-to-peer student ride cost-sharing payouts',
+        },
+        capabilities: { transfers: { requested: true } },
+        metadata: { linkupUserId: user.id },
+      });
+      accountId = account.id;
+      setStripeConnectedAccount(user, account);
+      saveDb(db);
+    }
+    const session = await stripe.accountSessions.create({
+      account: accountId,
+      components: {
+        account_onboarding: { enabled: true },
+        payouts: { enabled: true },
+      },
+    });
+    res.json({ clientSecret: session.client_secret });
+  } catch (err) {
+    console.error('Stripe account session error:', err);
+    const message = getPublicStripeErrorMessage(err, 'Unable to create Stripe session. Please try again.');
+    res.status(502).json({ error: message });
+  }
+});
 
 // Sign out endpoint
 app.post('/api/auth/signout', (req, res) => {

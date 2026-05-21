@@ -581,8 +581,10 @@
                       <div class="payout-stripe-actions">
                         <button type="button" id="stripe-payout-connect" class="hidden">Set up Stripe payouts</button>
                         <button type="button" id="stripe-payout-refresh" class="hidden">Refresh status</button>
+                        <button type="button" id="stripe-payout-history" class="hidden">View bank payout history</button>
                       </div>
                     </div>
+                    <div id="stripe-connect-container" class="stripe-connect-container hidden"></div>
                     <div id="payout-message" class="success-message"></div>
                     <div id="payout-error" class="error-message"></div>
                     <div class="payout-note payout-warning">
@@ -1210,6 +1212,7 @@
     </div>
 
     <script src="https://js.stripe.com/v3/"></script>
-    <script src="app.js?v=20260520-profile-tabs-fallback"></script>
+    <script src="https://connect-js.stripe.com/v0.1/connect.js"></script>
+    <script src="app.js?v=20260520-connect-embedded"></script>
   </body>
 </html>
