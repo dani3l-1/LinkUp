@@ -461,6 +461,8 @@ async function handleStripeWebhookRequest(req, res) {
       finalizePaidCheckoutByPaymentIntent(db, event.data.object);
     } else if (event.type === 'account.updated') {
       updateStripeConnectedAccountStatus(db, event.data.object);
+    } else if (event.type === 'transfer.created' || event.type === 'transfer.updated' || event.type === 'transfer.reversed') {
+      updateWalletTransactionByTransfer(db, event.data.object, event.type);
     }
     saveDb(db);
     res.json({ received: true });
@@ -3178,9 +3180,7 @@ app.post('/api/profile/payout/onboarding', requireAuth, requireServiceAccess, st
 app.post('/api/profile/payout/status', requireAuth, requireServiceAccess, refreshPayoutStatus);
 app.post('/api/profile/payout/stripe-onboarding', requireAuth, requireServiceAccess, startPayoutOnboarding);
 app.post('/api/profile/payout/stripe-status', requireAuth, requireServiceAccess, refreshPayoutStatus);
-app.get('/api/profile/payout/onboarding/start', requireAuth, requireServiceAccess, (req, res) => {
-  res.status(405).send(`<!doctype html><html><head><title>Stripe onboarding unavailable</title><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body style="font-family:Arial,sans-serif;padding:32px;line-height:1.5;"><h1>Stripe onboarding is unavailable</h1><p>Please return to LinkUp and start Stripe payouts from your profile.</p></body></html>`);
-});
+app.get('/api/profile/payout/onboarding/start', requireAuth, requireServiceAccess, startPayoutOnboarding);
 
 // Sign out endpoint
 app.post('/api/auth/signout', (req, res) => {
@@ -3190,6 +3190,11 @@ app.post('/api/auth/signout', (req, res) => {
     }
     res.json({ message: 'Signed out' });
   });
+});
+
+// Clears any stale session cookie — called before sign-in to avoid orphaned-cookie errors
+app.post('/api/auth/clear-session', (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
 });
 
 app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
@@ -4153,6 +4158,22 @@ function updateStripeConnectedAccountStatus(db, account) {
     || entry.payoutProviders?.stripe?.accountId === account.id);
   if (!user) return false;
   setStripeConnectedAccount(user, account);
+  return true;
+}
+
+function updateWalletTransactionByTransfer(db, transfer, eventType) {
+  const transactions = asArray(db.walletTransactions);
+  const tx = transactions.find((t) => t.providerTransferId === transfer.id
+    || t.id === transfer.metadata?.linkupPayoutId);
+  if (!tx) return false;
+  if (eventType === 'transfer.reversed' || transfer.reversed) {
+    tx.status = 'failed';
+    tx.failedAt = tx.failedAt || new Date().toISOString();
+    tx.failureReason = tx.failureReason || 'Transfer reversed by Stripe';
+  } else {
+    tx.status = 'posted';
+    tx.postedAt = tx.postedAt || new Date().toISOString();
+  }
   return true;
 }
 

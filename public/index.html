@@ -209,7 +209,7 @@
             <div class="top-actions">
               <button id="request-ride-button" type="button">Request ride</button>
               <button id="list-ride-button" type="button">+ List ride</button>
-              <button id="track-trip-button" type="button">⊙ Track trip</button>
+              <button id="browse-rides-button" type="button">Browse rides</button>
               <button id="your-rides-button" type="button">Your rides</button>
               <button id="leaderboard-button" type="button">Leaderboard</button>
             </div>
@@ -229,7 +229,7 @@
                 <h3>School Leaderboard</h3>
                 <p>Users and miles by school.</p>
               </div>
-              <button id="leaderboard-back-home" type="button">Return to browse rides</button>
+              <button id="leaderboard-back-home" type="button">← Home</button>
             </div>
             <div id="leaderboard-summary" class="leaderboard-summary">Loading schools...</div>
             <div id="leaderboard-saved-miles" class="leaderboard-saved-miles">
@@ -251,7 +251,7 @@
                 <h3 id="public-profile-title">User profile</h3>
                 <p id="public-profile-subtitle"></p>
               </div>
-              <button id="public-profile-back-home" type="button">Return to browse rides</button>
+              <button id="public-profile-back-home" type="button">← Home</button>
             </div>
             <div id="public-profile-content" class="public-profile-content">Loading profile...</div>
             <div id="public-profile-error" class="error-message"></div>
@@ -264,7 +264,7 @@
                 <h3>Profile</h3>
                 <p>Manage your account.</p>
               </div>
-              <button id="profile-back-home" type="button">Return to browse rides</button>
+              <button id="profile-back-home" type="button">← Home</button>
             </div>
             <div class="profile-layout">
               <aside class="profile-sidebar" aria-label="Profile sections">
@@ -576,12 +576,17 @@
                       <p>Earn into your LinkUp wallet for rides, or connect Stripe for weekly bank payouts.</p>
                     </div>
                     <div id="driver-wallet-summary" class="driver-wallet-summary"></div>
-                    <div id="stripe-payout-summary" class="payment-method-summary">Stripe cash-out not connected. Wallet earnings still work inside LinkUp.</div>
-                    <button type="button" id="stripe-payout-connect" disabled>Connect Stripe payouts</button>
+                    <div class="payout-stripe-panel">
+                      <div id="stripe-payout-summary" class="payout-stripe-status">Checking payout status…</div>
+                      <div class="payout-stripe-actions">
+                        <button type="button" id="stripe-payout-connect" class="hidden">Set up Stripe payouts</button>
+                        <button type="button" id="stripe-payout-refresh" class="hidden">Refresh status</button>
+                      </div>
+                    </div>
                     <div id="payout-message" class="success-message"></div>
                     <div id="payout-error" class="error-message"></div>
                     <div class="payout-note payout-warning">
-                      Stripe is optional — only needed for bank cash-out. LinkUp never stores raw bank account or routing numbers.
+                      Stripe is optional — only needed for bank cash-out. LinkUp never stores your bank account details — all payment info is held by Stripe.
                     </div>
                     <div class="payout-note">
                       LinkUp commission is currently <strong><span id="payout-commission-label">15%</span></strong>. Driver wallet credit equals total paid seats minus commission.
@@ -594,9 +599,83 @@
 
           <!-- Home / Browse -->
           <div id="dashboard-home">
-            <div class="marketplace-header">
-              <h3 id="browse-title">Browse rides</h3>
-              <p id="browse-subtitle">Are you driving or riding today?</p>
+
+            <div class="dashboard-quick-actions">
+              <button id="home-find-ride-btn" type="button" class="dashboard-action-btn dashboard-action-btn--primary">
+                <span class="dashboard-action-icon">&#9906;</span>
+                <span>Find a Ride</span>
+              </button>
+              <button id="home-list-ride-btn" type="button" class="dashboard-action-btn dashboard-action-btn--secondary">
+                <span class="dashboard-action-icon">&#43;</span>
+                <span>List a Ride</span>
+              </button>
+            </div>
+
+            <div class="dashboard-stats-strip" id="dashboard-stats-strip">
+              <div class="dashboard-stat">
+                <span class="dashboard-stat-value" id="stat-rides-taken">—</span>
+                <span class="dashboard-stat-label">Rides taken</span>
+              </div>
+              <div class="dashboard-stat">
+                <span class="dashboard-stat-value" id="stat-rides-driven">—</span>
+                <span class="dashboard-stat-label">Rides driven</span>
+              </div>
+              <div class="dashboard-stat">
+                <span class="dashboard-stat-value" id="stat-savings">—</span>
+                <span class="dashboard-stat-label">Saved vs Uber</span>
+              </div>
+            </div>
+
+            <div class="dashboard-next-ride">
+              <h3 class="dashboard-section-label">Your next ride</h3>
+              <div id="dashboard-ride-card"></div>
+            </div>
+
+            <div class="dashboard-recent-rides" id="dashboard-recent-rides-section" style="display:none">
+              <h3 class="dashboard-section-label">Recent rides</h3>
+              <div id="dashboard-recent-rides-list"></div>
+            </div>
+
+            <div class="dashboard-tracking-section">
+              <h3 class="dashboard-section-label">Trip tracking</h3>
+              <p class="dashboard-tracking-subtitle">Share your live location with someone you trust during a ride.</p>
+              <div class="tracking-layout">
+                <div>
+                  <div class="tracking-status" id="tracking-status">Location sharing is off.</div>
+                  <div class="driver-info hidden" id="tracking-driver-info">
+                    <h4>Your info</h4>
+                    <div id="tracking-driver-details"></div>
+                  </div>
+                  <div class="button-row">
+                    <button id="start-tracking" type="button">Start sharing</button>
+                    <button id="stop-tracking" type="button" disabled>End trip</button>
+                  </div>
+                  <label class="tracking-recipient-label">
+                    Trusted person's email
+                    <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" />
+                  </label>
+                  <button id="send-tracking-invite" class="copy-tracking-link hidden" type="button">Send invite</button>
+                  <p class="tracking-note">Share the link with someone you trust. It expires when sharing stops.</p>
+                  <button id="copy-tracking-link" class="copy-tracking-link hidden" type="button">Copy tracking link</button>
+                  <div id="tracking-message" class="success-message"></div>
+                  <div id="tracking-error" class="error-message"></div>
+                </div>
+                <div>
+                  <div id="tracking-map" class="tracking-map"></div>
+                  <div id="tracking-last-update" class="tracking-meta">No location shared yet.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Browse rides page -->
+          <section id="browse-page" class="hidden">
+            <div class="cart-header">
+              <div class="marketplace-header" style="margin-bottom: 0; padding: 0;">
+                <h3 id="browse-title">Browse rides</h3>
+                <p id="browse-subtitle">Are you driving or riding today?</p>
+              </div>
+              <button id="browse-back-home" type="button">← Home</button>
             </div>
 
             <section class="card browse-role-card" id="browse-role-card">
@@ -673,7 +752,7 @@
               </article>
 
             </div><!-- /.browse-rider-layout -->
-          </div>
+          </section>
 
           <!-- Request a ride page -->
           <section id="request-ride-page" class="hidden">
@@ -736,7 +815,7 @@
                 <h3>List a ride</h3>
                 <p>Post your route, seats, price, and detour flexibility.</p>
               </div>
-              <button id="list-ride-back-home" type="button">Return to browse rides</button>
+              <button id="list-ride-back-home" type="button">← Home</button>
             </div>
 
             <div class="grid">
@@ -838,42 +917,6 @@
             </div>
           </section>
 
-          <!-- Track trip page -->
-          <section id="track-trip-page" class="card hidden">
-            <div class="cart-header">
-              <div>
-                <h3>Track my trip</h3>
-                <p>Share your live location with someone you trust during a ride.</p>
-              </div>
-              <button id="track-back-home" type="button">Return to browse rides</button>
-            </div>
-            <div class="tracking-layout">
-              <div>
-                <div class="tracking-status" id="tracking-status">Location sharing is off.</div>
-                <div class="driver-info hidden" id="tracking-driver-info">
-                  <h4>Your info</h4>
-                  <div id="tracking-driver-details"></div>
-                </div>
-                <div class="button-row">
-                  <button id="start-tracking" type="button">Start sharing</button>
-                  <button id="stop-tracking" type="button" disabled>End trip</button>
-                </div>
-                <label class="tracking-recipient-label">
-                  Trusted person's email
-                  <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" />
-                </label>
-                <button id="send-tracking-invite" class="copy-tracking-link hidden" type="button">Send invite</button>
-                <p class="tracking-note">Share the link with someone you trust. It expires when sharing stops.</p>
-                <button id="copy-tracking-link" class="copy-tracking-link hidden" type="button">Copy tracking link</button>
-                <div id="tracking-message" class="success-message"></div>
-                <div id="tracking-error" class="error-message"></div>
-              </div>
-              <div>
-                <div id="tracking-map" class="tracking-map"></div>
-                <div id="tracking-last-update" class="tracking-meta">No location shared yet.</div>
-              </div>
-            </div>
-          </section>
 
           <!-- Chat page -->
           <section id="chat-page" class="card hidden">
@@ -882,7 +925,7 @@
                 <h3>Ride chat</h3>
                 <p>Message drivers and riders on your booked trips.</p>
               </div>
-              <button id="chat-back-home" type="button">Return to browse rides</button>
+              <button id="chat-back-home" type="button">← Home</button>
             </div>
             <div class="chat-page-layout">
               <div>
@@ -902,7 +945,7 @@
                 <h3>Your rides</h3>
                 <p>Drives, reservations, and requests.</p>
               </div>
-              <button id="your-rides-back-home" type="button">Return to browse rides</button>
+              <button id="your-rides-back-home" type="button">← Home</button>
             </div>
             <div class="your-rides-tabs">
               <button id="your-rides-current-tab" type="button" class="active">Current rides</button>
@@ -1044,7 +1087,7 @@
               <h3>Privacy Notice</h3>
               <p>Effective Date: May 8, 2026</p>
             </div>
-            <button class="legal-back" type="button">Return to browse rides</button>
+            <button class="legal-back" type="button">← Home</button>
           </div>
           <div class="legal-content" id="privacy-content">
             <p class="legal-loading">Loading Privacy Notice…</p>
@@ -1058,7 +1101,7 @@
               <h3>Terms and Conditions</h3>
               <p>Effective Date: May 8, 2026</p>
             </div>
-            <button class="legal-back" type="button">Return to browse rides</button>
+            <button class="legal-back" type="button">← Home</button>
           </div>
           <div class="legal-content" id="terms-content">
             <p class="legal-loading">Loading Terms and Conditions…</p>

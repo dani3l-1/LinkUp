@@ -139,6 +139,7 @@ const defaultPaymentError = document.getElementById('default-payment-error');
 const stripePayoutSummary = document.getElementById('stripe-payout-summary');
 const driverWalletSummary = document.getElementById('driver-wallet-summary');
 const stripePayoutConnectButton = document.getElementById('stripe-payout-connect');
+const stripePayoutRefreshButton = document.getElementById('stripe-payout-refresh');
 const payoutCommissionLabel = document.getElementById('payout-commission-label');
 const LINKUP_COMMISSION_RATE = 0.15;
 const cartCount = document.getElementById('cart-count');
@@ -161,9 +162,8 @@ const embeddedCheckoutContainer = document.getElementById('stripe-embedded-check
 const defaultPaymentStripeContainer = document.getElementById('default-payment-stripe-container');
 const defaultPaymentElementNode = document.getElementById('default-payment-element');
 const defaultPaymentConfirmButton = document.getElementById('default-payment-confirm');
-const trackTripButton = document.getElementById('track-trip-button');
-const trackTripPage = document.getElementById('track-trip-page');
-const trackBackHomeButton = document.getElementById('track-back-home');
+const browseRidesButton = document.getElementById('browse-rides-button');
+const browsePage = document.getElementById('browse-page');
 const startTrackingButton = document.getElementById('start-tracking');
 const stopTrackingButton = document.getElementById('stop-tracking');
 const copyTrackingLinkButton = document.getElementById('copy-tracking-link');
@@ -410,9 +410,10 @@ document.addEventListener('click', async (event) => {
   const actionMap = {
     'browse-driver-button': () => showDriverBrowse(),
     'browse-rider-button': () => showRiderBrowse(),
+    'browse-rides-button': () => showBrowsePage(),
+    'browse-back-home': () => returnToBrowseRides(),
     'request-ride-button': () => showRequestRidePage(),
     'list-ride-button': () => showListRidePage(),
-    'track-trip-button': () => showTrackTripPage(),
     'your-rides-button': () => showYourRidesPage(),
     'leaderboard-button': () => showLeaderboardPage(),
     'profile-button': () => showProfilePage(),
@@ -422,7 +423,6 @@ document.addEventListener('click', async (event) => {
     'profile-back-home': () => returnToBrowseRides(),
     'request-ride-back-home': () => returnToBrowseRides(),
     'list-ride-back-home': () => returnToBrowseRides(),
-    'track-back-home': () => returnToBrowseRides(),
     'chat-back-home': () => returnToBrowseRides(),
     'your-rides-back-home': () => returnToBrowseRides(),
     'continue-shopping': () => returnToBrowseRides(),
@@ -1257,20 +1257,24 @@ async function handleSigninSubmit(event) {
   const submitButton = signinForm.querySelector('button[type="submit"]');
   setButtonLoading(submitButton, true);
   try {
-    currentUser = await fetchJson('/api/auth/signin', {
+    const doSignIn = () => fetchJson('/api/auth/signin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
+    currentUser = await doSignIn();
     try {
       currentUser = await fetchJson('/api/auth/me');
     } catch (_) {
-      throw new Error('Sign-in worked, but the browser did not keep the login session. Clear localhost cookies, hard refresh, and try again.');
+      // Stale orphaned cookie — clear it and retry sign-in once automatically
+      try { await fetchJson('/api/auth/clear-session', { method: 'POST' }); } catch (_) {}
+      currentUser = await doSignIn();
+      currentUser = await fetchJson('/api/auth/me');
     }
     signinForm.reset();
     clearAppRoute();
     setButtonLoading(submitButton, false);
-    enterDashboard(currentUser);
+    playLoginSplash(() => enterDashboard(currentUser));
   } catch (err) {
     setButtonLoading(submitButton, false);
     if (err.message === 'Please verify your email before signing in') {
@@ -1280,6 +1284,25 @@ async function handleSigninSubmit(event) {
     signinError.textContent = err.message || 'Unable to sign in. Please try again.';
     signinError.classList.add('show');
   }
+}
+
+function playLoginSplash(callback) {
+  const splash = document.createElement('div');
+  splash.id = 'lu-login-splash';
+  splash.innerHTML = `
+    <span class="lu-splash-glow"></span>
+    <span class="lu-splash-ring lu-splash-ring--1"></span>
+    <span class="lu-splash-ring lu-splash-ring--2"></span>
+    <span class="lu-splash-ring lu-splash-ring--3"></span>
+    <img class="lu-splash-logo" src="icon-192.png" alt="" aria-hidden="true">
+  `;
+  document.body.appendChild(splash);
+
+  setTimeout(() => {
+    callback();
+    splash.classList.add('lu-splash--exit');
+    setTimeout(() => splash.remove(), 600);
+  }, 950);
 }
 
 function attachSigninHandler() {
@@ -1562,7 +1585,6 @@ function showAuthSection() {
   cartPage?.classList.add('hidden');
   paymentPage?.classList.add('hidden');
   listRidePage?.classList.add('hidden');
-  trackTripPage?.classList.add('hidden');
   sharedTrackPage?.classList.add('hidden');
   cartRideIds = new Set();
   currentUser = null;
@@ -1668,6 +1690,7 @@ function clearTrackingMessages() {
 function hideDashboardPages() {
   hideLegalPages();
   dashboardHome.classList.add('hidden');
+  browsePage.classList.add('hidden');
   waitlistPage.classList.add('hidden');
   requestRidePage.classList.add('hidden');
   listRidePage.classList.add('hidden');
@@ -1678,7 +1701,6 @@ function hideDashboardPages() {
   leaderboardPage.classList.add('hidden');
   publicProfilePage.classList.add('hidden');
   profilePage.classList.add('hidden');
-  trackTripPage.classList.add('hidden');
 }
 
 
@@ -2011,19 +2033,48 @@ function clearPayoutMessages() {
 function renderStripePayoutSummary(user) {
   if (!stripePayoutSummary) return;
   const stripeInfo = user?.payoutInfo?.stripe || null;
+  const provider = user?.payoutProvider || 'stripe';
+
+  stripePayoutConnectButton?.classList.add('hidden');
+  stripePayoutRefreshButton?.classList.add('hidden');
+
+  if (provider !== 'stripe') {
+    stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--warn';
+    stripePayoutSummary.textContent = `Bank payouts via ${user?.payoutProviderLabel || provider} are not yet supported.`;
+    return;
+  }
+
   if (!stripeInfo?.accountId) {
-    stripePayoutSummary.textContent = 'Stripe cash-out setup is temporarily unavailable. You can still earn and spend wallet balance inside LinkUp.';
+    stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--idle';
+    stripePayoutSummary.textContent = 'Connect Stripe to receive your wallet earnings in your bank account weekly.';
+    if (stripePayoutConnectButton) {
+      stripePayoutConnectButton.textContent = 'Set up Stripe payouts';
+      stripePayoutConnectButton.classList.remove('hidden');
+    }
     return;
   }
+
   if (stripeInfo.payoutsEnabled) {
-    stripePayoutSummary.textContent = 'Stripe cash-out connected and ready for weekly bank payouts.';
+    stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--active';
+    stripePayoutSummary.textContent = 'Stripe connected — wallet earnings are paid out to your bank weekly.';
+    stripePayoutRefreshButton?.classList.remove('hidden');
     return;
   }
+
   if (stripeInfo.detailsSubmitted) {
-    stripePayoutSummary.textContent = 'Stripe cash-out details submitted. Stripe is finishing verification.';
+    stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--pending';
+    stripePayoutSummary.textContent = 'Stripe is verifying your account. Bank payouts will begin once approved.';
+    stripePayoutRefreshButton?.classList.remove('hidden');
     return;
   }
-  stripePayoutSummary.textContent = 'Stripe cash-out started. Finish onboarding when you want bank payouts.';
+
+  stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--warn';
+  stripePayoutSummary.textContent = 'Stripe setup started — finish onboarding to receive bank payouts.';
+  if (stripePayoutConnectButton) {
+    stripePayoutConnectButton.textContent = 'Continue Stripe setup';
+    stripePayoutConnectButton.classList.remove('hidden');
+  }
+  stripePayoutRefreshButton?.classList.remove('hidden');
 }
 
 function renderDriverWalletSummary(user) {
@@ -2342,16 +2393,142 @@ function showDashboardHome() {
   }
   hideDashboardPages();
   dashboardHome.classList.remove('hidden');
-  renderBrowseRoleChoice();
-  if (currentUser?.rideServicesPaused) renderRideServicesPausedState();
+  loadDashboardHome();
+  loadGoogleMapsAPI().then(() => {
+    if (lastTrackingLocation) {
+      updateTrackingMap(lastTrackingLocation, lastTrackingLocations, lastTrackingRideRoute);
+    }
+  });
+}
+
+function loadDashboardHome() {
+  const findBtn = document.getElementById('home-find-ride-btn');
+  const listBtn = document.getElementById('home-list-ride-btn');
+  if (findBtn) findBtn.onclick = () => showBrowsePage();
+  if (listBtn) listBtn.onclick = () => showListRidePage();
+  loadDashboardUpcomingRide();
+}
+
+async function loadDashboardUpcomingRide() {
+  const container = document.getElementById('dashboard-ride-card');
+  if (!container) return;
+  container.textContent = 'Loading...';
+  try {
+    const data = await fetchJson('/api/profile');
+    const allRides = [
+      ...(data.createdRides || []).map((r) => ({ ...r, _dashRole: 'driver' })),
+      ...(data.joinedRides || []).map((r) => ({ ...r, _dashRole: 'rider' })),
+    ].sort((a, b) => getRideStartTime(a) - getRideStartTime(b));
+
+    const upcoming = allRides.filter((r) => !isExpiredRideActivity(r));
+    const past = allRides.filter((r) => isExpiredRideActivity(r)).reverse();
+
+    populateDashboardStats(data);
+    populateDashboardRecentRides(past);
+
+    container.innerHTML = '';
+    if (!upcoming.length) {
+      const empty = document.createElement('div');
+      empty.className = 'dashboard-no-ride';
+      empty.innerHTML = 'No upcoming rides. <button type="button" id="dashboard-browse-cta" class="inline-cta">Browse rides</button> to find your next trip.';
+      empty.querySelector('#dashboard-browse-cta').addEventListener('click', () => showBrowsePage());
+      container.appendChild(empty);
+      return;
+    }
+    const next = upcoming[0];
+    const card = next._dashRole === 'driver' ? buildDriverRideSummary(next) : buildRideSummary(next);
+    container.appendChild(card);
+  } catch {
+    container.textContent = 'Unable to load your next ride.';
+  }
+}
+
+function populateDashboardStats(data) {
+  const ridesTaken = (data.joinedRides || []).length;
+  const ridesOffered = (data.createdRides || []).length;
+
+  const UBER_RATE_PER_MILE = 2.0;
+  let savingsCents = 0;
+  (data.joinedRides || []).forEach((ride) => {
+    const miles = Number(ride.distanceMiles || ride.totalDistanceMiles || 0);
+    const priceCents = Number(ride.priceCents || 0);
+    if (miles > 0) {
+      const uberEstimate = miles * UBER_RATE_PER_MILE * 100;
+      savingsCents += Math.max(0, uberEstimate - priceCents);
+    }
+  });
+
+  const el = (id) => document.getElementById(id);
+  if (el('stat-rides-taken')) el('stat-rides-taken').textContent = ridesTaken;
+  if (el('stat-rides-driven')) el('stat-rides-driven').textContent = ridesOffered;
+  if (el('stat-savings')) {
+    el('stat-savings').textContent = savingsCents >= 100
+      ? '$' + (savingsCents / 100).toFixed(0)
+      : savingsCents > 0
+        ? '<$1'
+        : '$0';
+  }
+}
+
+function populateDashboardRecentRides(pastRides) {
+  const section = document.getElementById('dashboard-recent-rides-section');
+  const list = document.getElementById('dashboard-recent-rides-list');
+  if (!section || !list) return;
+  const recent = pastRides.slice(0, 3);
+  if (!recent.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  list.innerHTML = '';
+  recent.forEach((ride) => {
+    const when = formatRideDate(getRideStartTime(ride));
+    const role = ride._dashRole === 'driver' ? 'Driver' : 'Rider';
+    const dest = ride.destination || ride.dropoffAddress || ride.dropoff || 'Unknown destination';
+    const item = document.createElement('div');
+    item.className = 'dashboard-recent-ride-item';
+    item.innerHTML = `
+      <span class="dashboard-recent-ride-role dashboard-recent-ride-role--${esc(ride._dashRole)}">${esc(role)}</span>
+      <span class="dashboard-recent-ride-dest">${esc(dest)}</span>
+      <span class="dashboard-recent-ride-date">${esc(when)}</span>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function formatRideDate(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  const now = new Date();
+  const diff = now - d;
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function returnToBrowseRides() {
-  const roleToRestore = browseRole;
   showDashboardShell();
   showDashboardHome();
-  if (roleToRestore === 'driver') showDriverBrowse();
-  else if (roleToRestore === 'rider') showRiderBrowse();
+}
+
+function showBrowsePage() {
+  setAppRoute('browse');
+  clearCartMessages();
+  if (currentUser && !currentUser.serviceApproved) {
+    showWaitlistPage(currentUser);
+    return;
+  }
+  if (userNeedsPolicyConsent(currentUser)) {
+    showPolicyConsentRequired();
+    return;
+  }
+  if (userNeedsRequiredSettings(currentUser)) {
+    showRequiredSettingsRequired();
+    return;
+  }
+  hideDashboardPages();
+  browsePage.classList.remove('hidden');
+  renderBrowseRoleChoice();
+  if (currentUser?.rideServicesPaused) renderRideServicesPausedState();
 }
 
 function returnFromLegalPage() {
@@ -2432,17 +2609,7 @@ function showListRidePage() {
 }
 
 function showTrackTripPage() {
-  if (!ensureServiceAccess()) return;
-  setAppRoute('track-trip');
-  clearCartMessages();
-  clearTrackingMessages();
-  hideDashboardPages();
-  trackTripPage.classList.remove('hidden');
-  loadGoogleMapsAPI().then(() => {
-    if (lastTrackingLocation) {
-      updateTrackingMap(lastTrackingLocation, lastTrackingLocations, lastTrackingRideRoute);
-    }
-  });
+  showDashboardHome();
 }
 
 function ensureServiceAccess() {
@@ -2576,7 +2743,6 @@ function restoreAppRoute() {
     else if (route === 'chat') showChatPage();
     else if (route === 'request-ride') showRequestRidePage();
     else if (route === 'list-ride') showListRidePage();
-    else if (route === 'track-trip') showTrackTripPage();
     else if (route === 'leaderboard') showLeaderboardPage();
     else if (route.startsWith('user-profile-')) showPublicProfilePage(route.replace(/^user-profile-/, ''));
     else if (route === 'profile-payment') showProfilePage('payment');
@@ -2586,11 +2752,13 @@ function restoreAppRoute() {
     else if (route === 'profile-release-notes') showProfilePage('release-notes');
     else if (route === 'profile-about') showProfilePage('about');
     else if (route === 'profile') showProfilePage('info');
-    else if (route === 'browse-driver') {
-      showDashboardHome();
+    else if (route === 'browse') {
+      showBrowsePage();
+    } else if (route === 'browse-driver') {
+      showBrowsePage();
       showDriverBrowse();
     } else if (route === 'browse-rider') {
-      showDashboardHome();
+      showBrowsePage();
       showRiderBrowse();
     } else {
       showDashboardHome();
@@ -4804,7 +4972,7 @@ function renderRideServicesPausedState() {
 
 function showRiderBrowse() {
   if (currentUser?.rideServicesPaused) {
-    showDashboardHome();
+    showBrowsePage();
     return;
   }
   setAppRoute('browse-rider');
@@ -4840,7 +5008,7 @@ function showRiderBrowse() {
 
 function showDriverBrowse() {
   if (currentUser?.rideServicesPaused) {
-    showDashboardHome();
+    showBrowsePage();
     return;
   }
   setAppRoute('browse-driver');
@@ -6133,28 +6301,29 @@ driverPayoutForm.addEventListener('submit', async (event) => {
     payoutError.classList.add('show');
   }
 });
-stripePayoutConnectButton?.addEventListener('click', async () => {
-  if (stripePayoutConnectButton.disabled) return;
+stripePayoutConnectButton?.addEventListener('click', () => {
   clearPayoutMessages();
-  const onboardingWindow = window.open('', '_blank', 'noopener,noreferrer');
-  if (!onboardingWindow) {
-    payoutError.textContent = 'Your browser blocked the Stripe onboarding tab. Allow pop-ups for LinkUp and try again.';
-    payoutError.classList.add('show');
-    return;
-  }
+  window.location.href = '/api/profile/payout/onboarding/start';
+});
+
+stripePayoutRefreshButton?.addEventListener('click', async () => {
+  clearPayoutMessages();
+  setButtonLoading(stripePayoutRefreshButton, true);
   try {
-    const response = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
-    onboardingWindow.location = response.url;
-    payoutMessage.textContent = 'Stripe onboarding opened in a new tab. Keep this LinkUp tab open.';
+    currentUser = await fetchJson('/api/profile/payout/status', { method: 'POST' });
+    fillDriverPayoutForm(currentUser);
+    payoutMessage.textContent = currentUser.payoutInfo?.stripe?.payoutsEnabled
+      ? 'Stripe payouts are active.'
+      : 'Status refreshed.';
     payoutMessage.classList.add('show');
   } catch (err) {
-    onboardingWindow.close();
     payoutError.textContent = err.message;
     payoutError.classList.add('show');
+  } finally {
+    setButtonLoading(stripePayoutRefreshButton, false);
   }
 });
-trackTripButton.addEventListener('click', () => showTrackTripPage());
-trackBackHomeButton.addEventListener('click', () => returnToBrowseRides());
+browseRidesButton.addEventListener('click', () => showBrowsePage());
 copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
 sendTrackingInviteButton?.addEventListener('click', () => sendTrackingInvite());
 startTrackingButton.addEventListener('click', () => startTripTracking());

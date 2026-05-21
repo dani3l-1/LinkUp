@@ -2,7 +2,7 @@
 
 ---
 
-## v2026.05.20 BETA
+## v2026.05.20
 
 ### New
 - **Stripe Embedded Checkout.** Checkout now uses Stripe's fully hosted payment form — Apple Pay, Google Pay, Link, and card are all supported without a redirect. Your card details never touch LinkUp servers.

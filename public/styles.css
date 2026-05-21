@@ -1459,6 +1459,7 @@ button:disabled::before { display: none; }
 }
 
 /* Request/list ride pages are their own card surface */
+#browse-page,
 #request-ride-page,
 #list-ride-page {
   background: var(--surface);
@@ -1475,6 +1476,7 @@ button:disabled::before { display: none; }
 #request-ride-page h3,
 #list-ride-page h3 { color: var(--text-primary); }
 
+#browse-page::before,
 #request-ride-page::before,
 #list-ride-page::before {
   content: '';
@@ -2976,8 +2978,179 @@ html[data-theme="light"] .leaderboard-bar-track {
   pointer-events: none;
 }
 
-/* Browse results article — flat inside the home container */
-#dashboard-home article.card {
+/* ─── Dashboard home: next ride + tracking sections ──────────── */
+/* ─── Home quick actions ──────────────────────────────────────── */
+.dashboard-quick-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+}
+
+.dashboard-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.95rem 1rem;
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: none;
+  transition: filter 0.15s, transform 0.12s;
+}
+
+.dashboard-action-btn:active { transform: scale(0.97); }
+
+.dashboard-action-btn--primary {
+  background: var(--accent);
+  color: #0d1517;
+}
+.dashboard-action-btn--primary:hover { filter: brightness(1.1); }
+
+.dashboard-action-btn--secondary {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.dashboard-action-btn--secondary:hover { border-color: var(--border-hover); }
+
+.dashboard-action-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* ─── Stats strip ─────────────────────────────────────────────── */
+.dashboard-stats-strip {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.dashboard-stat {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.dashboard-stat-value {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.dashboard-stat-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Recent rides ────────────────────────────────────────────── */
+.dashboard-recent-rides {
+  margin-bottom: 2rem;
+}
+
+.dashboard-recent-ride-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.dashboard-recent-ride-item:last-child { border-bottom: none; }
+
+.dashboard-recent-ride-role {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.dashboard-recent-ride-role--driver {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.dashboard-recent-ride-role--rider {
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+
+.dashboard-recent-ride-dest {
+  flex: 1;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-recent-ride-date {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+/* ─── Section label ───────────────────────────────────────────── */
+.dashboard-section-label {
+  font-size: 0.72rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.dashboard-next-ride {
+  margin-bottom: 2rem;
+}
+
+.dashboard-tracking-section {
+  border-top: 1px solid var(--border);
+  padding-top: 1.75rem;
+}
+
+.dashboard-tracking-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+}
+
+.dashboard-no-ride {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  padding: 0.5rem 0;
+}
+
+button.inline-cta {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Browse results article — flat inside the browse page */
+#browse-page article.card {
   background: none;
   border: none;
   border-top: 1px solid var(--border);
@@ -2990,8 +3163,8 @@ html[data-theme="light"] .leaderboard-bar-track {
   animation: none;
 }
 
-#dashboard-home article.card::before,
-#dashboard-home article.card::after { display: none; }
+#browse-page article.card::before,
+#browse-page article.card::after { display: none; }
 
 /* ─── Available rides article header ────────────────────────── */
 article.card h3 {
@@ -3007,7 +3180,7 @@ article.card h3 {
 }
 
 /* Flat browse results title — no underline rule needed */
-#dashboard-home article.card h3 {
+#browse-page article.card h3 {
   border-bottom: none;
   padding-bottom: 0;
   margin-bottom: 0.85rem;
@@ -4067,6 +4240,58 @@ article.card h3 {
   border-radius: var(--radius-md);
   padding: 0.9rem 1rem;
   font-weight: 700;
+}
+
+/* ─── Stripe payout panel ─────────────────────────────────────── */
+.payout-stripe-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.payout-stripe-status {
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.payout-stripe-status--active {
+  border-color: rgba(78,201,148,0.4);
+  background: rgba(78,201,148,0.08);
+  color: var(--success);
+}
+
+.payout-stripe-status--pending {
+  border-color: rgba(77,158,245,0.35);
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+
+.payout-stripe-status--idle {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.payout-stripe-status--warn {
+  border-color: rgba(224,90,90,0.3);
+  background: var(--danger-dim);
+  color: var(--danger);
+}
+
+.payout-stripe-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.payout-stripe-actions button {
+  flex: 1;
+  min-width: 140px;
 }
 
 .stripe-payment-frame {
@@ -5189,12 +5414,12 @@ textarea:disabled,
   grid-column: 1 / -1;
 }
 
-#dashboard-home .browse-results-card {
+#browse-page .browse-results-card {
   border-top: 1px solid var(--border);
   padding-top: 1.2rem;
 }
 
-#dashboard-home .browse-results-card #browse-results-title {
+#browse-page .browse-results-card #browse-results-title {
   margin-bottom: 1rem;
 }
 
@@ -8035,4 +8260,98 @@ html[data-theme="light"] .tracking-map {
 #waitlist-page p {
   max-width: 400px;
   margin: 0 auto;
+}
+
+/* ─── Login splash animation ─────────────────────────────────── */
+#lu-login-splash {
+  position: fixed;
+  inset: 0;
+  background: #0d1517;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.lu-splash-glow {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(62,207,207,0.18) 0%, transparent 70%);
+  animation: lu-glow-pulse 0.8s ease-out 0.1s both;
+}
+
+.lu-splash-ring {
+  position: absolute;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  border: 2px solid #3ecfcf;
+  opacity: 0;
+}
+
+.lu-splash-ring--1 {
+  animation: lu-ring-out 0.75s cubic-bezier(0.2, 0.6, 0.4, 1) 0.3s forwards;
+}
+
+.lu-splash-ring--2 {
+  animation: lu-ring-out 0.75s cubic-bezier(0.2, 0.6, 0.4, 1) 0.52s forwards;
+}
+
+.lu-splash-ring--3 {
+  animation: lu-ring-out 0.75s cubic-bezier(0.2, 0.6, 0.4, 1) 0.74s forwards;
+}
+
+.lu-splash-logo {
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
+  position: relative;
+  z-index: 1;
+  animation: lu-logo-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  filter: drop-shadow(0 0 18px rgba(62,207,207,0.35));
+}
+
+/* exit state */
+#lu-login-splash.lu-splash--exit {
+  animation: lu-overlay-exit 0.55s ease-in-out forwards;
+}
+
+#lu-login-splash.lu-splash--exit .lu-splash-logo {
+  animation: lu-logo-shoot 0.45s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+#lu-login-splash.lu-splash--exit .lu-splash-ring,
+#lu-login-splash.lu-splash--exit .lu-splash-glow {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes lu-logo-in {
+  0%   { transform: scale(0.25) rotate(-15deg); opacity: 0; }
+  100% { transform: scale(1)    rotate(0deg);   opacity: 1; }
+}
+
+@keyframes lu-glow-pulse {
+  0%   { transform: scale(0.3); opacity: 0; }
+  60%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1);   opacity: 0.7; }
+}
+
+@keyframes lu-ring-out {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(4.2); opacity: 0;    }
+}
+
+@keyframes lu-logo-shoot {
+  0%   { transform: scale(1);  opacity: 1; }
+  35%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(9);  opacity: 0; }
+}
+
+@keyframes lu-overlay-exit {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
 }
