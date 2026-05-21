@@ -144,6 +144,8 @@ const stripePayoutHistoryButton = document.getElementById('stripe-payout-history
 const stripeConnectContainer = document.getElementById('stripe-connect-container');
 const payoutCommissionLabel = document.getElementById('payout-commission-label');
 const LINKUP_COMMISSION_RATE = 0.15;
+const STRIPE_FEE_RATE = 0.029;
+const STRIPE_FEE_FIXED_CENTS = 30;
 const cartCount = document.getElementById('cart-count');
 const cartItems = document.getElementById('cart-items');
 const cartSubtotal = document.getElementById('cart-subtotal');
@@ -2161,36 +2163,79 @@ function renderStripePayoutSummary(user) {
   stripePayoutRefreshButton?.classList.remove('hidden');
 }
 
+function calcDriverNetCents(grossCents, commissionRate, feeRate, feeFixed) {
+  const commission = Math.round(grossCents * commissionRate);
+  const stripeFee = Math.round(grossCents * feeRate) + feeFixed;
+  return { commission, stripeFee, net: Math.max(0, grossCents - commission - stripeFee) };
+}
+
 function renderDriverWalletSummary(user) {
   if (!driverWalletSummary) return;
   const wallet = user?.wallet || {};
-  const commissionPercent = Math.round(Number(wallet.commissionRate ?? LINKUP_COMMISSION_RATE) * 100);
+  const commissionRate = Number(wallet.commissionRate ?? LINKUP_COMMISSION_RATE);
+  const feeRate = Number(wallet.stripeFeeRate ?? STRIPE_FEE_RATE);
+  const feeFixed = Number(wallet.stripeFeeFixedCents ?? STRIPE_FEE_FIXED_CENTS);
+  const commissionPct = Math.round(commissionRate * 100);
+  const feePct = (feeRate * 100).toFixed(1);
+
+  const allTime = wallet.allTime || {};
+  const thisWeek = wallet.thisWeek || {};
+  const pending = wallet.pendingRideCompletion || {};
+
+  // Example calc for a $50 seat
+  const ex = calcDriverNetCents(5000, commissionRate, feeRate, feeFixed);
+
   driverWalletSummary.innerHTML = `
     <div class="wallet-card wallet-card-primary">
       <span>Wallet balance</span>
       <strong>${formatCents(wallet.availableCents || 0)}</strong>
-      <small>Available for rides now. Stripe is only needed for bank cash-out.</small>
+      <small>Spendable now on rides. Connect Stripe to cash out to your bank.</small>
     </div>
     <div class="wallet-card">
-      <span>This week earned</span>
-      <strong>${formatCents(wallet.thisWeek?.netCents || 0)}</strong>
-      <small>${formatCents(wallet.thisWeek?.commissionCents || 0)} LinkUp commission withheld.</small>
+      <span>Pending — awaiting ride end</span>
+      <strong>${formatCents(pending.netCents || 0)}</strong>
+      <small>Unlocks automatically after your trip completes.</small>
     </div>
     <div class="wallet-card">
-      <span>Pending rides</span>
-      <strong>${formatCents(wallet.pendingRideCompletion?.netCents || 0)}</strong>
-      <small>Unlocks after completed rides end.</small>
+      <span>This week — gross collected</span>
+      <strong>${formatCents(thisWeek.grossCents || 0)}</strong>
+      <small>You keep ${formatCents(thisWeek.netCents || 0)} after ${formatCents(thisWeek.commissionCents || 0)} commission + ${formatCents(thisWeek.stripeFeesCents || 0)} Stripe fee.</small>
     </div>
     <div class="wallet-card">
-      <span>Weekly payout</span>
-      <strong>${formatCents(wallet.payoutScheduledCents || 0)}</strong>
-      <small>Only paid to a bank when Stripe cash-out is connected.</small>
+      <span>All-time earnings</span>
+      <strong>${formatCents(allTime.netCents || 0)}</strong>
+      <small>${allTime.paidSeatCount || 0} paid ${allTime.paidSeatCount === 1 ? 'seat' : 'seats'} — ${formatCents(allTime.grossCents || 0)} gross, ${formatCents(allTime.commissionCents || 0)} commission, ${formatCents(allTime.stripeFeesCents || 0)} Stripe fees.</small>
     </div>
-    <div class="wallet-card wallet-card-wide">
-      <span>Wallet rules</span>
-      <small>Drivers keep ${100 - commissionPercent}% of each paid seat. Available wallet money is automatically used before charging your card.</small>
+    <div class="wallet-card wallet-card-wide wallet-estimator">
+      <span>Earnings estimator</span>
+      <div class="wallet-estimator-row">
+        <span class="wallet-estimator-label">Seat price $</span>
+        <input type="number" class="wallet-estimator-input" id="wallet-est-input" min="1" max="9999" step="1" value="50" aria-label="Seat price in dollars" />
+      </div>
+      <div class="wallet-estimator-breakdown" id="wallet-est-breakdown">
+        <div class="wallet-est-row"><span>Gross (rider pays)</span><strong id="est-gross">${formatCents(5000)}</strong></div>
+        <div class="wallet-est-row wallet-est-deduct"><span>LinkUp commission (${commissionPct}%)</span><strong id="est-commission">−${formatCents(ex.commission)}</strong></div>
+        <div class="wallet-est-row wallet-est-deduct"><span>Stripe processing (${feePct}% + $${(feeFixed / 100).toFixed(2)})</span><strong id="est-stripefee">−${formatCents(ex.stripeFee)}</strong></div>
+        <div class="wallet-est-row wallet-est-net"><span>You receive</span><strong id="est-net">${formatCents(ex.net)}</strong></div>
+      </div>
     </div>
   `;
+
+  const input = document.getElementById('wallet-est-input');
+  if (input) {
+    input.addEventListener('input', () => {
+      const gross = Math.round(Math.max(0, parseFloat(input.value) || 0) * 100);
+      const calc = calcDriverNetCents(gross, commissionRate, feeRate, feeFixed);
+      const set = (id, val, prefix = '') => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = prefix + formatCents(val);
+      };
+      set('est-gross', gross);
+      set('est-commission', calc.commission, '−');
+      set('est-stripefee', calc.stripeFee, '−');
+      set('est-net', calc.net);
+    });
+  }
 }
 
 function fillDriverPayoutForm(user) {

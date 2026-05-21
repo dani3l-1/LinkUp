@@ -54,6 +54,10 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
 const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15);
+// Stripe charges 2.9% + $0.30 per successful card transaction (US).
+// This fee is deducted from driver earnings so LinkUp's 15% is a hard profit.
+const STRIPE_FEE_RATE = 0.029;
+const STRIPE_FEE_FIXED_CENTS = 30;
 const ADMIN_PAYOUT_SECRET = process.env.ADMIN_PAYOUT_SECRET || '';
 const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
 // Email verification can be bypassed in local test mode via .env.local.
@@ -1925,22 +1929,30 @@ function getDriverPaymentRideIds(payment) {
   return ids;
 }
 
+function calcStripeFee(grossCents) {
+  return Math.round(grossCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED_CENTS;
+}
+
 function addWalletAmounts(target, grossCents) {
   const gross = Math.max(0, Number(grossCents || 0));
   const commission = Math.round(gross * LINKUP_COMMISSION_RATE);
-  const net = Math.max(0, gross - commission);
+  const stripeFee = calcStripeFee(gross);
+  const net = Math.max(0, gross - commission - stripeFee);
   target.grossCents += gross;
   target.commissionCents += commission;
+  target.stripeFeesCents = (target.stripeFeesCents || 0) + stripeFee;
   target.netCents += net;
-  return { gross, commission, net };
+  return { gross, commission, stripeFee, net };
 }
 
 function addWalletLedgerAmounts(target, transaction) {
   const gross = Math.max(0, Number(transaction.grossCents || 0));
   const commission = Math.max(0, Number(transaction.commissionCents || 0));
+  const stripeFee = Math.max(0, Number(transaction.stripeFeesCents ?? calcStripeFee(gross)));
   const net = Math.max(0, Number(transaction.amountCents || 0));
   target.grossCents += gross;
   target.commissionCents += commission;
+  target.stripeFeesCents = (target.stripeFeesCents || 0) + stripeFee;
   target.netCents += net;
   target.paidSeatCount += 1;
 }
@@ -2016,7 +2028,8 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
     const grossCents = Math.max(0, Number(ride.priceCents || 0));
     if (!grossCents) return;
     const commissionCents = Math.round(grossCents * LINKUP_COMMISSION_RATE);
-    const amountCents = Math.max(0, grossCents - commissionCents);
+    const stripeFeesCents = calcStripeFee(grossCents);
+    const amountCents = Math.max(0, grossCents - commissionCents - stripeFeesCents);
     const exists = db.walletTransactions.some((transaction) => transaction.type === 'driver_earning_credit'
       && transaction.userId === ride.driverId
       && transaction.rideId === ride.id
@@ -2029,6 +2042,7 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
       amountCents,
       grossCents,
       commissionCents,
+      stripeFeesCents,
       commissionRate: LINKUP_COMMISSION_RATE,
       currency: checkoutSession.stripeCurrency || 'usd',
       rideId: ride.id,
@@ -2130,6 +2144,8 @@ function buildDriverWalletSummary(db, driverId) {
   const summary = {
     payoutCadence: 'weekly',
     commissionRate: LINKUP_COMMISSION_RATE,
+    stripeFeeRate: STRIPE_FEE_RATE,
+    stripeFeeFixedCents: STRIPE_FEE_FIXED_CENTS,
     weekStart: weekRange.start.toISOString(),
     weekEnd: weekRange.end.toISOString(),
     availableCents: getWalletAvailableCents(db, driverId),
@@ -2140,10 +2156,10 @@ function buildDriverWalletSummary(db, driverId) {
     paidOutCents: ledgerDebits
       .filter((transaction) => transaction.type === 'weekly_payout_debit')
       .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amountCents || 0)), 0),
-    thisWeek: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
-    readyForPayout: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
-    pendingRideCompletion: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
-    allTime: { grossCents: 0, commissionCents: 0, netCents: 0, paidSeatCount: 0 },
+    thisWeek: { grossCents: 0, commissionCents: 0, stripeFeesCents: 0, netCents: 0, paidSeatCount: 0 },
+    readyForPayout: { grossCents: 0, commissionCents: 0, stripeFeesCents: 0, netCents: 0, paidSeatCount: 0 },
+    pendingRideCompletion: { grossCents: 0, commissionCents: 0, stripeFeesCents: 0, netCents: 0, paidSeatCount: 0 },
+    allTime: { grossCents: 0, commissionCents: 0, stripeFeesCents: 0, netCents: 0, paidSeatCount: 0 },
   };
 
   if (ledgerCredits.length) {
