@@ -2,6 +2,13 @@
 
 ---
 
+## v2026.05.21
+
+### New
+- **Apply wallet credit at checkout.** Riders with a LinkUp Wallet balance now see an "Apply $X credit" button on the payment page. Tapping it deducts the credit from the trip total and shows a breakdown of credit applied and remaining card charge. Credit can be removed before paying. When the wallet covers the full amount, no card is charged.
+
+---
+
 ## v2026.05.20
 
 ### New

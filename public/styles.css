@@ -6387,6 +6387,70 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
   letter-spacing: 0;
 }
 
+/* ── Wallet apply button ─────────────────────────────────────── */
+.wallet-checkout-apply {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wallet-apply-btn {
+  background: var(--accent);
+  color: #0d1517;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.7rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity var(--transition-speed);
+  white-space: nowrap;
+}
+
+.wallet-apply-btn:hover {
+  opacity: 0.85;
+}
+
+.wallet-applied-badge {
+  background: var(--success-dim);
+  color: var(--success);
+  font-size: 0.62rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.wallet-remove-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+.wallet-remove-link:hover {
+  color: var(--text-secondary);
+}
+
+.wallet-credit-amt {
+  color: var(--success);
+}
+
+/* ── Credit row in order summary ─────────────────────────────── */
+.cart-summary-credit-row .cart-summary-row-label {
+  color: var(--success);
+}
+
+.cart-summary-credit-amount {
+  color: var(--success) !important;
+}
+
 /* ── Override old cart-page padding when using new layout ────── */
 #cart-page,
 #payment-page {

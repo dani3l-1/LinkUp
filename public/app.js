@@ -248,6 +248,8 @@ let pickupRadiusAutocomplete = null;
 let dropoffRadiusAutocomplete = null;
 let cartRideIds = new Set();
 let selectedCartRideIds = new Set();
+let walletCreditApplied = false;
+let paymentPageTotalCents = 0;
 let pendingExpiredCartRideNoticeCount = 0;
 let pendingProfilePictureDataUrl;
 let pendingVerificationEmail = '';
@@ -2791,6 +2793,7 @@ function showPaymentPage(preselectedRideIds = null) {
   if (paymentSummary) paymentSummary.textContent = `${selectedRideIds.length} trip${selectedRideIds.length === 1 ? '' : 's'} ready for payment`;
   document.getElementById('pay-cart')?.classList.remove('hidden');
   destroyEmbeddedCheckout();
+  walletCreditApplied = false;
 
   // Populate right-panel order summary from selected cart cards
   const orderSummaryEl = document.getElementById('payment-order-summary');
@@ -2799,70 +2802,113 @@ function showPaymentPage(preselectedRideIds = null) {
     const selectedCards = [...cartItems.querySelectorAll('.cart-item-card')]
       .filter((card) => selectedRideIds.includes(card.dataset.rideId));
     totalCents = selectedCards.reduce((sum, card) => sum + Number(card.dataset.priceCents || 0), 0);
-
-    const rows = selectedCards.map((card) => {
-      const title = card.querySelector('h4')?.textContent?.trim() || 'Ride';
-      const priceCents = Number(card.dataset.priceCents || 0);
-      return `<div class="cart-summary-row">
-        <span class="cart-summary-row-label">${esc(title)}</span>
-        <span class="cart-summary-row-price">${formatCents(priceCents)}</span>
-      </div>`;
-    }).join('');
-
-    orderSummaryEl.innerHTML = `
-      <div class="cart-summary-rows">${rows}</div>
-      <div class="cart-summary-divider"></div>
-      <div class="cart-summary-total-row">
-        <div class="cart-summary-total-copy">
-          <span>Total</span>
-          <p class="cart-summary-tax-note">Service fee included</p>
-        </div>
-        <strong>${formatCents(totalCents)}</strong>
-      </div>
-    `;
+    paymentPageTotalCents = totalCents;
+    renderPaymentOrderSummary(orderSummaryEl, selectedCards, totalCents, 0);
     orderSummaryEl.classList.remove('hidden');
   }
   renderLinkUpWalletCheckout(totalCents);
 }
 
+function renderPaymentOrderSummary(el, selectedCards, totalCents, creditCents) {
+  const rows = selectedCards.map((card) => {
+    const title = card.querySelector('h4')?.textContent?.trim() || 'Ride';
+    const priceCents = Number(card.dataset.priceCents || 0);
+    return `<div class="cart-summary-row">
+      <span class="cart-summary-row-label">${esc(title)}</span>
+      <span class="cart-summary-row-price">${formatCents(priceCents)}</span>
+    </div>`;
+  }).join('');
+
+  const creditRow = creditCents > 0
+    ? `<div class="cart-summary-row cart-summary-credit-row">
+        <span class="cart-summary-row-label">LinkUp credit</span>
+        <span class="cart-summary-row-price cart-summary-credit-amount">−${formatCents(creditCents)}</span>
+      </div>`
+    : '';
+
+  const chargeCents = Math.max(0, totalCents - creditCents);
+  const chargeLabel = creditCents > 0 && chargeCents === 0 ? 'Total due' : creditCents > 0 ? 'Card charge' : 'Total';
+
+  el.innerHTML = `
+    <div class="cart-summary-rows">${rows}${creditRow}</div>
+    <div class="cart-summary-divider"></div>
+    <div class="cart-summary-total-row">
+      <div class="cart-summary-total-copy">
+        <span>${chargeLabel}</span>
+        <p class="cart-summary-tax-note">Service fee included</p>
+      </div>
+      <strong>${formatCents(chargeCents)}</strong>
+    </div>
+  `;
+}
+
 function renderLinkUpWalletCheckout(totalCents) {
   if (!linkupWalletCheckout) return;
   const availableCents = Math.max(0, Number(currentUser?.wallet?.availableCents || 0));
-  const appliedCents = Math.min(availableCents, Math.max(0, Number(totalCents || 0)));
+
+  if (availableCents <= 0) {
+    linkupWalletCheckout.classList.add('hidden');
+    return;
+  }
+
+  const appliedCents = walletCreditApplied
+    ? Math.min(availableCents, Math.max(0, Number(totalCents || 0)))
+    : 0;
   const remainingCents = Math.max(0, Number(totalCents || 0) - appliedCents);
+
   const payCartButton = document.getElementById('pay-cart');
   if (payCartButton) {
-    payCartButton.textContent = appliedCents > 0 && remainingCents === 0
-      ? 'Pay with LinkUp Wallet'
-      : appliedCents > 0
+    payCartButton.textContent = walletCreditApplied && remainingCents === 0
+      ? 'Pay with Wallet'
+      : walletCreditApplied
         ? 'Use Wallet + Card'
         : 'Check Out';
   }
 
-  if (availableCents <= 0) {
+  // Sync order summary credit row
+  const orderSummaryEl = document.getElementById('payment-order-summary');
+  if (orderSummaryEl) {
+    const selectedCards = [...cartItems.querySelectorAll('.cart-item-card')]
+      .filter((card) => [...selectedCartRideIds].includes(card.dataset.rideId));
+    renderPaymentOrderSummary(orderSummaryEl, selectedCards, totalCents, appliedCents);
+  }
+
+  if (!walletCreditApplied) {
     linkupWalletCheckout.innerHTML = `
       <div class="wallet-checkout-copy">
         <span>LinkUp Wallet</span>
-        <strong>${formatCents(0)}</strong>
-        <small>No wallet balance available for this checkout.</small>
+        <strong>${formatCents(availableCents)}</strong>
+        <small>Available — apply it to reduce your card charge.</small>
+      </div>
+      <div class="wallet-checkout-apply">
+        <button type="button" class="wallet-apply-btn" id="wallet-apply-btn">
+          Apply ${formatCents(Math.min(availableCents, totalCents || 0))} credit
+        </button>
       </div>
     `;
-    linkupWalletCheckout.classList.remove('hidden');
-    return;
+    document.getElementById('wallet-apply-btn')?.addEventListener('click', () => {
+      walletCreditApplied = true;
+      renderLinkUpWalletCheckout(totalCents);
+    });
+  } else {
+    linkupWalletCheckout.innerHTML = `
+      <div class="wallet-checkout-copy">
+        <span>LinkUp Wallet <span class="wallet-applied-badge">Applied</span></span>
+        <strong>${formatCents(availableCents)}</strong>
+        <small><button type="button" class="wallet-remove-link" id="wallet-remove-btn">Remove</button></small>
+      </div>
+      <div class="wallet-checkout-breakdown">
+        <div><span>Trip total</span><strong>${formatCents(totalCents || 0)}</strong></div>
+        <div><span>LinkUp credit</span><strong class="wallet-credit-amt">−${formatCents(appliedCents)}</strong></div>
+        <div><span>${remainingCents > 0 ? 'Card charge' : 'Total due'}</span><strong>${formatCents(remainingCents)}</strong></div>
+      </div>
+    `;
+    document.getElementById('wallet-remove-btn')?.addEventListener('click', () => {
+      walletCreditApplied = false;
+      renderLinkUpWalletCheckout(totalCents);
+    });
   }
 
-  linkupWalletCheckout.innerHTML = `
-    <div class="wallet-checkout-copy">
-      <span>LinkUp Wallet</span>
-      <strong>${formatCents(availableCents)}</strong>
-      <small>${appliedCents > 0 ? `${formatCents(appliedCents)} will be applied before your card.` : 'Available for future LinkUp rides.'}</small>
-    </div>
-    <div class="wallet-checkout-breakdown">
-      <div><span>Trip total</span><strong>${formatCents(totalCents || 0)}</strong></div>
-      <div><span>Wallet applied</span><strong>-${formatCents(appliedCents)}</strong></div>
-      <div><span>${remainingCents > 0 ? 'Card due' : 'Due today'}</span><strong>${formatCents(remainingCents)}</strong></div>
-    </div>
-  `;
   linkupWalletCheckout.classList.remove('hidden');
 }
 
@@ -6577,7 +6623,7 @@ document.getElementById('pay-cart').addEventListener('click', async () => {
     const data = await fetchJson('/api/cart/create-embedded-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rideIds: selectedRideIds }),
+      body: JSON.stringify({ rideIds: selectedRideIds, applyWalletCredit: walletCreditApplied }),
     });
     if (data.walletOnly) {
       paymentSummary.textContent = 'Your LinkUp wallet covers this checkout.';

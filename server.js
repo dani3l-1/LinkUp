@@ -4377,7 +4377,8 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
 
   try {
     const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + Number(ride.priceCents || 0), 0);
-    const walletCreditCents = getCheckoutWalletCreditCents(db, student.id, expectedAmountCents);
+    const applyWallet = req.body.applyWalletCredit !== false;
+    const walletCreditCents = applyWallet ? getCheckoutWalletCreditCents(db, student.id, expectedAmountCents) : 0;
     const amountDueCents = Math.max(0, expectedAmountCents - walletCreditCents);
     if (amountDueCents === 0) {
       const walletSessionId = 'wallet_' + uuidv4();
