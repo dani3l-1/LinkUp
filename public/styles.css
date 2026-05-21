@@ -4199,32 +4199,26 @@ article.card h3 {
 }
 
 .driver-wallet-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
 }
 
 .wallet-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(62,207,207,0.2);
   border-radius: var(--radius-md);
-  background: var(--bg-3);
-  padding: 0.85rem 1rem;
+  background: rgba(255,255,255,0.035);
+  padding: 1rem;
   min-width: 0;
 }
 
 .wallet-card-primary {
-  border-color: rgba(62,207,207,0.25);
-  background: rgba(62,207,207,0.06);
+  background: linear-gradient(135deg, rgba(62,207,207,0.2), rgba(90,180,120,0.12));
+  border-color: rgba(62,207,207,0.42);
 }
 
 .wallet-card-wide {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.3rem;
+  grid-column: 1 / -1;
 }
 
 /* ─── Earnings estimator ──────────────────────────────────────── */
@@ -4303,34 +4297,31 @@ article.card h3 {
 }
 
 .wallet-card span {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .wallet-card strong {
   display: block;
-  color: var(--text-primary);
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  white-space: nowrap;
-}
-
-.wallet-card-primary strong {
+  margin: 0.35rem 0;
   color: var(--accent);
-  font-size: 1.25rem;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  letter-spacing: 0;
 }
 
 .wallet-card small {
   color: var(--text-muted);
-  font-size: 0.76rem;
   line-height: 1.45;
 }
 
-/* wallet-card responsive: already single-column flex */
+@media (max-width: 620px) {
+  .driver-wallet-summary {
+    grid-template-columns: 1fr;
+  }
+}
 
 #driver-payout-form textarea {
   width: 100%;
