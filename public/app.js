@@ -6650,6 +6650,18 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// Receive push token from the iOS native bridge and register it with the server
+window.addEventListener('linkupnative', (event) => {
+  const detail = event.detail || {};
+  if (detail.action === 'pushToken' && detail.token) {
+    fetchJson('/api/device-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: detail.token, platform: 'ios' }),
+    }).catch(() => {});
+  }
+});
+
 signoutButton.addEventListener('click', async () => {
   try {
     if (activeTrackingTripId) {

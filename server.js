@@ -13,6 +13,7 @@ const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
+const apn = require('apn');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -83,6 +84,34 @@ const TRACKING_VIEWER_TTL_MS = 1000 * 60 * 60 * 8;
 const PUSH_NOTIFICATIONS_ENABLED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
 if (PUSH_NOTIFICATIONS_ENABLED) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
+
+// APNs (iOS native push notifications)
+// Set APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, and either
+// APNS_KEY (raw .p8 content) or APNS_KEY_PATH (path to .p8 file).
+const APNS_KEY_ID = process.env.APNS_KEY_ID || '';
+const APNS_TEAM_ID = process.env.APNS_TEAM_ID || '';
+const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID || 'com.linkuprides.LinkUp';
+const APNS_KEY_PATH = process.env.APNS_KEY_PATH || '';
+const APNS_KEY = process.env.APNS_KEY || '';
+const APNS_ENABLED = Boolean(APNS_KEY_ID && APNS_TEAM_ID && (APNS_KEY || APNS_KEY_PATH));
+let apnProvider = null;
+if (APNS_ENABLED) {
+  try {
+    apnProvider = new apn.Provider({
+      token: {
+        key: APNS_KEY_PATH || Buffer.from(APNS_KEY.replace(/\\n/g, '\n')),
+        keyId: APNS_KEY_ID,
+        teamId: APNS_TEAM_ID,
+      },
+      production: NODE_ENV === 'production',
+    });
+    console.log(`APNs enabled (${NODE_ENV === 'production' ? 'production' : 'sandbox'}, bundle: ${APNS_BUNDLE_ID})`);
+  } catch (err) {
+    console.error('APNs provider init failed:', err.message);
+  }
+} else {
+  console.warn('APNs not configured. Set APNS_KEY_ID, APNS_TEAM_ID, and APNS_KEY (or APNS_KEY_PATH) to enable iOS push.');
 }
 // SSL: auto-enabled for remote hosts (Supabase requires it).
 // Override with DATABASE_SSL=true/false in your .env file.
@@ -666,6 +695,25 @@ app.post('/api/push/unsubscribe', requireAuth, (req, res) => {
   user.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json({ message: 'Notifications disabled' });
+});
+
+// Register an iOS device token for APNs push notifications
+app.post('/api/device-token', requireAuth, (req, res) => {
+  const token = String(req.body.token || '').trim();
+  const platform = String(req.body.platform || '').trim();
+  if (!token || platform !== 'ios') {
+    return res.status(400).json({ error: 'token and platform:ios are required' });
+  }
+  const db = loadDb();
+  const user = (db.users || []).find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.iosDeviceTokens = (user.iosDeviceTokens || []).filter((t) => t !== token);
+  user.iosDeviceTokens.push(token);
+  // Keep the 5 most recent tokens per user to handle device re-registrations
+  if (user.iosDeviceTokens.length > 5) user.iosDeviceTokens = user.iosDeviceTokens.slice(-5);
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json({ ok: true });
 });
 
 function getEmptyDb() {
@@ -1356,14 +1404,47 @@ function getChatNotificationBody(ride, sender, text) {
 }
 
 function sendPushNotification(user, payload) {
-  if (!PUSH_NOTIFICATIONS_ENABLED || !user?.pushSubscriptions?.length) return;
-  const body = JSON.stringify(payload);
-  user.pushSubscriptions.forEach((subscription) => {
-    webpush.sendNotification(subscription, body).catch((err) => {
-      if (![404, 410].includes(Number(err.statusCode))) {
-        console.error('Push notification failed:', err.message);
-      }
+  // Web push (VAPID — browsers and PWA)
+  if (PUSH_NOTIFICATIONS_ENABLED && user?.pushSubscriptions?.length) {
+    const body = JSON.stringify(payload);
+    user.pushSubscriptions.forEach((subscription) => {
+      webpush.sendNotification(subscription, body).catch((err) => {
+        if (![404, 410].includes(Number(err.statusCode))) {
+          console.error('Push notification failed:', err.message);
+        }
+      });
     });
+  }
+  // Native iOS push (APNs)
+  sendApnsPush(user, payload);
+}
+
+function sendApnsPush(user, payload) {
+  if (!APNS_ENABLED || !apnProvider || !user?.iosDeviceTokens?.length) return;
+  const notification = new apn.Notification();
+  notification.expiry = Math.floor(Date.now() / 1000) + 3600;
+  notification.badge = 1;
+  notification.sound = 'default';
+  notification.alert = { title: payload.title || 'LinkUp', body: payload.body || '' };
+  notification.payload = { url: payload.url || '/', ...(payload.data || {}) };
+  notification.topic = APNS_BUNDLE_ID;
+  apnProvider.send(notification, user.iosDeviceTokens).then((result) => {
+    const failed = result.failed || [];
+    if (!failed.length) return;
+    const stale = failed
+      .filter((f) => ['BadDeviceToken', 'Unregistered'].includes(f.response?.reason))
+      .map((f) => f.device);
+    failed
+      .filter((f) => !['BadDeviceToken', 'Unregistered'].includes(f.response?.reason))
+      .forEach((f) => console.error('[APNs] Push failed:', f.response?.reason, f.device));
+    if (stale.length) {
+      const db = loadDb();
+      const u = db.users.find((u) => u.id === user.id);
+      if (u) {
+        u.iosDeviceTokens = (u.iosDeviceTokens || []).filter((t) => !stale.includes(t));
+        saveDb(db);
+      }
+    }
   });
 }
 
