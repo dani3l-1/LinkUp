@@ -4201,7 +4201,7 @@ article.card h3 {
 .driver-wallet-summary {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 0.6rem;
 }
 
 .wallet-card {
@@ -4209,18 +4209,16 @@ article.card h3 {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: none;
-  padding: 0.9rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-3);
+  padding: 0.85rem 1rem;
   min-width: 0;
 }
 
-.wallet-card:last-child { border-bottom: none; }
-
 .wallet-card-primary {
-  background: none;
+  border-color: rgba(62,207,207,0.25);
+  background: rgba(62,207,207,0.06);
 }
 
 .wallet-card-wide {
