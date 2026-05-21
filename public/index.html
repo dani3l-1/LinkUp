@@ -570,26 +570,58 @@
                   </div>
                 </div>
                 <div id="profile-payouts-panel" class="profile-panel hidden" data-profile-panel="payouts">
-                  <form id="driver-payout-form" class="profile-form payout-guide">
-                    <div>
-                      <h4>Driver wallet</h4>
-                      <p>Earn into your LinkUp wallet for rides, or connect Stripe for weekly bank payouts.</p>
-                    </div>
-                    <div id="driver-wallet-summary" class="driver-wallet-summary"></div>
-                    <div class="payout-stripe-panel">
-                      <div id="stripe-payout-summary" class="payout-stripe-status">Checking payout status…</div>
-                      <div class="payout-stripe-actions">
-                        <button type="button" id="stripe-payout-connect" class="hidden">Set up Stripe payouts</button>
-                        <button type="button" id="stripe-payout-refresh" class="hidden">Refresh status</button>
-                        <button type="button" id="stripe-payout-history" class="hidden">View bank payout history</button>
+                  <form id="driver-payout-form" class="profile-form">
+
+                    <!-- Flow indicator -->
+                    <div class="payout-flow">
+                      <div class="payout-flow-step payout-flow-step--active">
+                        <span class="payout-flow-icon">&#9651;</span>
+                        <span>Ride earnings</span>
+                      </div>
+                      <span class="payout-flow-arrow">&#8594;</span>
+                      <div class="payout-flow-step payout-flow-step--active">
+                        <span class="payout-flow-icon">&#9670;</span>
+                        <span>LinkUp Wallet</span>
+                      </div>
+                      <span class="payout-flow-arrow">&#8594;</span>
+                      <div class="payout-flow-step" id="payout-flow-bank">
+                        <span class="payout-flow-icon">&#128970;</span>
+                        <span>Your Bank</span>
+                        <small>weekly</small>
                       </div>
                     </div>
-                    <div id="stripe-connect-container" class="stripe-connect-container hidden"></div>
-                    <div id="payout-message" class="success-message"></div>
-                    <div id="payout-error" class="error-message"></div>
-                    <div class="payout-note payout-warning">
-                      Stripe is optional — only needed for bank cash-out. LinkUp never stores your bank details — all payout info is held by Stripe.
+
+                    <!-- Section 1: Wallet -->
+                    <div class="payout-section">
+                      <div class="payout-section-header">
+                        <h4 class="payout-section-title">LinkUp Wallet</h4>
+                        <p class="payout-section-desc">Completed ride earnings land here. Spend on rides or cash out to your bank weekly via Stripe.</p>
+                      </div>
+                      <div id="driver-wallet-summary" class="driver-wallet-summary"></div>
                     </div>
+
+                    <!-- Section 2: Bank payouts -->
+                    <div class="payout-section">
+                      <div class="payout-section-header">
+                        <h4 class="payout-section-title">Bank Payouts</h4>
+                        <p class="payout-section-desc">Connect Stripe once — your wallet balance transfers to your bank every week automatically.</p>
+                      </div>
+                      <div class="payout-stripe-panel">
+                        <div id="stripe-payout-summary" class="payout-stripe-status">Checking payout status…</div>
+                        <div class="payout-stripe-actions">
+                          <button type="button" id="stripe-payout-connect" class="hidden">Set up bank payouts</button>
+                          <button type="button" id="stripe-payout-refresh" class="hidden">Refresh status</button>
+                          <button type="button" id="stripe-payout-history" class="hidden">View payout history</button>
+                        </div>
+                      </div>
+                      <div id="stripe-connect-container" class="stripe-connect-container hidden"></div>
+                      <div id="payout-message" class="success-message"></div>
+                      <div id="payout-error" class="error-message"></div>
+                      <p class="payout-note payout-warning">
+                        LinkUp never stores your bank details — all payout info is held securely by Stripe.
+                      </p>
+                    </div>
+
                   </form>
                 </div>
               </div>
@@ -598,6 +630,11 @@
 
           <!-- Home / Browse -->
           <div id="dashboard-home">
+
+            <div class="dashboard-next-ride">
+              <h3 class="dashboard-section-label">Your next ride</h3>
+              <div id="dashboard-ride-card"></div>
+            </div>
 
             <div class="dashboard-quick-actions">
               <button id="home-find-ride-btn" type="button" class="dashboard-action-btn dashboard-action-btn--primary">
@@ -623,11 +660,6 @@
                 <span class="dashboard-stat-value" id="stat-savings">—</span>
                 <span class="dashboard-stat-label">Saved vs Uber</span>
               </div>
-            </div>
-
-            <div class="dashboard-next-ride">
-              <h3 class="dashboard-section-label">Your next ride</h3>
-              <div id="dashboard-ride-card"></div>
             </div>
 
             <div class="dashboard-recent-rides" id="dashboard-recent-rides-section" style="display:none">
@@ -1211,6 +1243,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260521-ui-refresh"></script>
+    <script src="app.js?v=20260521-payout-redesign"></script>
   </body>
 </html>

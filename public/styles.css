@@ -2925,6 +2925,7 @@ html[data-theme="light"] .leaderboard-bar-track {
 .dashboard-quick-actions {
   display: flex;
   gap: 0.75rem;
+  margin-top: 1.5rem;
   margin-bottom: 1.75rem;
 }
 
@@ -3063,8 +3064,9 @@ html[data-theme="light"] .leaderboard-bar-track {
 }
 
 .dashboard-next-ride {
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
 }
+
 
 .dashboard-tracking-section {
   border-top: 1px solid var(--border);
@@ -4018,6 +4020,85 @@ article.card h3 {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.65;
+}
+
+/* ─── Payout flow indicator ───────────────────────────────────── */
+.payout-flow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1rem 0 1.5rem;
+  flex-wrap: wrap;
+}
+
+.payout-flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.payout-flow-step--active {
+  color: var(--text-secondary);
+}
+
+.payout-flow-step--bank-active {
+  color: var(--success);
+}
+
+.payout-flow-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.payout-flow-step--active .payout-flow-icon { color: var(--accent); }
+.payout-flow-step--bank-active .payout-flow-icon { color: var(--success); }
+
+.payout-flow-step small {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.payout-flow-arrow {
+  color: var(--border-hover);
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: -0.5rem;
+}
+
+/* ─── Payout sections ─────────────────────────────────────────── */
+.payout-section {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.payout-section + .payout-section {
+  margin-top: 0.5rem;
+}
+
+.payout-section-header {
+  margin-bottom: 1.25rem;
+}
+
+.payout-section-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.3rem;
+}
+
+.payout-section-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.55;
 }
 
 .about-linkup-panel {

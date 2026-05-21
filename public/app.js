@@ -2123,6 +2123,8 @@ function renderStripePayoutSummary(user) {
     stripeConnectContainer.innerHTML = '';
   }
 
+  const bankStep = document.getElementById('payout-flow-bank');
+
   if (provider !== 'stripe') {
     stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--warn';
     stripePayoutSummary.textContent = `Bank payouts via ${user?.payoutProviderLabel || provider} are not yet supported.`;
@@ -2131,9 +2133,9 @@ function renderStripePayoutSummary(user) {
 
   if (!stripeInfo?.accountId) {
     stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--idle';
-    stripePayoutSummary.textContent = 'Connect Stripe to receive your wallet earnings in your bank account weekly.';
+    stripePayoutSummary.textContent = 'Not connected — set up Stripe to receive weekly bank transfers.';
     if (stripePayoutConnectButton) {
-      stripePayoutConnectButton.textContent = 'Set up Stripe payouts';
+      stripePayoutConnectButton.textContent = 'Set up bank payouts';
       stripePayoutConnectButton.classList.remove('hidden');
     }
     return;
@@ -2141,23 +2143,26 @@ function renderStripePayoutSummary(user) {
 
   if (stripeInfo.payoutsEnabled) {
     stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--active';
-    stripePayoutSummary.textContent = 'Stripe connected — wallet earnings are paid out to your bank weekly.';
+    stripePayoutSummary.textContent = 'Active — wallet balance transfers to your bank every week.';
     stripePayoutRefreshButton?.classList.remove('hidden');
     stripePayoutHistoryButton?.classList.remove('hidden');
+    if (bankStep) bankStep.classList.add('payout-flow-step--bank-active');
     return;
   }
 
+  if (bankStep) bankStep.classList.remove('payout-flow-step--bank-active');
+
   if (stripeInfo.detailsSubmitted) {
     stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--pending';
-    stripePayoutSummary.textContent = 'Stripe is verifying your account. Bank payouts will begin once approved.';
+    stripePayoutSummary.textContent = 'Stripe is verifying your account — payouts begin once approved.';
     stripePayoutRefreshButton?.classList.remove('hidden');
     return;
   }
 
   stripePayoutSummary.className = 'payout-stripe-status payout-stripe-status--warn';
-  stripePayoutSummary.textContent = 'Stripe setup started — finish onboarding to receive bank payouts.';
+  stripePayoutSummary.textContent = 'Setup incomplete — finish onboarding to activate weekly bank transfers.';
   if (stripePayoutConnectButton) {
-    stripePayoutConnectButton.textContent = 'Continue Stripe setup';
+    stripePayoutConnectButton.textContent = 'Continue setup';
     stripePayoutConnectButton.classList.remove('hidden');
   }
   stripePayoutRefreshButton?.classList.remove('hidden');
