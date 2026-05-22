@@ -70,7 +70,7 @@ final class NativeServices: NSObject, ObservableObject, CLLocationManagerDelegat
         startBackgroundTracking(tripId: tripId)
     }
 
-    @objc private func handleStopTracking() {
+    @objc private func handleStopTracking(_ notification: Notification) {
         stopBackgroundTracking()
     }
 
