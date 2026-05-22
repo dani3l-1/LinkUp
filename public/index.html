@@ -195,6 +195,20 @@
             <div id="reset-error" class="error-message"></div>
           </form>
 
+          <!-- Two-factor auth (login step 2) -->
+          <div id="twofa-form" class="tab-content">
+            <h2>Two-factor verification</h2>
+            <p class="twofa-login-desc">Enter the 6-digit code from your authenticator app.</p>
+            <div class="form-field">
+              <label for="twofa-login-code">Authenticator code</label>
+              <input type="text" id="twofa-login-code" inputmode="numeric" maxlength="6"
+                     placeholder="000000" autocomplete="one-time-code" />
+            </div>
+            <button type="button" id="twofa-login-submit" class="btn-primary">Verify →</button>
+            <button type="button" id="twofa-login-back" class="text-button">Back to sign in</button>
+            <div id="twofa-login-error" class="error-message"></div>
+          </div>
+
         </section>
 
         <!-- ── Dashboard ──────────────────────────────────────── -->
@@ -271,6 +285,7 @@
                 <button class="profile-sidebar-button active" type="button" data-profile-tab="info">Personal info</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payment">Payment method</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payouts">Driver payouts</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="security">Security</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="appearance">Appearance</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="release-notes">Release notes</button>
@@ -432,6 +447,9 @@
                     <div id="default-payment-message" class="success-message"></div>
                     <div id="default-payment-error" class="error-message"></div>
                   </form>
+                </div>
+                <div id="profile-security-panel" class="profile-panel hidden" data-profile-panel="security">
+                  <div id="twofa-panel-content"></div>
                 </div>
                 <div id="profile-policies-panel" class="profile-panel hidden" data-profile-panel="policies">
                   <form id="policy-consent-form" class="profile-form payout-guide">
@@ -1243,6 +1261,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260521-completion-code"></script>
+    <script src="app.js?v=20260521-2fa"></script>
   </body>
 </html>

@@ -14,6 +14,8 @@ const session = require('express-session');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
 const apn = require('apn');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -1517,36 +1519,59 @@ function sendVerificationCode(user, code) {
     '',
     '- LinkUp',
   ].join('\n');
+  const codeDigits = code.split('').map((d) =>
+    `<td style="padding:0 4px;"><div style="width:44px;height:56px;line-height:56px;text-align:center;background:#f0fafa;border:2px solid #3ecfcf;border-radius:12px;font-size:28px;font-weight:900;color:#082023;font-family:monospace,monospace;">${d}</div></td>`
+  ).join('');
   const htmlBody = `
     <!doctype html>
-    <html>
-      <body style="margin:0;padding:0;background:#071719;font-family:Inter,Arial,sans-serif;color:#102326;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:32px 14px;">
+    <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#071719;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:40px 16px;">
           <tr>
             <td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d7fbfb;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;">
+
+                <!-- Header -->
                 <tr>
-                  <td style="background:#082023;padding:28px 32px;text-align:center;">
-                    <div style="font-size:30px;line-height:1;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">LinkUp</div>
-                    <div style="margin-top:8px;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#61e0e0;">Student ride sharing</div>
+                  <td style="background:linear-gradient(135deg,#082a2f 0%,#0a3840 100%);padding:32px 36px;border-radius:20px 20px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
+                    <div style="font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
+                    <div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">Student ride sharing</div>
                   </td>
                 </tr>
+
+                <!-- Body -->
                 <tr>
-                  <td style="padding:34px 32px 28px;">
-                    <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;color:#102326;">Verify your email</h1>
-                    <p style="margin:0 0 22px;font-size:16px;line-height:1.6;color:#54636a;">Hi ${escapeHtml(firstName)}, welcome to LinkUp. Enter this code in the app to finish creating your account.</p>
-                    <div style="margin:0 auto 22px;padding:22px 18px;border-radius:16px;background:#eafafa;border:1px solid #b7eeee;text-align:center;">
-                      <div style="font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#37777d;">Verification code</div>
-                      <div style="margin-top:8px;font-size:42px;line-height:1;font-weight:900;letter-spacing:10px;color:#102326;">${code}</div>
-                    </div>
-                    <p style="margin:0;font-size:14px;line-height:1.6;color:#6b747a;">This code expires in 10 minutes. If you did not create a LinkUp account, you can safely ignore this email.</p>
+                  <td style="background:#ffffff;padding:36px 36px 28px;border:1px solid #d7fbfb;border-top:none;border-bottom:none;">
+                    <h1 style="margin:0 0 10px;font-size:26px;line-height:1.25;font-weight:800;color:#082023;">Verify your email</h1>
+                    <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#54636a;">Hi ${escapeHtml(firstName)}, welcome to LinkUp! Enter this code in the app to finish creating your account.</p>
+
+                    <!-- Digit boxes -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;">
+                      <tr>${codeDigits}</tr>
+                    </table>
+                    <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:700;">Your verification code</p>
+
+                    <!-- Expiry note -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:10px;padding:14px 18px;">
+                          <p style="margin:0;font-size:13px;line-height:1.6;color:#7a6520;">
+                            <strong>Expires in 10 minutes.</strong> If you didn't create a LinkUp account, you can safely ignore this email — no action is needed.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
+
+                <!-- Footer -->
                 <tr>
-                  <td style="padding:18px 32px 28px;border-top:1px solid #edf4f4;">
-                    <p style="margin:0;font-size:12px;line-height:1.6;color:#7b878c;">LinkUp helps college students coordinate rides with campus-focused safety tools, profiles, and trip details.</p>
+                  <td style="background:#f7fdfd;padding:20px 36px 24px;border-radius:0 0 20px 20px;border:1px solid #d7fbfb;border-top:1px solid #e8f8f8;">
+                    <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">LinkUp connects university students for safer, more affordable shared rides.<br>Questions? Reply to this email.</p>
                   </td>
                 </tr>
+
               </table>
             </td>
           </tr>
@@ -1885,6 +1910,7 @@ function publicUser(user, db = null) {
     requiresRequiredSettings: missingRequiredSettings.length > 0,
     createdAt: user.createdAt || null,
     rideServicesPaused: RIDE_SERVICES_PAUSED,
+    twoFactorEnabled: Boolean(user.totpEnabled),
     wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
 }
@@ -2894,7 +2920,75 @@ app.post('/api/auth/signin', async (req, res) => {
     return res.status(403).json({ error: 'Please verify your email before signing in' });
   }
 
+  // If 2FA is enabled, require TOTP verification before creating the session
+  if (user.totpEnabled && user.totpSecret) {
+    req.session.pending2FAUserId = user.id;
+    return req.session.save(() => res.json({ requires2FA: true }));
+  }
+
   saveSessionAndJson(req, res, publicUser(user, db), user.id);
+});
+
+// 2FA: complete sign-in after TOTP verification
+app.post('/api/auth/2fa/verify', sensitiveWriteRateLimit, async (req, res) => {
+  const pendingId = req.session.pending2FAUserId;
+  if (!pendingId) return res.status(400).json({ error: 'No pending sign-in. Please sign in again.' });
+  const code = String(req.body.code || '').replace(/\s/g, '');
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter the 6-digit code from your authenticator app' });
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === pendingId);
+  if (!user || !user.totpSecret) return res.status(401).json({ error: 'Sign-in session expired. Please sign in again.' });
+  const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: 'base32', token: code, window: 1 });
+  if (!valid) return res.status(401).json({ error: 'Incorrect code. Check your authenticator app and try again.' });
+  delete req.session.pending2FAUserId;
+  saveSessionAndJson(req, res, publicUser(user, db), user.id);
+});
+
+// 2FA: generate setup secret and QR code
+app.post('/api/auth/2fa/setup', requireAuth, async (req, res) => {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.totpEnabled) return res.status(400).json({ error: '2FA is already enabled on your account' });
+  const secret = speakeasy.generateSecret({ name: `LinkUp (${user.email})`, issuer: 'LinkUp', length: 20 });
+  user.totpTempSecret = secret.base32;
+  saveDb(db);
+  const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url, { width: 220, margin: 1 });
+  res.json({ secret: secret.base32, qrDataUrl, otpauthUrl: secret.otpauth_url });
+});
+
+// 2FA: confirm setup by verifying first TOTP code
+app.post('/api/auth/2fa/enable', requireAuth, sensitiveWriteRateLimit, (req, res) => {
+  const code = String(req.body.code || '').replace(/\s/g, '');
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter the 6-digit code from your authenticator app' });
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user.totpTempSecret) return res.status(400).json({ error: 'Start the setup process first' });
+  const valid = speakeasy.totp.verify({ secret: user.totpTempSecret, encoding: 'base32', token: code, window: 1 });
+  if (!valid) return res.status(400).json({ error: 'Incorrect code. Make sure your authenticator app is synced and try again.' });
+  user.totpSecret = user.totpTempSecret;
+  user.totpEnabled = true;
+  delete user.totpTempSecret;
+  saveDb(db);
+  res.json({ message: 'Two-factor authentication is now enabled.', user: publicUser(user, db) });
+});
+
+// 2FA: disable by verifying current TOTP code
+app.post('/api/auth/2fa/disable', requireAuth, sensitiveWriteRateLimit, (req, res) => {
+  const code = String(req.body.code || '').replace(/\s/g, '');
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter your current 6-digit authenticator code to confirm' });
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user.totpEnabled || !user.totpSecret) return res.status(400).json({ error: '2FA is not currently enabled' });
+  const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: 'base32', token: code, window: 1 });
+  if (!valid) return res.status(400).json({ error: 'Incorrect code. 2FA is still active.' });
+  user.totpEnabled = false;
+  delete user.totpSecret;
+  delete user.totpTempSecret;
+  saveDb(db);
+  res.json({ message: 'Two-factor authentication has been removed.', user: publicUser(user, db) });
 });
 
 app.post('/api/auth/forgot-password', (req, res) => {

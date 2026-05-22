@@ -7,6 +7,8 @@
 ### New
 - **Trip completion codes.** Every ride now has a 6-digit completion code. After the trip departs, the rider sees their code on the confirmed ride card and shares it verbally with the driver. The driver enters it in the app to confirm the trip — earnings unlock instantly. If the driver never claims it, earnings auto-release 48 hours after the ride ends. Wrong codes are locked out after 5 attempts.
 - **Apply wallet credit at checkout.** Riders with a LinkUp Wallet balance now see an "Apply $X credit" button on the payment page. Tapping it deducts the credit from the trip total and shows a breakdown of credit applied and remaining card charge. Credit can be removed before paying. When the wallet covers the full amount, no card is charged.
+- **Two-factor authentication.** Protect your account with an authenticator app (Google Authenticator, Authy, etc.). Set up 2FA from Profile → Security. Once enabled, signing in requires your password and a 6-digit code from your app. You can disable 2FA at any time by verifying your current code.
+- **Redesigned verification email.** The email verification code now arrives in a clean, branded email with each digit displayed in its own highlighted box — easier to read at a glance.
 
 ---
 

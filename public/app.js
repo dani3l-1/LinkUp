@@ -454,6 +454,11 @@ document.addEventListener('click', async (event) => {
       window.history.replaceState({}, document.title, window.location.pathname);
       showAuthForm('signin-form');
     },
+    'twofa-login-back': () => {
+      document.getElementById('twofa-login-error').textContent = '';
+      document.getElementById('twofa-login-code').value = '';
+      showAuthForm('signin-form');
+    },
   };
   const action = actionMap[target.id];
   if (!action && target.id !== 'signout') return;
@@ -1269,7 +1274,14 @@ async function handleSigninSubmit(event) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    currentUser = await doSignIn();
+    const signInResult = await doSignIn();
+    if (signInResult.requires2FA) {
+      setButtonLoading(submitButton, false);
+      signinForm.reset();
+      showAuthForm('twofa-form');
+      return;
+    }
+    currentUser = signInResult;
     try {
       currentUser = await fetchJson('/api/auth/me');
     } catch (_) {
@@ -2488,6 +2500,7 @@ function showProfilePage(tabName = 'info') {
   fillDefaultPaymentForm(currentUser || {});
   fillDriverPayoutForm(currentUser || {});
   fillPolicyConsentForm(currentUser || {});
+  if (tabName === 'security') render2FAPanel(currentUser);
   showProfileTab(tabName);
   profilePage.classList.remove('hidden');
 }
@@ -2927,6 +2940,7 @@ function restoreAppRoute() {
     else if (route.startsWith('user-profile-')) showPublicProfilePage(route.replace(/^user-profile-/, ''));
     else if (route === 'profile-payment') showProfilePage('payment');
     else if (route === 'profile-payouts') showProfilePage('payouts');
+    else if (route === 'profile-security') showProfilePage('security');
     else if (route === 'profile-policies') showProfilePage('policies');
     else if (route === 'profile-appearance') showProfilePage('appearance');
     else if (route === 'profile-release-notes') showProfilePage('release-notes');
@@ -5609,6 +5623,137 @@ async function loadYourRides() {
   }
 }
 
+function render2FAPanel(user) {
+  const panel = document.getElementById('twofa-panel-content');
+  if (!panel) return;
+  const enabled = Boolean(user?.twoFactorEnabled);
+  panel.innerHTML = `
+    <div class="twofa-section">
+      <div class="twofa-header">
+        <div>
+          <h4 class="twofa-title">Two-factor authentication</h4>
+          <p class="twofa-desc">Protect your account with an authenticator app. You'll need to enter a 6-digit code each time you sign in.</p>
+        </div>
+        <div class="twofa-status-badge ${enabled ? 'twofa-status-on' : 'twofa-status-off'}">
+          ${enabled ? 'Enabled' : 'Disabled'}
+        </div>
+      </div>
+
+      ${enabled ? `
+        <div class="twofa-enabled-info">
+          <div class="twofa-check-row">
+            <span class="twofa-check">✓</span>
+            Your account is protected with an authenticator app.
+          </div>
+        </div>
+        <div class="twofa-disable-wrap">
+          <p class="twofa-remove-label">To remove 2FA, enter your current authenticator code:</p>
+          <div class="twofa-input-row">
+            <input type="text" id="twofa-disable-code" inputmode="numeric" maxlength="6"
+                   placeholder="000000" autocomplete="one-time-code" class="twofa-code-input">
+            <button id="twofa-disable-btn" class="twofa-danger-btn" type="button">Remove 2FA</button>
+          </div>
+          <div id="twofa-disable-msg" class="twofa-msg hidden"></div>
+        </div>
+      ` : `
+        <div id="twofa-setup-step1">
+          <button id="twofa-setup-start" class="twofa-setup-btn" type="button">Set up authenticator app</button>
+        </div>
+        <div id="twofa-setup-step2" class="hidden">
+          <div class="twofa-qr-wrap">
+            <p class="twofa-instruction">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):</p>
+            <img id="twofa-qr-img" src="" alt="2FA QR code" class="twofa-qr-img">
+            <details class="twofa-manual-details">
+              <summary>Can't scan? Enter code manually</summary>
+              <code id="twofa-manual-secret" class="twofa-manual-code"></code>
+            </details>
+          </div>
+          <p class="twofa-instruction twofa-instruction-confirm">After scanning, enter the 6-digit code from your app to confirm setup:</p>
+          <div class="twofa-input-row">
+            <input type="text" id="twofa-enable-code" inputmode="numeric" maxlength="6"
+                   placeholder="000000" autocomplete="one-time-code" class="twofa-code-input">
+            <button id="twofa-enable-btn" class="twofa-setup-btn" type="button">Activate</button>
+          </div>
+          <div id="twofa-enable-msg" class="twofa-msg hidden"></div>
+        </div>
+      `}
+    </div>`;
+
+  if (!enabled) {
+    document.getElementById('twofa-setup-start')?.addEventListener('click', async () => {
+      const btn = document.getElementById('twofa-setup-start');
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      try {
+        const data = await fetchJson('/api/auth/2fa/setup', { method: 'POST' });
+        document.getElementById('twofa-qr-img').src = data.qrDataUrl;
+        document.getElementById('twofa-manual-secret').textContent = data.secret;
+        document.getElementById('twofa-setup-step1').classList.add('hidden');
+        document.getElementById('twofa-setup-step2').classList.remove('hidden');
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Set up authenticator app';
+        const msg = document.getElementById('twofa-enable-msg');
+        if (msg) { msg.textContent = err.message; msg.className = 'twofa-msg twofa-error show'; }
+      }
+    });
+
+    document.getElementById('twofa-enable-btn')?.addEventListener('click', async () => {
+      const code = document.getElementById('twofa-enable-code')?.value.trim();
+      const msg = document.getElementById('twofa-enable-msg');
+      if (!/^\d{6}$/.test(code)) {
+        msg.textContent = 'Enter the 6-digit code from your authenticator app.';
+        msg.className = 'twofa-msg twofa-error show';
+        return;
+      }
+      const btn = document.getElementById('twofa-enable-btn');
+      btn.disabled = true;
+      btn.textContent = 'Activating…';
+      try {
+        const data = await fetchJson('/api/auth/2fa/enable', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        if (data.user) currentUser = { ...currentUser, ...data.user };
+        render2FAPanel(currentUser);
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.className = 'twofa-msg twofa-error show';
+        btn.disabled = false;
+        btn.textContent = 'Activate';
+      }
+    });
+  } else {
+    document.getElementById('twofa-disable-btn')?.addEventListener('click', async () => {
+      const code = document.getElementById('twofa-disable-code')?.value.trim();
+      const msg = document.getElementById('twofa-disable-msg');
+      if (!/^\d{6}$/.test(code)) {
+        msg.textContent = 'Enter your current 6-digit authenticator code.';
+        msg.className = 'twofa-msg twofa-error show';
+        return;
+      }
+      const btn = document.getElementById('twofa-disable-btn');
+      btn.disabled = true;
+      btn.textContent = 'Removing…';
+      try {
+        const data = await fetchJson('/api/auth/2fa/disable', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        if (data.user) currentUser = { ...currentUser, ...data.user };
+        render2FAPanel(currentUser);
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.className = 'twofa-msg twofa-error show';
+        btn.disabled = false;
+        btn.textContent = 'Remove 2FA';
+      }
+    });
+  }
+}
+
 async function loadProfile() {
   profileRides.textContent = 'Loading your rides...';
   try {
@@ -5681,6 +5826,36 @@ forgotAuthLink.addEventListener('click', () => { clearRecoveryMessages(); showAu
 backToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); recoveryForm.reset(); showAuthForm('signin-form'); });
 resetBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); resetPasswordForm.reset(); window.history.replaceState({}, document.title, window.location.pathname); showAuthForm('signin-form'); });
 verificationBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); verificationForm.reset(); showAuthForm('signin-form'); });
+
+document.getElementById('twofa-login-submit')?.addEventListener('click', async () => {
+  const codeInput = document.getElementById('twofa-login-code');
+  const errorEl = document.getElementById('twofa-login-error');
+  const btn = document.getElementById('twofa-login-submit');
+  const code = codeInput.value.trim().replace(/\s/g, '');
+  errorEl.textContent = '';
+  if (!/^\d{6}$/.test(code)) {
+    errorEl.textContent = 'Enter the 6-digit code from your authenticator app.';
+    return;
+  }
+  setButtonLoading(btn, true);
+  try {
+    currentUser = await fetchJson('/api/auth/2fa/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    currentUser = await fetchJson('/api/auth/me');
+    codeInput.value = '';
+    clearAppRoute();
+    playLoginSplash(() => enterDashboard(currentUser));
+  } catch (err) {
+    errorEl.textContent = err.message || 'Invalid code. Try again.';
+    codeInput.value = '';
+    codeInput.focus();
+  } finally {
+    setButtonLoading(btn, false);
+  }
+});
 
 vehicleSeatCountSelect.addEventListener('change', () => {
   currentVehicleSeatCount = Number(vehicleSeatCountSelect.value);
