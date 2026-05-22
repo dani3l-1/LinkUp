@@ -1012,13 +1012,6 @@ button:disabled::before { display: none; }
   gap: 0;
 }
 
-.browse-rider-layout.rider-active .browse-left-panel {
-  overflow-y: auto;
-  max-height: calc(100vh - 130px);
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-hover) transparent;
-}
-
 .browse-map-panel {
   background: #1a1a2e;
   border-radius: var(--radius-lg);
@@ -1058,8 +1051,8 @@ button:disabled::before { display: none; }
 @media (min-width: 960px) {
   .browse-rider-layout.rider-active {
     display: grid;
-    grid-template-columns: minmax(340px, 420px) 1fr;
-    gap: 1.25rem;
+    grid-template-columns: minmax(340px, 440px) 1fr;
+    gap: 1.5rem;
     align-items: start;
   }
 
@@ -1069,9 +1062,8 @@ button:disabled::before { display: none; }
   }
 
   .browse-radius-map-fullpanel {
-    height: calc(100vh - 130px);
+    height: calc(100vh - 100px);
     min-height: 500px;
-    max-height: 1000px;
   }
 
   .browse-rider-layout.rider-active .browse-controls {
@@ -5369,26 +5361,6 @@ html[data-theme="light"] #policy-required-message {
 }
 
 
-/* Browse rider spacing polish */
-@media (min-width: 960px) {
-  .browse-rider-layout.rider-active {
-    grid-template-columns: minmax(340px, 440px) 1fr;
-    gap: 1.5rem;
-    align-items: start;
-  }
-
-  .browse-rider-layout.rider-active .browse-map-panel {
-    min-width: 0;
-    position: sticky;
-    top: 80px;
-  }
-
-  .browse-radius-map-fullpanel {
-    height: calc(100vh - 130px);
-    min-height: 460px;
-    max-height: 1000px;
-  }
-}
 
 .browse-controls .radius-filter-grid,
 .browse-controls .filter-grid {
@@ -5452,7 +5424,8 @@ html[data-theme="light"] #policy-required-message {
 
 @media (min-width: 1280px) {
   .browse-rider-layout.rider-active {
-    grid-template-columns: minmax(620px, 0.95fr) minmax(520px, 1.05fr);
+    grid-template-columns: minmax(380px, 480px) 1fr;
+    gap: 1.75rem;
   }
 }
 
@@ -5570,80 +5543,17 @@ textarea:disabled,
   margin-top: 0;
 }
 
-.browse-left-panel > article.card {
-  border-top: none;
-  margin-top: 0;
-  padding-top: 1.15rem;
-}
-
-.browse-left-panel > article.card #browse-results-title {
-  margin-bottom: 1rem;
-}
-
-
-/* Wide screens — slightly wider left panel */
-@media (min-width: 1181px) {
-  .browse-rider-layout.rider-active {
-    grid-template-columns: minmax(360px, 480px) 1fr;
-    gap: 1.75rem;
-  }
-}
-
-.browse-controls {
-  padding-bottom: 1.25rem;
-}
-
-.browse-controls .radius-filter-grid,
-.browse-controls .filter-grid {
-  row-gap: 1.45rem;
-  column-gap: 2rem;
-}
-
-.browse-controls .filter-grid {
-  margin-top: 1.55rem;
-}
-
-@media (min-width: 720px) {
-  .browse-controls .radius-filter-grid,
-  .browse-controls .filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.browse-controls .radius-filter-grid label,
-.browse-controls .filter-grid label {
-  gap: 0.7rem;
-}
-
-.browse-controls .radius-filter-grid input,
-.browse-controls .filter-grid input,
-.browse-controls .filter-grid select {
-  min-height: 3.55rem;
-}
-
-.browse-controls .browse-checkbox-row {
-  margin-top: 1.65rem;
-  padding-top: 0;
-}
-
-.browse-left-panel > article.card {
-  padding-top: 1rem;
-}
-
-
 /* Browse results card — lives inside browse-left-panel */
 .browse-results-card {
   width: 100%;
-  margin-top: 0;
 }
 
-#browse-page .browse-results-card {
-  margin-top: 0.75rem;
-  padding-top: 1.2rem;
-}
-
-#browse-page .browse-results-card #browse-results-title {
-  margin-bottom: 1rem;
+/* Override the generic #browse-page article.card border/spacing:
+   filters section already has a bottom border, so no double line needed */
+#browse-page .browse-left-panel .browse-results-card {
+  border-top: none;
+  margin-top: 1rem;
+  padding-top: 1rem;
 }
 
 .browse-results-card #rides-list {
@@ -5978,7 +5888,8 @@ textarea:disabled,
 }
 
 .browse-sort-control {
-  min-width: min(260px, 100%);
+  min-width: 0;
+  flex-shrink: 0;
   margin: 0;
 }
 
