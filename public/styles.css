@@ -1045,6 +1045,7 @@ button:disabled::before { display: none; }
   background: rgba(13,21,23,0.85);
   border-top: 1px solid var(--border);
   min-height: 2rem;
+  flex-shrink: 0;
 }
 
 .browse-map-hint-inline { display: none; }
@@ -1065,14 +1066,13 @@ button:disabled::before { display: none; }
   .browse-rider-layout.rider-active .browse-map-panel {
     flex: 1 1 0;
     min-width: 0;
+    min-height: 460px;
     display: flex;
     flex-direction: column;
   }
 
   .browse-rider-layout.rider-active .browse-radius-map-fullpanel {
-    flex: 1 1 0;
     height: auto;
-    min-height: 420px;
   }
 
   .browse-rider-layout.rider-active .browse-controls {
@@ -1848,6 +1848,132 @@ button:disabled::before { display: none; }
   font-size: 0.75rem;
   font-weight: 800;
   flex-shrink: 0;
+}
+
+/* ── Driver navigation section ───────────────────────────────── */
+.driver-nav-section {
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.driver-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.driver-nav-stops {
+  display: flex;
+  flex-direction: column;
+}
+
+.driver-nav-stop {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: background var(--transition-speed);
+  cursor: pointer;
+}
+
+.driver-nav-stop:hover {
+  background: var(--hover-bg);
+}
+
+.driver-nav-stop-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+
+.driver-nav-stop--start .driver-nav-stop-dot,
+.driver-nav-stop--end .driver-nav-stop-dot {
+  background: var(--accent);
+  width: 12px;
+  height: 12px;
+}
+
+.driver-nav-stop--pickup .driver-nav-stop-dot {
+  background: var(--success);
+}
+
+.driver-nav-stop--dropoff .driver-nav-stop-dot {
+  background: #f59e0b;
+}
+
+.driver-nav-stop-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.driver-nav-stop-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.driver-nav-stop-address {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.driver-nav-stop-arrow {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-speed);
+}
+
+.driver-nav-stop:hover .driver-nav-stop-arrow {
+  opacity: 1;
+}
+
+.driver-nav-connector {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin-left: calc(0.65rem + 5px);
+  flex-shrink: 0;
+}
+
+.driver-nav-full-route {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.85rem;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background var(--transition-speed), color var(--transition-speed);
+}
+
+.driver-nav-full-route:hover {
+  background: var(--accent-dim);
 }
 
 /* ── Rider completion PIN display ────────────────────────────── */

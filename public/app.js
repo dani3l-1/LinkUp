@@ -3821,9 +3821,21 @@ function getAlphabetLabel(index) {
 }
 
 
+function syncBrowseMapHeight() {
+  if (!browseMapPanel || !browseRadiusMapDiv) return;
+  const hintEl = document.getElementById('browse-map-hint-panel');
+  const hintH = hintEl ? hintEl.offsetHeight : 0;
+  const h = browseMapPanel.clientHeight - hintH;
+  if (h > 100) {
+    browseRadiusMapDiv.style.height = h + 'px';
+    if (browseRadiusMap) google.maps.event.trigger(browseRadiusMap, 'resize');
+  }
+}
+
 function ensureBrowseRadiusMap() {
   if (!window.google?.maps || !browseRadiusMapDiv) return null;
   if (!browseRadiusMap) {
+    syncBrowseMapHeight();
     browseRadiusMap = new google.maps.Map(browseRadiusMapDiv, {
       zoom: 12,
       center: getInitialMapCenter(),
@@ -3835,9 +3847,7 @@ function ensureBrowseRadiusMap() {
       shouldApply: () => !getRadiusCenter(pickupRadiusLocationInput) && !getRadiusCenter(dropoffRadiusLocationInput),
     });
     if (window.ResizeObserver) {
-      new ResizeObserver(() => {
-        if (browseRadiusMap) google.maps.event.trigger(browseRadiusMap, 'resize');
-      }).observe(browseRadiusMapDiv);
+      new ResizeObserver(syncBrowseMapHeight).observe(browseMapPanel);
     }
   }
   return browseRadiusMap;
@@ -4850,6 +4860,101 @@ function buildRequestBrowseCard(request) {
   return card;
 }
 
+function buildNavMultiStopUrl(addresses) {
+  return 'https://www.google.com/maps/dir/' + addresses.map(encodeURIComponent).join('/');
+}
+
+function buildDriverNavSection(ride) {
+  const paid = (ride.passengers || []).filter((p) => p.paid);
+  const stops = [];
+
+  if (ride.origin) stops.push({ label: 'Start', address: ride.origin, type: 'start' });
+
+  const seenPickups = new Set();
+  for (const p of paid) {
+    if (p.actualPickup && !seenPickups.has(p.actualPickup)) {
+      seenPickups.add(p.actualPickup);
+      const name = [p.studentFirstName, p.studentLastName].filter(Boolean).join(' ') || 'Rider';
+      stops.push({ label: `Pick up ${name}`, address: p.actualPickup, type: 'pickup' });
+    }
+  }
+
+  const seenDropoffs = new Set();
+  for (const p of paid) {
+    if (p.actualDropoff && !seenDropoffs.has(p.actualDropoff)) {
+      seenDropoffs.add(p.actualDropoff);
+      const name = [p.studentFirstName, p.studentLastName].filter(Boolean).join(' ') || 'Rider';
+      stops.push({ label: `Drop off ${name}`, address: p.actualDropoff, type: 'dropoff' });
+    }
+  }
+
+  if (ride.destination) stops.push({ label: 'End', address: ride.destination, type: 'end' });
+
+  if (stops.length < 2) return null;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'driver-nav-section';
+
+  const header = document.createElement('div');
+  header.className = 'driver-nav-header';
+  header.textContent = 'Navigation';
+  wrap.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'driver-nav-stops';
+
+  stops.forEach((stop, i) => {
+    const link = document.createElement('a');
+    link.className = `driver-nav-stop driver-nav-stop--${stop.type}`;
+    link.href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address)}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+
+    const dot = document.createElement('span');
+    dot.className = 'driver-nav-stop-dot';
+
+    const info = document.createElement('span');
+    info.className = 'driver-nav-stop-info';
+
+    const label = document.createElement('span');
+    label.className = 'driver-nav-stop-label';
+    label.textContent = stop.label;
+
+    const addr = document.createElement('span');
+    addr.className = 'driver-nav-stop-address';
+    addr.textContent = stop.address;
+
+    const arrow = document.createElement('span');
+    arrow.className = 'driver-nav-stop-arrow';
+    arrow.textContent = '›';
+
+    info.appendChild(label);
+    info.appendChild(addr);
+    link.appendChild(dot);
+    link.appendChild(info);
+    link.appendChild(arrow);
+    list.appendChild(link);
+
+    if (i < stops.length - 1) {
+      const connector = document.createElement('div');
+      connector.className = 'driver-nav-connector';
+      list.appendChild(connector);
+    }
+  });
+
+  wrap.appendChild(list);
+
+  const fullRoute = document.createElement('a');
+  fullRoute.className = 'driver-nav-full-route';
+  fullRoute.href = buildNavMultiStopUrl(stops.map((s) => s.address));
+  fullRoute.target = '_blank';
+  fullRoute.rel = 'noopener noreferrer';
+  fullRoute.textContent = 'Navigate full route';
+  wrap.appendChild(fullRoute);
+
+  return wrap;
+}
+
 function buildDriverRideSummary(ride) {
   const container = buildRideSummary(ride);
   container.classList.add('driver-pinned-ride');
@@ -4864,6 +4969,9 @@ function buildDriverRideSummary(ride) {
   } else if ((ride.passengers || []).length) {
     container.appendChild(buildDriverSeatManifest(ride));
   }
+
+  const navSection = buildDriverNavSection(ride);
+  if (navSection) container.appendChild(navSection);
 
   // Show trip completion form after departure if the ride uses completion codes
   const hasPaidRiders = (ride.passengers || []).some((p) => p.paid);
@@ -5317,8 +5425,8 @@ function showRiderBrowse() {
     browseMapPanel?.classList.remove('hidden');
     browseRiderLayout?.classList.add('rider-active');
     setTimeout(() => {
-      const map = ensureBrowseRadiusMap();
-      if (map) google.maps.event.trigger(map, 'resize');
+      ensureBrowseRadiusMap();
+      syncBrowseMapHeight();
     }, 300);
   }).catch((error) => {
     console.error('Browse map failed to load:', error);
@@ -5352,9 +5460,9 @@ function showDriverBrowse() {
     browseMapPanel?.classList.remove('hidden');
     browseRiderLayout?.classList.add('rider-active');
     setTimeout(() => {
-      const map = ensureBrowseRadiusMap();
-      if (map) google.maps.event.trigger(map, 'resize');
-    }, 100);
+      ensureBrowseRadiusMap();
+      syncBrowseMapHeight();
+    }, 300);
   }).catch((error) => {
     console.error('Browse map failed to load:', error);
     showBrowseMapLoadError(error);
