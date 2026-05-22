@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260522-startup-ui" />
+    <link rel="stylesheet" href="styles.css?v=20260522-leaderboard-orders" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -266,6 +266,10 @@
             <h3 class="leaderboard-subtitle">Miles traveled by school</h3>
             <p id="miles-leaderboard-summary" class="leaderboard-summary">Loading miles...</p>
             <div id="miles-leaderboard-chart" class="leaderboard-chart"></div>
+            <div class="leaderboard-divider"></div>
+            <h3 class="leaderboard-subtitle">Orders fulfilled by school</h3>
+            <p id="orders-leaderboard-summary" class="leaderboard-summary">Loading orders...</p>
+            <div id="orders-leaderboard-chart" class="leaderboard-chart"></div>
             <div id="leaderboard-error" class="error-message"></div>
           </section>
 
@@ -1325,6 +1329,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260522-startup-ui"></script>
+    <script src="app.js?v=20260522-leaderboard-orders"></script>
   </body>
 </html>

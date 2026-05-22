@@ -3587,17 +3587,10 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
     entry.serviceApproved = entry.serviceApproved || user.serviceApproved === true;
   });
 
-  const schools = Array.from(schoolCounts.values()).sort((a, b) => {
-    if (b.userCount !== a.userCount) return b.userCount - a.userCount;
-    return a.school.localeCompare(b.school);
-  });
-
   const milesBySchool = new Map();
   (db.rides || []).forEach((ride) => {
     if (!hasTripEnded(ride)) return;
     if (!hasConfirmedRidePassenger(ride)) return;
-    const rideMiles = getRideMiles(ride);
-    if (!rideMiles) return;
 
     const driver = (db.users || []).find((user) => user.id === ride.driverId);
     const domain = driver?.universityDomain || getEmailDomain(driver?.email) || '';
@@ -3619,22 +3612,48 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
     }
 
     const entry = milesBySchool.get(key);
-    entry.miles += rideMiles;
+    const rideMiles = getRideMiles(ride);
+    if (rideMiles) entry.miles += rideMiles;
     entry.tripCount += 1;
   });
 
+  // Attach orders-fulfilled count to each school entry, then filter to approved only
+  const allSchools = Array.from(schoolCounts.values());
+  allSchools.forEach((entry) => {
+    entry.ordersFulfilled = milesBySchool.get(entry.domain || entry.school)?.tripCount || 0;
+  });
+
+  const schools = allSchools
+    .filter((s) => s.serviceApproved)
+    .sort((a, b) => {
+      if (b.userCount !== a.userCount) return b.userCount - a.userCount;
+      return a.school.localeCompare(b.school);
+    });
+
   const mileageSchools = Array.from(milesBySchool.values())
+    .filter((s) => s.serviceApproved)
     .map((entry) => ({ ...entry, miles: Math.round(entry.miles * 10) / 10 }))
     .sort((a, b) => {
       if (b.miles !== a.miles) return b.miles - a.miles;
       return a.school.localeCompare(b.school);
     });
+
+  const ordersBySchool = Array.from(milesBySchool.values())
+    .filter((s) => s.serviceApproved)
+    .map((entry) => ({ ...entry, miles: Math.round(entry.miles * 10) / 10 }))
+    .sort((a, b) => {
+      if (b.tripCount !== a.tripCount) return b.tripCount - a.tripCount;
+      return a.school.localeCompare(b.school);
+    });
+
   const totalMilesSaved = Math.round((db.rides || [])
     .filter(hasTripEnded)
     .filter(hasConfirmedRidePassenger)
     .reduce((sum, ride) => sum + getRideMilesSaved(ride), 0) * 10) / 10;
 
-  res.json({ schools, mileageSchools, totalUsers: (db.users || []).length, totalMilesSaved });
+  const totalUsers = schools.reduce((sum, s) => sum + s.userCount, 0);
+
+  res.json({ schools, mileageSchools, ordersBySchool, totalUsers, totalMilesSaved });
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting

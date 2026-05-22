@@ -105,6 +105,8 @@ const leaderboardSavedMiles = document.getElementById('leaderboard-saved-miles')
 const schoolLeaderboardChart = document.getElementById('school-leaderboard-chart');
 const milesLeaderboardSummary = document.getElementById('miles-leaderboard-summary');
 const milesLeaderboardChart = document.getElementById('miles-leaderboard-chart');
+const ordersLeaderboardSummary = document.getElementById('orders-leaderboard-summary');
+const ordersLeaderboardChart = document.getElementById('orders-leaderboard-chart');
 const leaderboardError = document.getElementById('leaderboard-error');
 const publicProfilePage = document.getElementById('public-profile-page');
 const publicProfileTitle = document.getElementById('public-profile-title');
@@ -2369,6 +2371,13 @@ function renderSchoolLeaderboard(data) {
     ? formatMiles(totalMiles) + ' traveled across ' + mileageSchools.length + ' school' + (mileageSchools.length === 1 ? '' : 's') + '.'
     : 'No ride miles have been posted yet.';
   renderLeaderboardRows(mileageSchools, milesLeaderboardChart, 'miles', (school) => formatMiles(school.miles) + ' across ' + school.tripCount + ' trip' + (school.tripCount === 1 ? '' : 's'));
+
+  const ordersBySchool = data.ordersBySchool || [];
+  ordersLeaderboardSummary.textContent = ordersBySchool.length
+    ? ordersBySchool.reduce((sum, s) => sum + (s.tripCount || 0), 0) + ' total order' + (ordersBySchool.reduce((sum, s) => sum + (s.tripCount || 0), 0) === 1 ? '' : 's') + ' across ' + ordersBySchool.length + ' school' + (ordersBySchool.length === 1 ? '' : 's') + '.'
+    : 'No orders have been fulfilled yet.';
+  ordersLeaderboardChart.innerHTML = '';
+  renderLeaderboardRows(ordersBySchool, ordersLeaderboardChart, 'tripCount', (s) => s.tripCount + ' order' + (s.tripCount === 1 ? '' : 's'));
 }
 
 async function loadLeaderboard() {
@@ -2380,6 +2389,8 @@ async function loadLeaderboard() {
     if (savedMilesValue) savedMilesValue.textContent = 'Loading...';
   }
   schoolLeaderboardChart.innerHTML = '';
+  ordersLeaderboardSummary.textContent = 'Loading orders...';
+  ordersLeaderboardChart.innerHTML = '';
   try {
     const data = await fetchJson('/api/leaderboard/schools');
     renderSchoolLeaderboard(data);
