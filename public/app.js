@@ -1916,6 +1916,7 @@ function showProfileTab(tabName) {
   if (tabName === 'payouts') fillDriverPayoutForm(currentUser || {});
   if (tabName === 'policies') fillPolicyConsentForm(currentUser || {});
   if (tabName === 'appearance') applyThemePreference(currentUser?.themePreference || getStoredThemePreference() || 'dark');
+  if (tabName === 'security') render2FAPanel(currentUser);
 }
 
 function clearDefaultPaymentMessages() {
