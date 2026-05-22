@@ -8343,7 +8343,6 @@ html[data-theme="light"] body.dashboard-mode header {
 }
 
 html[data-theme="light"] body.dashboard-mode .top-row {
-  padding-inline: 0;
   border-bottom: 1px solid rgba(18,91,97,0.10);
 }
 
