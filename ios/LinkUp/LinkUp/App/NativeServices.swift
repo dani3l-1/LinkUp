@@ -8,7 +8,7 @@ final class NativeServices: NSObject, ObservableObject, CLLocationManagerDelegat
     @Published var pendingNavigationURL: URL?
 
     private let locationManager = CLLocationManager()
-    private let nudgeDismissedKey = "linkup.notificationNudgeDismissed"
+    private static let nudgeDismissedKey = "linkup.notificationNudgeDismissed"
 
     func prepare() {
         locationManager.delegate = self
@@ -18,7 +18,7 @@ final class NativeServices: NSObject, ObservableObject, CLLocationManagerDelegat
         UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
             DispatchQueue.main.async {
                 self?.shouldShowPermissionNudge = settings.authorizationStatus == .notDetermined
-                    && !(UserDefaults.standard.bool(forKey: self?.nudgeDismissedKey ?? ""))
+                    && !UserDefaults.standard.bool(forKey: Self.nudgeDismissedKey)
                 if settings.authorizationStatus == .authorized {
                     UIApplication.shared.registerForRemoteNotifications()
                 }
@@ -43,7 +43,7 @@ final class NativeServices: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     func dismissPermissionNudge() {
-        UserDefaults.standard.set(true, forKey: nudgeDismissedKey)
+        UserDefaults.standard.set(true, forKey: Self.nudgeDismissedKey)
         shouldShowPermissionNudge = false
     }
 

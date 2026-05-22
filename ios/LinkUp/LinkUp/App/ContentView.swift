@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject private var nativeServices: NativeServices
     @State private var canGoBack = false
     @State private var isLoading = true
+    @State private var firstLoadDone = false
     @State private var loadError: String?
     @State private var reloadToken = UUID()
     @State private var popupURL: URL?
@@ -23,6 +24,7 @@ struct ContentView: View {
                     pushToken: nativeServices.pushToken,
                     canGoBack: $canGoBack,
                     isLoading: $isLoading,
+                    firstLoadDone: $firstLoadDone,
                     loadError: $loadError,
                     popupURL: $popupURL
                 )
@@ -36,8 +38,9 @@ struct ContentView: View {
                     .padding()
                 }
 
-                if isLoading && loadError == nil {
+                if !firstLoadDone && loadError == nil {
                     LaunchOverlay()
+                        .transition(.opacity)
                 }
             }
             .toolbar {

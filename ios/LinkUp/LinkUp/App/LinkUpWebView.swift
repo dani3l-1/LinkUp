@@ -15,6 +15,7 @@ struct LinkUpWebView: UIViewRepresentable {
     let pushToken: String?
     @Binding var canGoBack: Bool
     @Binding var isLoading: Bool
+    @Binding var firstLoadDone: Bool
     @Binding var loadError: String?
     @Binding var popupURL: URL?
 
@@ -43,6 +44,11 @@ struct LinkUpWebView: UIViewRepresentable {
         webView.customUserAgent = "LinkUp iOS App"
         webView.load(URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 20))
 
+        let refreshControl = UIRefreshControl()
+        refreshControl.tintColor = UIColor(red: 0.23, green: 0.81, blue: 0.81, alpha: 1)
+        refreshControl.addTarget(context.coordinator, action: #selector(Coordinator.handleRefresh(_:)), for: .valueChanged)
+        webView.scrollView.addSubview(refreshControl)
+        context.coordinator.refreshControl = refreshControl
         context.coordinator.webView = webView
 
         context.coordinator.backObserver = NotificationCenter.default.addObserver(
@@ -84,6 +90,7 @@ struct LinkUpWebView: UIViewRepresentable {
         weak var webView: WKWebView?
         var lastReloadToken: UUID
         var lastInjectedPushToken: String?
+        var refreshControl: UIRefreshControl?
         var backObserver: NSObjectProtocol?
         var navigateObserver: NSObjectProtocol?
 
@@ -114,6 +121,11 @@ struct LinkUpWebView: UIViewRepresentable {
                     break
                 }
             }
+        }
+
+        @objc func handleRefresh(_ sender: UIRefreshControl) {
+            parent.loadError = nil
+            webView?.reload()
         }
 
         // MARK: - Injection helpers
@@ -177,7 +189,9 @@ struct LinkUpWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.isLoading = false
+            parent.firstLoadDone = true
             parent.canGoBack = webView.canGoBack
+            refreshControl?.endRefreshing()
             injectBridge(into: webView)
             injectSafeAreaInsets(into: webView)
             if let token = parent.pushToken {
@@ -218,6 +232,38 @@ struct LinkUpWebView: UIViewRepresentable {
             presentAlert(message: message, completion: completionHandler)
         }
 
+        func webView(_ webView: WKWebView,
+                     runJavaScriptConfirmPanelWithMessage message: String,
+                     initiatedByFrame frame: WKFrameInfo,
+                     completionHandler: @escaping (Bool) -> Void) {
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let controller = scene.windows.first?.rootViewController else {
+                completionHandler(false)
+                return
+            }
+            let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
+            controller.present(alert, animated: true)
+        }
+
+        func webView(_ webView: WKWebView,
+                     runJavaScriptTextInputPanelWithPrompt prompt: String,
+                     defaultText: String?,
+                     initiatedByFrame frame: WKFrameInfo,
+                     completionHandler: @escaping (String?) -> Void) {
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let controller = scene.windows.first?.rootViewController else {
+                completionHandler(nil)
+                return
+            }
+            let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
+            alert.addTextField { $0.text = defaultText }
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(nil) })
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(alert.textFields?.first?.text) })
+            controller.present(alert, animated: true)
+        }
+
         // Handle window.open() — open URL in an in-app Safari sheet
         func webView(_ webView: WKWebView,
                      createWebViewWith configuration: WKWebViewConfiguration,
@@ -237,6 +283,7 @@ struct LinkUpWebView: UIViewRepresentable {
             parent.isLoading = false
             parent.canGoBack = webView.canGoBack
             parent.loadError = "Check your connection and try again."
+            refreshControl?.endRefreshing()
         }
 
         private func presentAlert(message: String, completion: @escaping () -> Void) {
