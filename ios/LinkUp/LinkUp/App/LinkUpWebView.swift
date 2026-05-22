@@ -34,6 +34,14 @@ struct LinkUpWebView: UIViewRepresentable {
         let controller = configuration.userContentController
         controller.add(WeakScriptHandler(context.coordinator), name: "linkupBridge")
 
+        // Mark the document as running inside the native app before any scripts execute,
+        // so CSS selectors like html.is-native can apply from the very first paint
+        controller.addUserScript(WKUserScript(
+            source: "document.documentElement.classList.add('is-native');",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+
         let preferences = WKWebpagePreferences()
         preferences.allowsContentJavaScript = true
         configuration.defaultWebpagePreferences = preferences

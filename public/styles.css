@@ -9076,3 +9076,25 @@ html[data-theme="dark"] .moving-photo-required {
   color: #3ecf78;
   border: 1px solid rgba(62,207,120,0.25);
 }
+
+/* ─── Native iOS app overrides ──────────────────────────────────── */
+/* Applied when running inside the LinkUp iOS app (html.is-native).  */
+/* These rules remove the web-browser-style centered container so    */
+/* content fills the full screen width like a native app.            */
+
+html.is-native .app-shell {
+  width: 100%;
+}
+
+/* Cards that span full-width look better without side borders */
+html.is-native body.dashboard-mode #main-content > .card,
+html.is-native body.dashboard-mode #main-content > section.card {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
+/* Bottom safe area for the scrollable area when not in dashboard */
+html.is-native body.dashboard-mode #main-content {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
