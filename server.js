@@ -1124,6 +1124,15 @@ function hasTripEnded(trip) {
   return intervals.length > 0 && intervals.every((interval) => interval.end < Date.now());
 }
 
+function hasTripDeparted(trip) {
+  const interval = getTripInterval(trip);
+  return interval.start <= Date.now();
+}
+
+function generateCompletionPin() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
 function intervalsOverlap(a, b) {
   return a.start < b.end && b.start < a.end;
 }
@@ -1284,6 +1293,25 @@ function rideForUser(ride, userId, db = null) {
   }
   if (!canUserSeeLicensePlate(ride, userId)) {
     delete publicRide.licensePlate;
+  }
+  // Completion PIN: only confirmed riders see it after departure (they share it verbally with the driver)
+  // The driver never sees the raw PIN — they must receive it from the rider in person
+  const isConfirmedRider = (publicRide.passengers || []).some((p) => p.studentId === userId);
+  const departed = hasTripDeparted(publicRide);
+  if (publicRide.driverId === userId) {
+    // Driver sees only metadata (not the pin itself)
+    publicRide.hasCompletionCode = Boolean(publicRide.completionPin);
+    publicRide.completionConfirmedAt = publicRide.completionConfirmedAt || null;
+  } else if (!isConfirmedRider || !departed) {
+    publicRide.completionConfirmedAt = publicRide.completionConfirmedAt || null;
+  }
+  // Always strip internal fields from the response
+  delete publicRide.completionPin;
+  delete publicRide.completionPinAttempts;
+  delete publicRide.completionPinLockedUntil;
+  // Re-attach pin only for confirmed riders after departure
+  if (isConfirmedRider && departed && ride.completionPin) {
+    publicRide.completionPin = ride.completionPin;
   }
   return publicRide;
 }
@@ -2049,6 +2077,15 @@ function isWalletDebit(transaction) {
 
 function isWalletCreditAvailable(db, transaction, now = new Date()) {
   if (!isDriverWalletCredit(transaction)) return false;
+  if (transaction.needsCompletion) {
+    // Unlocked immediately when driver confirms with the rider's PIN
+    if (transaction.confirmedAt) return true;
+    // Auto-release 48 h after scheduled ride end so riders can't hold earnings hostage
+    const autoReleaseMs = new Date(transaction.availableAt || transaction.createdAt || 0).getTime()
+      + 48 * 60 * 60 * 1000;
+    return Number.isFinite(autoReleaseMs) && now.getTime() >= autoReleaseMs;
+  }
+  // Legacy behaviour for transactions created before the completion-code feature
   const ride = (db.rides || []).find((entry) => entry.id === transaction.rideId);
   if (ride) return hasTripEnded(ride);
   const availableAtMs = new Date(transaction.availableAt || transaction.createdAt || 0).getTime();
@@ -2131,6 +2168,8 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
       sourceCheckoutSessionId: checkoutSession.id || '',
       sourcePaymentId,
       availableAt: new Date(getTripInterval(ride).end).toISOString(),
+      needsCompletion: Boolean(ride.completionPin),
+      confirmedAt: null,
       status: 'earned',
       createdAt: checkoutSession.completedAt || new Date().toISOString(),
     });
@@ -3944,6 +3983,10 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     termsAcceptedAt: new Date().toISOString(),
     notes: notes || '',
     passengers: [],
+    completionPin: generateCompletionPin(),
+    completionPinAttempts: 0,
+    completionPinLockedUntil: null,
+    completionConfirmedAt: null,
     createdAt: new Date().toISOString(),
   };
 
@@ -4051,6 +4094,67 @@ app.post('/api/rides/:rideId/rating', requireAuth, requireServiceAccess, (req, r
       driverRatingCommentByCurrentUser: passenger.driverRatingComment || '',
     },
   });
+});
+
+// Driver confirms trip completion by entering the rider's 6-digit PIN
+app.post('/api/rides/:rideId/complete', requireAuth, requireServiceAccess, (req, res) => {
+  const { rideId } = req.params;
+  const pin = String(req.body.pin || '').trim();
+  if (!/^\d{6}$/.test(pin)) {
+    return res.status(400).json({ error: 'Enter the 6-digit code from your rider' });
+  }
+
+  const db = loadDb();
+  const driver = (db.users || []).find((u) => u.id === req.session.userId);
+  if (!driver) return res.status(404).json({ error: 'User not found' });
+
+  const ride = (db.rides || []).find((r) => r.id === rideId);
+  if (!ride) return res.status(404).json({ error: 'Ride not found' });
+  if (ride.driverId !== driver.id) return res.status(403).json({ error: 'Only the driver can confirm this trip' });
+  if (!hasTripDeparted(ride)) return res.status(400).json({ error: 'The trip has not departed yet' });
+  if (!ride.completionPin) return res.status(400).json({ error: 'This ride does not use completion codes' });
+  if (ride.completionConfirmedAt) return res.json({ message: 'This trip is already confirmed. Your earnings are in your wallet.', alreadyConfirmed: true });
+
+  // Brute-force protection: 5 wrong attempts → 30-minute lockout
+  const now = Date.now();
+  if (ride.completionPinLockedUntil && now < new Date(ride.completionPinLockedUntil).getTime()) {
+    const minutesLeft = Math.ceil((new Date(ride.completionPinLockedUntil).getTime() - now) / 60000);
+    return res.status(429).json({ error: `Too many wrong attempts. Try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.` });
+  }
+
+  if (pin !== ride.completionPin) {
+    ride.completionPinAttempts = (ride.completionPinAttempts || 0) + 1;
+    if (ride.completionPinAttempts >= 5) {
+      ride.completionPinLockedUntil = new Date(now + 30 * 60 * 1000).toISOString();
+      ride.completionPinAttempts = 0;
+      saveDb(db);
+      return res.status(400).json({ error: 'Too many wrong attempts. Try again in 30 minutes.' });
+    }
+    const remaining = 5 - ride.completionPinAttempts;
+    saveDb(db);
+    return res.status(400).json({ error: `Incorrect code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` });
+  }
+
+  // Correct PIN — confirm all pending driver earnings for this ride
+  ride.completionConfirmedAt = new Date().toISOString();
+  ride.completionPinAttempts = 0;
+  ride.completionPinLockedUntil = null;
+
+  let confirmedCount = 0;
+  (db.walletTransactions || []).forEach((t) => {
+    if (t.type === 'driver_earning_credit' && t.rideId === rideId && t.userId === driver.id && t.needsCompletion && !t.confirmedAt) {
+      t.confirmedAt = ride.completionConfirmedAt;
+      confirmedCount++;
+    }
+  });
+
+  saveDb(db);
+
+  const seatWord = confirmedCount === 1 ? 'rider' : 'riders';
+  const msg = confirmedCount
+    ? `Trip confirmed! Earnings for ${confirmedCount} ${seatWord} are now available in your wallet.`
+    : 'Trip confirmed. Your earnings are already available in your wallet.';
+  res.json({ message: msg, confirmedCount });
 });
 
 app.post('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req, res) => {

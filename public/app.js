@@ -4804,7 +4804,82 @@ function buildDriverRideSummary(ride) {
   } else if ((ride.passengers || []).length) {
     container.appendChild(buildDriverSeatManifest(ride));
   }
+
+  // Show trip completion form after departure if the ride uses completion codes
+  const hasPaidRiders = (ride.passengers || []).some((p) => p.paid);
+  const departed = ride.date && ride.time && Date.now() >= getRideStartTime(ride);
+  if (departed && ride.hasCompletionCode && hasPaidRiders) {
+    container.appendChild(buildDriverCompletionForm(ride));
+  }
+
   return container;
+}
+
+function buildDriverCompletionForm(ride) {
+  const wrap = document.createElement('div');
+  wrap.className = 'trip-completion-wrap';
+
+  if (ride.completionConfirmedAt) {
+    wrap.innerHTML = `
+      <div class="trip-confirmed-badge">
+        <span class="trip-confirmed-icon">✓</span>
+        Trip confirmed — earnings are in your wallet.
+      </div>`;
+    return wrap;
+  }
+
+  wrap.innerHTML = `
+    <div class="trip-completion-form">
+      <div class="trip-completion-header">
+        <strong>Confirm trip complete</strong>
+        <small>Ask your rider for their 6-digit code and enter it below to unlock your earnings.</small>
+      </div>
+      <div class="trip-completion-input-row">
+        <input type="text" class="trip-completion-input" inputmode="numeric" maxlength="6"
+               placeholder="000000" autocomplete="off" aria-label="6-digit completion code">
+        <button class="trip-completion-btn" type="button">Confirm</button>
+      </div>
+      <div class="trip-completion-msg hidden"></div>
+    </div>`;
+
+  const input = wrap.querySelector('.trip-completion-input');
+  const btn = wrap.querySelector('.trip-completion-btn');
+  const msg = wrap.querySelector('.trip-completion-msg');
+
+  btn.addEventListener('click', async () => {
+    const pin = input.value.trim();
+    if (!/^\d{6}$/.test(pin)) {
+      msg.textContent = 'Enter the 6-digit code from your rider.';
+      msg.className = 'trip-completion-msg trip-completion-error show';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Confirming…';
+    msg.className = 'trip-completion-msg hidden';
+    try {
+      const data = await fetchJson(`/api/rides/${ride.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      msg.textContent = data.message;
+      msg.className = 'trip-completion-msg trip-completion-success show';
+      if (data.alreadyConfirmed || data.confirmedCount >= 0) {
+        wrap.innerHTML = `
+          <div class="trip-confirmed-badge">
+            <span class="trip-confirmed-icon">✓</span>
+            ${esc(data.message)}
+          </div>`;
+      }
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = 'trip-completion-msg trip-completion-error show';
+      btn.disabled = false;
+      btn.textContent = 'Confirm';
+    }
+  });
+
+  return wrap;
 }
 
 function buildRideSummary(ride, options = {}) {
@@ -4859,6 +4934,19 @@ function buildRideSummary(ride, options = {}) {
       label: 'Report driver',
     }));
   }
+
+  // Show completion PIN to confirmed riders after departure so they can share it with the driver
+  if (ride.completionPin && currentUser && ride.driverId !== currentUser.id) {
+    const pinWrap = document.createElement('div');
+    pinWrap.className = 'rider-completion-pin';
+    const formatted = ride.completionPin.slice(0, 3) + ' ' + ride.completionPin.slice(3);
+    pinWrap.innerHTML = `
+      <div class="rider-pin-label">Your completion code</div>
+      <div class="rider-pin-number">${esc(formatted)}</div>
+      <div class="rider-pin-hint">Share this with your driver — they need it to confirm the trip and get paid.</div>`;
+    container.appendChild(pinWrap);
+  }
+
   return container;
 }
 

@@ -2,14 +2,15 @@
 
 ---
 
-## v2026.05.21
+## v2026.05.21 BETA
 
 ### New
+- **Trip completion codes.** Every ride now has a 6-digit completion code. After the trip departs, the rider sees their code on the confirmed ride card and shares it verbally with the driver. The driver enters it in the app to confirm the trip — earnings unlock instantly. If the driver never claims it, earnings auto-release 48 hours after the ride ends. Wrong codes are locked out after 5 attempts.
 - **Apply wallet credit at checkout.** Riders with a LinkUp Wallet balance now see an "Apply $X credit" button on the payment page. Tapping it deducts the credit from the trip total and shows a breakdown of credit applied and remaining card charge. Credit can be removed before paying. When the wallet covers the full amount, no card is charged.
 
 ---
 
-## v2026.05.20
+## v2026.05.20 BETA
 
 ### New
 - **Stripe Embedded Checkout.** Checkout now uses Stripe's fully hosted payment form — Apple Pay, Google Pay, Link, and card are all supported without a redirect. Your card details never touch LinkUp servers.
