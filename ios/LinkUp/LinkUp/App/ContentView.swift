@@ -67,6 +67,7 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .linkUpRequestNotifications)) { _ in
             nativeServices.requestNotifications()
         }
+        .preferredColorScheme(.dark)
     }
 }
 

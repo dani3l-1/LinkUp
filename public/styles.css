@@ -199,7 +199,7 @@ body.app-booting .app-shell {
 }
 
 body:not(.dashboard-mode) #main-content {
-  padding-bottom: clamp(2.75rem, 6vh, 5rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(2.75rem, 6vh, 5rem));
 }
 
 /* ─── Header ────────────────────────────────────────────────── */
@@ -229,7 +229,7 @@ body:not(.dashboard-mode) header {
 }
 
 body:not(.dashboard-mode) .app-shell {
-  padding-top: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
 }
 
 body.dashboard-mode header {
@@ -239,6 +239,7 @@ body.dashboard-mode header {
   gap: 1rem;
   margin-bottom: 0;
   padding: 0.75rem 1.5rem;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
   border-bottom: none;
   border-radius: 0;
   background: var(--surface);
