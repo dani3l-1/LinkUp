@@ -253,6 +253,8 @@ let paymentPageTotalCents = 0;
 let pendingExpiredCartRideNoticeCount = 0;
 let pendingProfilePictureDataUrl;
 let pendingVerificationEmail = '';
+let pending2FAMethod = 'totp';
+let pending2FAEmailHint = '';
 let activeTrackingTripId = null;
 let activeTrackingViewerUrl = '';
 let trackingWatchId = null;
@@ -1278,6 +1280,9 @@ async function handleSigninSubmit(event) {
     if (signInResult.requires2FA) {
       setButtonLoading(submitButton, false);
       signinForm.reset();
+      pending2FAMethod = signInResult.method || 'totp';
+      pending2FAEmailHint = signInResult.emailHint || '';
+      updateTwoFALoginForm();
       showAuthForm('twofa-form');
       return;
     }
@@ -5627,60 +5632,97 @@ async function loadYourRides() {
 function render2FAPanel(user) {
   const panel = document.getElementById('twofa-panel-content');
   if (!panel) return;
-  const enabled = Boolean(user?.twoFactorEnabled);
+  const totpEnabled = Boolean(user?.twoFactorEnabled);
+  const emailEnabled = Boolean(user?.emailTwoFactorEnabled);
+
   panel.innerHTML = `
-    <div class="twofa-section">
-      <div class="twofa-header">
-        <div>
-          <h4 class="twofa-title">Two-factor authentication</h4>
-          <p class="twofa-desc">Protect your account with an authenticator app. You'll need to enter a 6-digit code each time you sign in.</p>
+    <div class="twofa-methods-list">
+
+      <!-- Authenticator app -->
+      <div class="twofa-section">
+        <div class="twofa-header">
+          <div>
+            <h4 class="twofa-title">Authenticator app</h4>
+            <p class="twofa-desc">Use Google Authenticator, Authy, or any TOTP app. Generates codes offline — most secure option.</p>
+          </div>
+          <div class="twofa-status-badge ${totpEnabled ? 'twofa-status-on' : 'twofa-status-off'}">
+            ${totpEnabled ? 'Enabled' : 'Disabled'}
+          </div>
         </div>
-        <div class="twofa-status-badge ${enabled ? 'twofa-status-on' : 'twofa-status-off'}">
-          ${enabled ? 'Enabled' : 'Disabled'}
-        </div>
+
+        ${totpEnabled ? `
+          <div class="twofa-enabled-info">
+            <div class="twofa-check-row">
+              <span class="twofa-check">✓</span>
+              Authenticator app is active on your account.
+            </div>
+          </div>
+          <div class="twofa-disable-wrap">
+            <p class="twofa-remove-label">To remove, enter your current authenticator code:</p>
+            <div class="twofa-input-row">
+              <input type="text" id="twofa-disable-code" inputmode="numeric" maxlength="6"
+                     placeholder="000000" autocomplete="one-time-code" class="twofa-code-input">
+              <button id="twofa-disable-btn" class="twofa-danger-btn" type="button">Remove</button>
+            </div>
+            <div id="twofa-disable-msg" class="twofa-msg hidden"></div>
+          </div>
+        ` : `
+          <div id="twofa-setup-step1">
+            <button id="twofa-setup-start" class="twofa-setup-btn" type="button">Set up authenticator app</button>
+          </div>
+          <div id="twofa-setup-step2" class="hidden">
+            <div class="twofa-qr-wrap">
+              <p class="twofa-instruction">Scan this QR code with your authenticator app:</p>
+              <img id="twofa-qr-img" src="" alt="2FA QR code" class="twofa-qr-img">
+              <details class="twofa-manual-details">
+                <summary>Can't scan? Enter code manually</summary>
+                <code id="twofa-manual-secret" class="twofa-manual-code"></code>
+              </details>
+            </div>
+            <p class="twofa-instruction twofa-instruction-confirm">Enter the 6-digit code from your app to confirm setup:</p>
+            <div class="twofa-input-row">
+              <input type="text" id="twofa-enable-code" inputmode="numeric" maxlength="6"
+                     placeholder="000000" autocomplete="one-time-code" class="twofa-code-input">
+              <button id="twofa-enable-btn" class="twofa-setup-btn" type="button">Activate</button>
+            </div>
+            <div id="twofa-enable-msg" class="twofa-msg hidden"></div>
+          </div>
+        `}
       </div>
 
-      ${enabled ? `
-        <div class="twofa-enabled-info">
-          <div class="twofa-check-row">
-            <span class="twofa-check">✓</span>
-            Your account is protected with an authenticator app.
+      <!-- Email verification -->
+      <div class="twofa-section">
+        <div class="twofa-header">
+          <div>
+            <h4 class="twofa-title">Email verification</h4>
+            <p class="twofa-desc">Receive a one-time code at your university email each time you sign in. No app required.</p>
+          </div>
+          <div class="twofa-status-badge ${emailEnabled ? 'twofa-status-on' : 'twofa-status-off'}">
+            ${emailEnabled ? 'Enabled' : 'Disabled'}
           </div>
         </div>
-        <div class="twofa-disable-wrap">
-          <p class="twofa-remove-label">To remove 2FA, enter your current authenticator code:</p>
-          <div class="twofa-input-row">
-            <input type="text" id="twofa-disable-code" inputmode="numeric" maxlength="6"
-                   placeholder="000000" autocomplete="one-time-code" class="twofa-code-input">
-            <button id="twofa-disable-btn" class="twofa-danger-btn" type="button">Remove 2FA</button>
+
+        ${emailEnabled ? `
+          <div class="twofa-enabled-info">
+            <div class="twofa-check-row">
+              <span class="twofa-check">✓</span>
+              A code will be emailed to you each time you sign in.
+            </div>
           </div>
-          <div id="twofa-disable-msg" class="twofa-msg hidden"></div>
-        </div>
-      ` : `
-        <div id="twofa-setup-step1">
-          <button id="twofa-setup-start" class="twofa-setup-btn" type="button">Set up authenticator app</button>
-        </div>
-        <div id="twofa-setup-step2" class="hidden">
-          <div class="twofa-qr-wrap">
-            <p class="twofa-instruction">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):</p>
-            <img id="twofa-qr-img" src="" alt="2FA QR code" class="twofa-qr-img">
-            <details class="twofa-manual-details">
-              <summary>Can't scan? Enter code manually</summary>
-              <code id="twofa-manual-secret" class="twofa-manual-code"></code>
-            </details>
+          <div class="twofa-disable-wrap">
+            <button id="twofa-email-disable-btn" class="twofa-danger-btn" type="button">Turn off email verification</button>
+            <div id="twofa-email-disable-msg" class="twofa-msg hidden"></div>
           </div>
-          <p class="twofa-instruction twofa-instruction-confirm">After scanning, enter the 6-digit code from your app to confirm setup:</p>
-          <div class="twofa-input-row">
-            <input type="text" id="twofa-enable-code" inputmode="numeric" maxlength="6"
-                   placeholder="000000" autocomplete="one-time-code" class="twofa-code-input">
-            <button id="twofa-enable-btn" class="twofa-setup-btn" type="button">Activate</button>
-          </div>
-          <div id="twofa-enable-msg" class="twofa-msg hidden"></div>
-        </div>
-      `}
+        ` : `
+          <button id="twofa-email-enable-btn" class="twofa-setup-btn" type="button">Turn on email verification</button>
+          <div id="twofa-email-enable-msg" class="twofa-msg hidden"></div>
+        `}
+      </div>
+
     </div>`;
 
-  if (!enabled) {
+  // Authenticator app handlers
+  if (!totpEnabled) {
     document.getElementById('twofa-setup-start')?.addEventListener('click', async () => {
       const btn = document.getElementById('twofa-setup-start');
       btn.disabled = true;
@@ -5749,10 +5791,45 @@ function render2FAPanel(user) {
         msg.textContent = err.message;
         msg.className = 'twofa-msg twofa-error show';
         btn.disabled = false;
-        btn.textContent = 'Remove 2FA';
+        btn.textContent = 'Remove';
       }
     });
   }
+
+  // Email 2FA handlers
+  document.getElementById('twofa-email-enable-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('twofa-email-enable-btn');
+    const msg = document.getElementById('twofa-email-enable-msg');
+    btn.disabled = true;
+    btn.textContent = 'Enabling…';
+    try {
+      const data = await fetchJson('/api/auth/2fa/email/enable', { method: 'POST' });
+      if (data.user) currentUser = { ...currentUser, ...data.user };
+      render2FAPanel(currentUser);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = 'twofa-msg twofa-error show';
+      btn.disabled = false;
+      btn.textContent = 'Turn on email verification';
+    }
+  });
+
+  document.getElementById('twofa-email-disable-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('twofa-email-disable-btn');
+    const msg = document.getElementById('twofa-email-disable-msg');
+    btn.disabled = true;
+    btn.textContent = 'Turning off…';
+    try {
+      const data = await fetchJson('/api/auth/2fa/email/disable', { method: 'POST' });
+      if (data.user) currentUser = { ...currentUser, ...data.user };
+      render2FAPanel(currentUser);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = 'twofa-msg twofa-error show';
+      btn.disabled = false;
+      btn.textContent = 'Turn off email verification';
+    }
+  });
 }
 
 async function loadProfile() {
@@ -5828,6 +5905,21 @@ backToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); re
 resetBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); resetPasswordForm.reset(); window.history.replaceState({}, document.title, window.location.pathname); showAuthForm('signin-form'); });
 verificationBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); verificationForm.reset(); showAuthForm('signin-form'); });
 
+function updateTwoFALoginForm() {
+  const desc = document.getElementById('twofa-login-desc');
+  const resendWrap = document.getElementById('twofa-resend-wrap');
+  const label = document.querySelector('label[for="twofa-login-code"]');
+  if (pending2FAMethod === 'email') {
+    if (desc) desc.textContent = `A 6-digit code was sent to ${pending2FAEmailHint || 'your email'}.`;
+    if (label) label.textContent = 'Email code';
+    if (resendWrap) resendWrap.classList.remove('hidden');
+  } else {
+    if (desc) desc.textContent = 'Enter the 6-digit code from your authenticator app.';
+    if (label) label.textContent = 'Authenticator code';
+    if (resendWrap) resendWrap.classList.add('hidden');
+  }
+}
+
 document.getElementById('twofa-login-submit')?.addEventListener('click', async () => {
   const codeInput = document.getElementById('twofa-login-code');
   const errorEl = document.getElementById('twofa-login-error');
@@ -5835,7 +5927,9 @@ document.getElementById('twofa-login-submit')?.addEventListener('click', async (
   const code = codeInput.value.trim().replace(/\s/g, '');
   errorEl.textContent = '';
   if (!/^\d{6}$/.test(code)) {
-    errorEl.textContent = 'Enter the 6-digit code from your authenticator app.';
+    errorEl.textContent = pending2FAMethod === 'email'
+      ? 'Enter the 6-digit code sent to your email.'
+      : 'Enter the 6-digit code from your authenticator app.';
     return;
   }
   setButtonLoading(btn, true);
@@ -5855,6 +5949,23 @@ document.getElementById('twofa-login-submit')?.addEventListener('click', async (
     codeInput.focus();
   } finally {
     setButtonLoading(btn, false);
+  }
+});
+
+document.getElementById('twofa-resend-btn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('twofa-resend-btn');
+  const errorEl = document.getElementById('twofa-login-error');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  errorEl.textContent = '';
+  try {
+    await fetchJson('/api/auth/2fa/email/resend', { method: 'POST' });
+    btn.textContent = 'Code resent';
+    setTimeout(() => { btn.textContent = 'Resend code'; btn.disabled = false; }, 30000);
+  } catch (err) {
+    errorEl.textContent = err.message || 'Could not resend. Please sign in again.';
+    btn.textContent = 'Resend code';
+    btn.disabled = false;
   }
 });
 

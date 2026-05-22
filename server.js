@@ -1911,8 +1911,38 @@ function publicUser(user, db = null) {
     createdAt: user.createdAt || null,
     rideServicesPaused: RIDE_SERVICES_PAUSED,
     twoFactorEnabled: Boolean(user.totpEnabled),
+    emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
     wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
+}
+
+function maskEmail(email) {
+  const [local, domain] = String(email || '').split('@');
+  if (!local || !domain) return email;
+  const masked = local[0] + '***' + (local.length > 1 ? local[local.length - 1] : '');
+  return masked + '@' + domain;
+}
+
+async function sendTwoFactorEmail(to, code) {
+  const codeDigits = code.split('').map((d) =>
+    `<td style="padding:0 4px;"><div style="width:44px;height:56px;line-height:56px;text-align:center;background:#f0fafa;border:2px solid #3ecfcf;border-radius:12px;font-size:28px;font-weight:900;color:#082023;font-family:monospace,monospace;">${d}</div></td>`
+  ).join('');
+  const html = `
+    <div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid #e0f5f5;">
+      <div style="background:linear-gradient(135deg,#082023 0%,#0d3535 100%);padding:32px 36px 28px;">
+        <div style="font-size:22px;font-weight:800;color:#3ecfcf;letter-spacing:-0.5px;">LinkUp</div>
+        <div style="font-size:15px;color:#b0e8e8;margin-top:4px;">Sign-in verification</div>
+      </div>
+      <div style="padding:32px 36px;">
+        <p style="font-size:15px;color:#1a2a2a;margin:0 0 8px;">Here is your sign-in verification code:</p>
+        <table style="border-collapse:separate;border-spacing:0;margin:24px 0 8px;" cellpadding="0" cellspacing="0"><tr>${codeDigits}</tr></table>
+        <p style="font-size:13px;color:#888;margin:20px 0 0;">This code expires in <strong>10 minutes</strong>. If you didn't try to sign in, you can safely ignore this email.</p>
+      </div>
+      <div style="padding:16px 36px;border-top:1px solid #e8f5f5;background:#f8fefe;">
+        <p style="font-size:12px;color:#aaa;margin:0;">LinkUp · University ride sharing</p>
+      </div>
+    </div>`;
+  await sendAuthEmail(to, 'Your LinkUp sign-in code', `Your LinkUp sign-in code is: ${code}\n\nThis code expires in 10 minutes.`, html);
 }
 
 async function ensureStripeCustomer(db, user) {
@@ -2920,27 +2950,50 @@ app.post('/api/auth/signin', async (req, res) => {
     return res.status(403).json({ error: 'Please verify your email before signing in' });
   }
 
-  // If 2FA is enabled, require TOTP verification before creating the session
+  // TOTP takes precedence; email 2FA is fallback
   if (user.totpEnabled && user.totpSecret) {
     req.session.pending2FAUserId = user.id;
-    return req.session.save(() => res.json({ requires2FA: true }));
+    return req.session.save(() => res.json({ requires2FA: true, method: 'totp' }));
+  }
+  if (user.emailTwoFactorEnabled) {
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    req.session.pending2FAUserId = user.id;
+    req.session.pending2FAEmailCode = code;
+    req.session.pending2FAEmailExpiry = Date.now() + 10 * 60 * 1000;
+    sendTwoFactorEmail(user.email, code).catch(() => {});
+    return req.session.save(() => res.json({ requires2FA: true, method: 'email', emailHint: maskEmail(user.email) }));
   }
 
   saveSessionAndJson(req, res, publicUser(user, db), user.id);
 });
 
-// 2FA: complete sign-in after TOTP verification
+// 2FA: complete sign-in (handles both TOTP and email methods)
 app.post('/api/auth/2fa/verify', sensitiveWriteRateLimit, async (req, res) => {
   const pendingId = req.session.pending2FAUserId;
   if (!pendingId) return res.status(400).json({ error: 'No pending sign-in. Please sign in again.' });
   const code = String(req.body.code || '').replace(/\s/g, '');
-  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter the 6-digit code from your authenticator app' });
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter the 6-digit code' });
   const db = loadDb();
   const user = db.users.find((u) => u.id === pendingId);
-  if (!user || !user.totpSecret) return res.status(401).json({ error: 'Sign-in session expired. Please sign in again.' });
-  const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: 'base32', token: code, window: 1 });
-  if (!valid) return res.status(401).json({ error: 'Incorrect code. Check your authenticator app and try again.' });
+  if (!user) return res.status(401).json({ error: 'Sign-in session expired. Please sign in again.' });
+
+  if (user.totpEnabled && user.totpSecret) {
+    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: 'base32', token: code, window: 1 });
+    if (!valid) return res.status(401).json({ error: 'Incorrect code. Check your authenticator app and try again.' });
+  } else if (user.emailTwoFactorEnabled) {
+    const storedCode = req.session.pending2FAEmailCode;
+    const expiry = req.session.pending2FAEmailExpiry;
+    if (!storedCode || !expiry || Date.now() > expiry) {
+      return res.status(401).json({ error: 'Code expired. Please sign in again to receive a new code.' });
+    }
+    if (code !== storedCode) return res.status(401).json({ error: 'Incorrect code. Check your email and try again.' });
+  } else {
+    return res.status(401).json({ error: 'Sign-in session expired. Please sign in again.' });
+  }
+
   delete req.session.pending2FAUserId;
+  delete req.session.pending2FAEmailCode;
+  delete req.session.pending2FAEmailExpiry;
   saveSessionAndJson(req, res, publicUser(user, db), user.id);
 });
 
@@ -2989,6 +3042,42 @@ app.post('/api/auth/2fa/disable', requireAuth, sensitiveWriteRateLimit, (req, re
   delete user.totpTempSecret;
   saveDb(db);
   res.json({ message: 'Two-factor authentication has been removed.', user: publicUser(user, db) });
+});
+
+// Email 2FA: enable
+app.post('/api/auth/2fa/email/enable', requireAuth, (req, res) => {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.emailTwoFactorEnabled) return res.status(400).json({ error: 'Email verification is already enabled' });
+  user.emailTwoFactorEnabled = true;
+  saveDb(db);
+  res.json({ message: 'Email verification is now enabled for sign-in.', user: publicUser(user, db) });
+});
+
+// Email 2FA: disable
+app.post('/api/auth/2fa/email/disable', requireAuth, (req, res) => {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user.emailTwoFactorEnabled) return res.status(400).json({ error: 'Email verification is not enabled' });
+  user.emailTwoFactorEnabled = false;
+  saveDb(db);
+  res.json({ message: 'Email verification has been removed.', user: publicUser(user, db) });
+});
+
+// Email 2FA: resend code during pending sign-in
+app.post('/api/auth/2fa/email/resend', sensitiveWriteRateLimit, async (req, res) => {
+  const pendingId = req.session.pending2FAUserId;
+  if (!pendingId) return res.status(400).json({ error: 'No pending sign-in. Please sign in again.' });
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === pendingId);
+  if (!user || !user.emailTwoFactorEnabled) return res.status(400).json({ error: 'Sign-in session expired. Please sign in again.' });
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  req.session.pending2FAEmailCode = code;
+  req.session.pending2FAEmailExpiry = Date.now() + 10 * 60 * 1000;
+  await sendTwoFactorEmail(user.email, code).catch(() => {});
+  req.session.save(() => res.json({ message: 'A new code has been sent to your email.' }));
 });
 
 app.post('/api/auth/forgot-password', (req, res) => {
