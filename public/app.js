@@ -3834,6 +3834,11 @@ function ensureBrowseRadiusMap() {
       zoom: 12,
       shouldApply: () => !getRadiusCenter(pickupRadiusLocationInput) && !getRadiusCenter(dropoffRadiusLocationInput),
     });
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => {
+        if (browseRadiusMap) google.maps.event.trigger(browseRadiusMap, 'resize');
+      }).observe(browseRadiusMapDiv);
+    }
   }
   return browseRadiusMap;
 }
@@ -5309,13 +5314,12 @@ function showRiderBrowse() {
   loadGoogleMapsAPI().then(() => {
     initializeRadiusAutocomplete();
     loadRides();
-    // Show map immediately; trigger resize after layout settles
     browseMapPanel?.classList.remove('hidden');
     browseRiderLayout?.classList.add('rider-active');
     setTimeout(() => {
       const map = ensureBrowseRadiusMap();
       if (map) google.maps.event.trigger(map, 'resize');
-    }, 100);
+    }, 300);
   }).catch((error) => {
     console.error('Browse map failed to load:', error);
     showBrowseMapLoadError(error);
