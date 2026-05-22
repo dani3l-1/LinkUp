@@ -237,10 +237,10 @@ body.dashboard-mode header {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-bottom: none;
+  border-radius: 0;
   background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -717,10 +717,11 @@ button:disabled::before { display: none; }
   justify-content: space-between;
   gap: 1.25rem;
   margin-bottom: 2rem;
-  padding: 1.1rem 1.25rem;
+  padding: 0.85rem 1.25rem 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   backdrop-filter: blur(12px);
   flex-wrap: wrap;
 }
