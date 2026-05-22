@@ -596,6 +596,7 @@ const rideshareServiceFields = document.getElementById('rideshare-service-fields
 const rideshareServiceSelect = document.getElementById('rideshare-service');
 const rideshareSeatCountInput = document.getElementById('rideshare-seat-count');
 const movingServiceFields = document.getElementById('moving-service-fields');
+let movingRequestPhotoDataUrl = '';
 const offerPickupRadiusInput = document.getElementById('offer-pickup-radius');
 const offerDropoffRadiusInput = document.getElementById('offer-dropoff-radius');
 const requestPickupRadiusInput = document.getElementById('request-pickup-radius');
@@ -4730,6 +4731,7 @@ function buildRequestSummary(request) {
 
   const requestTime = formatRideDateTime({ date: request.date, time: request.time });
   const riderName = [request.riderFirstName || 'Student', request.riderLastName || ''].filter(Boolean).join(' ');
+  const isMovingReq = request.requestType === 'moving';
   const details = document.createElement('div');
   details.className = 'ride-details';
   details.innerHTML = `
@@ -4740,13 +4742,20 @@ function buildRequestSummary(request) {
     ${getFlexRadiusMarkup(request, 'rider')}
     <div><strong>Requested time:</strong> ${esc(requestTime)}</div>
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(request.estimatedDurationMinutes))}</div>
-    <div><strong>Riders:</strong> ${esc(request.riderCount || 1)}</div>
-    <div><strong>Share with others:</strong> ${request.shareRideWithOthers === undefined ? 'Not specified' : (request.shareRideWithOthers ? 'Yes' : 'No')}</div>
+    ${isMovingReq ? `<div><strong>Cargo size:</strong> ${esc(request.movingSize || 'Not specified')}</div>` : `<div><strong>Riders:</strong> ${esc(request.riderCount || 1)}</div>`}
+    ${isMovingReq ? '' : `<div><strong>Share with others:</strong> ${request.shareRideWithOthers === undefined ? 'Not specified' : (request.shareRideWithOthers ? 'Yes' : 'No')}</div>`}
     <div><strong>Willing to pay:</strong> ${esc(formatCents(request.willingToPayCents))}</div>
     <div><strong>Status:</strong> ${esc(request.status || 'open')}</div>
     <div><strong>Driver offers:</strong> ${esc((request.driverOffers || []).length)}</div>
     ${request.notes ? `<div><strong>Notes:</strong> ${esc(request.notes)}</div>` : ''}
   `;
+  if (isMovingReq && request.movingPhotoDataUrl) {
+    const img = document.createElement('img');
+    img.src = request.movingPhotoDataUrl;
+    img.alt = 'Items photo';
+    img.className = 'moving-request-photo';
+    details.appendChild(img);
+  }
   container.appendChild(details);
   return container;
 }
@@ -6270,6 +6279,13 @@ requestRideBackHomeButton.addEventListener('click', () => returnToBrowseRides())
 requestRideForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearRequestRideMessages();
+  const submittingRequestType = document.getElementById('request-type')?.value || 'ride';
+  if (submittingRequestType === 'moving' && !movingRequestPhotoDataUrl) {
+    requestRideError.textContent = 'Please add a photo of your items so drivers know what to expect.';
+    requestRideError.classList.add('show');
+    document.getElementById('moving-photo-upload-area')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   await ensureRequestCoordinates();
   const requestOriginCoordinate = getRideOriginCoordinate({
     origin: document.getElementById('request-origin').value.trim(),
@@ -6300,6 +6316,7 @@ requestRideForm.addEventListener('submit', async (event) => {
     time: document.getElementById('request-time').value,
     requestType: document.getElementById('request-type')?.value || 'ride',
     movingSize: document.getElementById('request-moving-size')?.value || 'Small',
+    movingPhotoDataUrl: movingRequestPhotoDataUrl || undefined,
     riderCount: Number(document.getElementById('request-rider-count').value) || 1,
     willingToPay: Number(document.getElementById('request-price').value),
     estimatedDurationMinutes: requestRideMetrics.durationMinutes,
@@ -6312,6 +6329,7 @@ requestRideForm.addEventListener('submit', async (event) => {
   try {
     await fetchJson('/api/ride-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     requestRideForm.reset();
+    resetMovingPhoto();
     document.getElementById('request-type').value = 'ride';
     document.querySelectorAll('.request-type-btn').forEach((b) => b.classList.toggle('active', b.dataset.requestType === 'ride'));
     document.getElementById('request-riders-field')?.classList.remove('hidden');
@@ -6337,6 +6355,48 @@ requestRideForm.addEventListener('submit', async (event) => {
     requestRideError.classList.add('show');
   }
 });
+const movingPhotoInput = document.getElementById('request-moving-photo-input');
+const movingPhotoPreview = document.getElementById('request-moving-photo-preview');
+const movingPhotoPrompt = document.getElementById('moving-photo-prompt');
+const movingPhotoRemove = document.getElementById('request-moving-photo-remove');
+
+function resetMovingPhoto() {
+  movingRequestPhotoDataUrl = '';
+  if (movingPhotoInput) movingPhotoInput.value = '';
+  if (movingPhotoPreview) { movingPhotoPreview.src = ''; movingPhotoPreview.classList.add('hidden'); }
+  if (movingPhotoPrompt) movingPhotoPrompt.style.display = '';
+  if (movingPhotoRemove) movingPhotoRemove.classList.add('hidden');
+}
+
+if (movingPhotoInput) {
+  movingPhotoInput.addEventListener('change', () => {
+    const file = movingPhotoInput.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please choose a photo (PNG, JPG, or WebP)', 'error');
+      movingPhotoInput.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Photo must be 2 MB or smaller', 'error');
+      movingPhotoInput.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      movingRequestPhotoDataUrl = event.target.result;
+      if (movingPhotoPreview) { movingPhotoPreview.src = movingRequestPhotoDataUrl; movingPhotoPreview.classList.remove('hidden'); }
+      if (movingPhotoPrompt) movingPhotoPrompt.style.display = 'none';
+      if (movingPhotoRemove) movingPhotoRemove.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+if (movingPhotoRemove) {
+  movingPhotoRemove.addEventListener('click', () => resetMovingPhoto());
+}
+
 document.querySelectorAll('.request-type-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     const type = btn.dataset.requestType;

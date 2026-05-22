@@ -3843,6 +3843,30 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
   if (!isMovingRequest && !riderCount) {
     return res.status(400).json({ error: 'Missing trip request information' });
   }
+  let movingPhotoDataUrl = '';
+  if (isMovingRequest) {
+    const rawPhoto = String(req.body.movingPhotoDataUrl || '').trim();
+    if (!rawPhoto) {
+      return res.status(400).json({ error: 'A photo of your items is required for moving requests' });
+    }
+    const photoMatch = rawPhoto.match(/^data:(image\/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!photoMatch) {
+      return res.status(400).json({ error: 'Photo must be a PNG, JPG, or WebP image' });
+    }
+    const byteLength = Buffer.byteLength(photoMatch[2], 'base64');
+    if (byteLength > 2 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Photo must be 2 MB or smaller' });
+    }
+    const buf = Buffer.from(photoMatch[2], 'base64');
+    const mime = photoMatch[1].toLowerCase();
+    const okPng = mime === 'image/png' && buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+    const okJpeg = (mime === 'image/jpeg' || mime === 'image/jpg') && buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    const okWebp = mime === 'image/webp' && buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+    if (!okPng && !okJpeg && !okWebp) {
+      return res.status(400).json({ error: 'Photo data does not match a supported image type' });
+    }
+    movingPhotoDataUrl = rawPhoto;
+  }
   if (String(origin).length > 200 || String(destination).length > 200) {
     return res.status(400).json({ error: 'Location names must be 200 characters or fewer' });
   }
@@ -3911,6 +3935,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     time,
     requestType,
     movingSize,
+    movingPhotoDataUrl,
     riderCount: riderCountNumber,
     willingToPayCents,
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
