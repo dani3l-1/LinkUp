@@ -43,6 +43,9 @@ struct LinkUpWebView: UIViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
         webView.customUserAgent = "LinkUp iOS App"
         webView.load(URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 20))
 
@@ -221,6 +224,11 @@ struct LinkUpWebView: UIViewRepresentable {
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let targetURL = navigationAction.request.url else {
                 decisionHandler(.cancel)
+                return
+            }
+            // Allow all sub-frame navigations (Stripe Connect iframes, Google Maps, etc.)
+            if let frame = navigationAction.targetFrame, !frame.isMainFrame {
+                decisionHandler(.allow)
                 return
             }
             if targetURL.host == parent.url.host || targetURL.scheme == "about" {
