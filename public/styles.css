@@ -761,28 +761,17 @@ button:disabled::before { display: none; }
   font-size: 0.78rem;
 }
 
-#request-ride-button {
-  background: var(--blue-dim);
-  color: var(--blue);
-  border-color: rgba(77,158,245,0.2);
-}
-
-#request-ride-button:hover {
-  background: rgba(77,158,245,0.18);
-  border-color: rgba(77,158,245,0.4);
-  box-shadow: 0 4px 16px rgba(77,158,245,0.18);
-}
-
+#request-ride-button,
 #list-ride-button {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border-color: rgba(62,207,207,0.2);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  border-color: var(--border);
 }
 
+#request-ride-button:hover,
 #list-ride-button:hover {
-  background: rgba(62,207,207,0.16);
-  border-color: rgba(62,207,207,0.4);
-  box-shadow: 0 4px 16px rgba(62,207,207,0.18);
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.14);
 }
 
 #track-trip-button {
