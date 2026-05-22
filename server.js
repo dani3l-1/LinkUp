@@ -1535,7 +1535,7 @@ function sendVerificationCode(user, code) {
                 <!-- Header -->
                 <tr>
                   <td style="background:linear-gradient(135deg,#082a2f 0%,#0a3840 100%);padding:32px 36px;border-radius:20px 20px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
-                    <div style="font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
+                    <img src="${APP_BASE_URL}/favicon-96.png" alt="LinkUp" width="60" height="60" style="display:block;margin:0 auto 10px;font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;text-align:center;" />
                     <div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">Student ride sharing</div>
                   </td>
                 </tr>
@@ -1699,7 +1699,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d7fbfb;">
                 <tr>
                   <td style="background:#082023;padding:28px 32px;text-align:center;">
-                    <div style="font-size:30px;line-height:1;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">LinkUp</div>
+                    <img src="${APP_BASE_URL}/favicon-96.png" alt="LinkUp" width="56" height="56" style="display:block;margin:0 auto 10px;font-size:30px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;text-align:center;" />
                     <div style="margin-top:8px;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#61e0e0;">Seat reserved</div>
                   </td>
                 </tr>
@@ -1930,7 +1930,7 @@ async function sendTwoFactorEmail(to, code) {
   const html = `
     <div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid #e0f5f5;">
       <div style="background:linear-gradient(135deg,#082023 0%,#0d3535 100%);padding:32px 36px 28px;">
-        <div style="font-size:22px;font-weight:800;color:#3ecfcf;letter-spacing:-0.5px;">LinkUp</div>
+        <img src="${APP_BASE_URL}/favicon-96.png" alt="LinkUp" width="52" height="52" style="display:block;margin:0 auto 8px;font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#3ecfcf;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;text-align:center;" />
         <div style="font-size:15px;color:#b0e8e8;margin-top:4px;">Sign-in verification</div>
       </div>
       <div style="padding:32px 36px;">

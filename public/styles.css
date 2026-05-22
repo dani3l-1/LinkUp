@@ -8950,6 +8950,31 @@ html[data-theme="dark"] .moving-photo-required {
   align-items: center;
 }
 
+.otp-boxes {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.otp-box {
+  width: 2.8rem;
+  height: 3.2rem;
+  text-align: center;
+  font-size: 1.4rem;
+  font-family: monospace, monospace;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-input);
+  color: var(--text-primary);
+  caret-color: transparent;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.otp-box:focus {
+  border-color: var(--accent);
+}
+
 .twofa-code-input {
   flex: 1;
   max-width: 140px;

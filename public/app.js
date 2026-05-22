@@ -196,6 +196,7 @@ const recoveryForm = document.getElementById('recovery-form');
 const resetPasswordForm = document.getElementById('reset-password-form');
 const verificationForm = document.getElementById('verification-form');
 const verificationCode = document.getElementById('verification-code');
+const otpBoxes = Array.from(document.querySelectorAll('#otp-boxes .otp-box'));
 const verificationEmailLabel = document.getElementById('verification-email-label');
 const resendVerificationButton = document.getElementById('resend-verification');
 const verificationBackToSigninButton = document.getElementById('verification-back-to-signin');
@@ -1654,6 +1655,7 @@ function showVerificationForm(email, message) {
   pendingVerificationEmail = email;
   clearRecoveryMessages();
   verificationForm.reset();
+  otpBoxes.forEach(b => b.value = '');
   verificationEmailLabel.textContent = `Enter the 6-digit code sent to ${email}.`;
   if (message) {
     verificationMessage.textContent = message;
@@ -6056,7 +6058,31 @@ signupPassword.addEventListener('input', (event) => validatePasswordRequirements
 forgotAuthLink.addEventListener('click', () => { clearRecoveryMessages(); showAuthForm('recovery-form'); });
 backToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); recoveryForm.reset(); showAuthForm('signin-form'); });
 resetBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); resetPasswordForm.reset(); window.history.replaceState({}, document.title, window.location.pathname); showAuthForm('signin-form'); });
-verificationBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); verificationForm.reset(); showAuthForm('signin-form'); });
+verificationBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); verificationForm.reset(); otpBoxes.forEach(b => b.value = ''); showAuthForm('signin-form'); });
+
+otpBoxes.forEach((box, i) => {
+  box.addEventListener('input', () => {
+    const val = box.value.replace(/\D/g, '');
+    box.value = val.slice(-1);
+    if (val && i < otpBoxes.length - 1) otpBoxes[i + 1].focus();
+    verificationCode.value = otpBoxes.map(b => b.value).join('');
+  });
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !box.value && i > 0) {
+      otpBoxes[i - 1].value = '';
+      otpBoxes[i - 1].focus();
+      verificationCode.value = otpBoxes.map(b => b.value).join('');
+    }
+  });
+  box.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+    text.split('').forEach((ch, j) => { if (otpBoxes[j]) otpBoxes[j].value = ch; });
+    verificationCode.value = otpBoxes.map(b => b.value).join('');
+    const next = otpBoxes[Math.min(text.length, otpBoxes.length - 1)];
+    if (next) next.focus();
+  });
+});
 
 function updateTwoFALoginForm() {
   const desc = document.getElementById('twofa-login-desc');
@@ -6182,6 +6208,7 @@ verificationForm.addEventListener('submit', async (event) => {
     const user = await fetchJson('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: pendingVerificationEmail, code: verificationCode.value.trim() }) });
     currentUser = user;
     verificationForm.reset();
+    otpBoxes.forEach(b => b.value = '');
     showDashboard(user);
   } catch (err) {
     verificationError.textContent = err.message;

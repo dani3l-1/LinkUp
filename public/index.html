@@ -158,8 +158,16 @@
             <h2>Check your inbox</h2>
             <p id="verification-email-label"></p>
             <div class="form-field">
-              <label for="verification-code">6-Digit Code</label>
-              <input type="text" id="verification-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" required />
+              <label>6-Digit Code</label>
+              <div class="otp-boxes" id="otp-boxes">
+                <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="off" required />
+                <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="off" required />
+                <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="off" required />
+                <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="off" required />
+                <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="off" required />
+                <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="off" required />
+              </div>
+              <input type="hidden" id="verification-code" />
             </div>
             <button type="submit" class="btn-primary">Verify →</button>
             <button type="button" id="resend-verification" class="text-button">Resend code</button>
