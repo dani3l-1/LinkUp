@@ -13,77 +13,41 @@ struct ContentView: View {
     private let appURL = URL(string: "https://linkuprides.com")!
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(red: 0.03, green: 0.09, blue: 0.09)
-                    .ignoresSafeArea()
+        ZStack {
+            Color(red: 0.03, green: 0.09, blue: 0.09)
+                .ignoresSafeArea()
 
-                LinkUpWebView(
-                    url: appURL,
-                    reloadToken: reloadToken,
-                    pushToken: nativeServices.pushToken,
-                    canGoBack: $canGoBack,
-                    isLoading: $isLoading,
-                    firstLoadDone: $firstLoadDone,
-                    loadError: $loadError,
-                    popupURL: $popupURL
-                )
-                .ignoresSafeArea(edges: .bottom)
+            LinkUpWebView(
+                url: appURL,
+                reloadToken: reloadToken,
+                pushToken: nativeServices.pushToken,
+                canGoBack: $canGoBack,
+                isLoading: $isLoading,
+                firstLoadDone: $firstLoadDone,
+                loadError: $loadError,
+                popupURL: $popupURL
+            )
+            .ignoresSafeArea()
 
-                if let loadError {
-                    OfflineView(message: loadError) {
-                        self.loadError = nil
-                        reloadToken = UUID()
-                    }
-                    .padding()
+            if let loadError {
+                OfflineView(message: loadError) {
+                    self.loadError = nil
+                    reloadToken = UUID()
                 }
-
-                if !firstLoadDone && loadError == nil {
-                    LaunchOverlay()
-                        .transition(.opacity)
-                }
+                .padding()
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        NotificationCenter.default.post(name: .linkUpGoBack, object: nil)
-                    } label: {
-                        Label("Back", systemImage: "chevron.left")
-                    }
-                    .disabled(!canGoBack)
-                }
 
-                ToolbarItem(placement: .principal) {
-                    Image("LinkUpLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 32, height: 32)
-                        .accessibilityLabel("LinkUp")
-                }
-
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        reloadToken = UUID()
-                    } label: {
-                        Label("Reload", systemImage: "arrow.clockwise")
-                    }
-
-                    ShareLink(item: appURL) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                    }
-                }
-            }
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Color(red: 0.03, green: 0.09, blue: 0.09), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .safeAreaInset(edge: .bottom) {
-                if nativeServices.shouldShowPermissionNudge {
-                    PermissionNudge()
-                        .environmentObject(nativeServices)
-                }
+            if !firstLoadDone && loadError == nil {
+                LaunchOverlay()
             }
         }
-        // In-app sheet for window.open() popups (e.g. Stripe Connect flows)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if nativeServices.shouldShowPermissionNudge {
+                PermissionNudge()
+                    .environmentObject(nativeServices)
+                    .ignoresSafeArea(edges: .bottom)
+            }
+        }
         .sheet(isPresented: Binding(
             get: { popupURL != nil },
             set: { if !$0 { popupURL = nil } }
@@ -93,12 +57,10 @@ struct ContentView: View {
                     .ignoresSafeArea()
             }
         }
-        // Route notification taps to the correct page
         .onReceive(nativeServices.$pendingNavigationURL.compactMap { $0 }) { url in
             NotificationCenter.default.post(name: .linkUpNavigate, object: url)
             nativeServices.pendingNavigationURL = nil
         }
-        // Forward web → native permission requests
         .onReceive(NotificationCenter.default.publisher(for: .linkUpRequestLocation)) { _ in
             nativeServices.requestLocationWhenNeeded()
         }
@@ -123,7 +85,7 @@ private struct LaunchOverlay: View {
                 .tint(.white)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.03, green: 0.09, blue: 0.09))
+        .background(Color(red: 0.03, green: 0.09, blue: 0.09).ignoresSafeArea())
     }
 }
 
@@ -200,7 +162,7 @@ private struct PermissionNudge: View {
             }
         }
         .padding()
-        .background(Color(red: 0.04, green: 0.12, blue: 0.12))
+        .background(Color(red: 0.04, green: 0.12, blue: 0.12).ignoresSafeArea())
         .overlay(
             Rectangle()
                 .frame(height: 1)
