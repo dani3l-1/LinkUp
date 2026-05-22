@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260521-browse-fix" />
+    <link rel="stylesheet" href="styles.css?v=20260521-browse-layout2" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -744,64 +744,65 @@
               </div>
             </section>
 
-            <!-- Two-column layout: controls left, map right (rider only) -->
             <div class="browse-rider-layout" id="browse-rider-layout">
 
-              <!-- Left: filters + results -->
-              <div class="browse-left-panel">
-                <section class="card browse-controls hidden" id="browse-controls">
-                  <label id="browse-search-label">
-                    Search destination or meetup
-                    <input type="search" id="ride-search" placeholder="Where do you want to go?" />
+              <!-- Top row: filters (left) + map (right) -->
+              <div class="browse-top-row">
+                <div class="browse-left-panel">
+                  <section class="card browse-controls hidden" id="browse-controls">
+                    <label id="browse-search-label">
+                      Search destination or meetup
+                      <input type="search" id="ride-search" placeholder="Where do you want to go?" />
+                    </label>
+                    <div class="radius-filter-grid">
+                      <label id="pickup-location-label">Your pick-up area <input type="text" id="pickup-radius-location" placeholder="Campus, address, or landmark" /></label>
+                      <label id="pickup-radius-label">Pick-up radius (mi) <input type="number" id="pickup-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
+                      <label id="dropoff-location-label">Your drop-off area <input type="text" id="dropoff-radius-location" placeholder="Destination area" /></label>
+                      <label id="dropoff-radius-label">Drop-off radius (mi) <input type="number" id="dropoff-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
+                    </div>
+                    <div class="filter-grid">
+                      <label>Date <input type="date" id="ride-filter-date" /></label>
+                      <label>Min seats <input type="number" id="ride-filter-seats" min="1" max="5" placeholder="1" /></label>
+                      <label>Max price ($) <input type="number" id="ride-filter-max-price" min="0.50" step="0.01" placeholder="Any" /></label>
+                    </div>
+                    <div class="browse-checkbox-row">
+                      <label class="checkbox-label ride-filter">
+                        <input type="checkbox" id="same-school-only" checked />
+                        Same school only
+                      </label>
+                      <label class="checkbox-label ride-filter">
+                        <input type="checkbox" id="same-gender-drivers-only" />
+                        Same gender drivers only
+                      </label>
+                    </div>
+                    <button id="reset-ride-filters" class="reset-filters-button" type="button">Reset filters</button>
+                    <div id="browse-map-hint" class="selected-location browse-map-hint browse-map-hint-inline hidden"></div>
+                  </section>
+                </div>
+
+                <div class="browse-map-panel hidden" id="browse-map-panel">
+                  <div id="browse-radius-map" class="browse-radius-map-fullpanel"></div>
+                  <div id="browse-map-hint-panel" class="browse-map-hint-panel"></div>
+                </div>
+              </div><!-- /.browse-top-row -->
+
+              <!-- Bottom: results full width -->
+              <article class="card browse-results-card">
+                <div class="browse-results-header">
+                  <h3 id="browse-results-title">Choose a role to start</h3>
+                  <label class="browse-sort-control">Sort by
+                    <select id="ride-sort">
+                      <option value="soonest">Soonest departure</option>
+                      <option value="price-low">Lowest price</option>
+                      <option value="price-high">Highest price</option>
+                      <option value="seats-high">Most seats</option>
+                    </select>
                   </label>
-                  <div class="radius-filter-grid">
-                    <label id="pickup-location-label">Your pick-up area <input type="text" id="pickup-radius-location" placeholder="Campus, address, or landmark" /></label>
-                    <label id="pickup-radius-label">Pick-up radius (mi) <input type="number" id="pickup-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
-                    <label id="dropoff-location-label">Your drop-off area <input type="text" id="dropoff-radius-location" placeholder="Destination area" /></label>
-                    <label id="dropoff-radius-label">Drop-off radius (mi) <input type="number" id="dropoff-radius-miles" min="0" step="0.5" placeholder="Any" /></label>
-                  </div>
-                  <div class="filter-grid">
-                    <label>Date <input type="date" id="ride-filter-date" /></label>
-                    <label>Min seats <input type="number" id="ride-filter-seats" min="1" max="5" placeholder="1" /></label>
-                    <label>Max price ($) <input type="number" id="ride-filter-max-price" min="0.50" step="0.01" placeholder="Any" /></label>
-                  </div>
-                  <div class="browse-checkbox-row">
-                    <label class="checkbox-label ride-filter">
-                      <input type="checkbox" id="same-school-only" checked />
-                      Same school only
-                    </label>
-                    <label class="checkbox-label ride-filter">
-                      <input type="checkbox" id="same-gender-drivers-only" />
-                      Same gender drivers only
-                    </label>
-                  </div>
-                  <button id="reset-ride-filters" class="reset-filters-button" type="button">Reset filters</button>
-                  <div id="browse-map-hint" class="selected-location browse-map-hint browse-map-hint-inline hidden"></div>
-                </section>
-
-                <article class="card browse-results-card">
-                  <div class="browse-results-header">
-                    <h3 id="browse-results-title">Choose a role to start</h3>
-                    <label class="browse-sort-control">Sort by
-                      <select id="ride-sort">
-                        <option value="soonest">Soonest departure</option>
-                        <option value="price-low">Lowest price</option>
-                        <option value="price-high">Highest price</option>
-                        <option value="seats-high">Most seats</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div id="rides-list">
-                    <p class="browse-start-message">Select <strong>I'm a Driver</strong> to see ride requests from students, or <strong>I'm a Rider</strong> to browse available seats.</p>
-                  </div>
-                </article>
-              </div>
-
-              <!-- Right: sticky map panel -->
-              <div class="browse-map-panel hidden" id="browse-map-panel">
-                <div id="browse-radius-map" class="browse-radius-map-fullpanel"></div>
-                <div id="browse-map-hint-panel" class="browse-map-hint-panel"></div>
-              </div>
+                </div>
+                <div id="rides-list">
+                  <p class="browse-start-message">Select <strong>I'm a Driver</strong> to see ride requests from students, or <strong>I'm a Rider</strong> to browse available seats.</p>
+                </div>
+              </article>
 
             </div><!-- /.browse-rider-layout -->
           </section>
@@ -1316,6 +1317,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260521-browse-fix"></script>
+    <script src="app.js?v=20260521-browse-layout2"></script>
   </body>
 </html>
