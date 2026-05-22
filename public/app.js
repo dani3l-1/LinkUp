@@ -460,6 +460,7 @@ document.addEventListener('click', async (event) => {
     'twofa-login-back': () => {
       document.getElementById('twofa-login-error').textContent = '';
       document.getElementById('twofa-login-code').value = '';
+      fetchJson('/api/auth/clear-session', { method: 'POST' }).catch(() => {});
       showAuthForm('signin-form');
     },
   };
@@ -6079,6 +6080,7 @@ otpBoxes.forEach((box, i) => {
     const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
     text.split('').forEach((ch, j) => { if (otpBoxes[j]) otpBoxes[j].value = ch; });
     verificationCode.value = otpBoxes.map(b => b.value).join('');
+    if (text.length === 6) { verificationForm.requestSubmit(); return; }
     const next = otpBoxes[Math.min(text.length, otpBoxes.length - 1)];
     if (next) next.focus();
   });
@@ -6204,11 +6206,13 @@ resendVerificationButton.addEventListener('click', async () => {
 verificationForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearRecoveryMessages();
+  verificationCode.value = otpBoxes.map(b => b.value).join('');
   try {
     const user = await fetchJson('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: pendingVerificationEmail, code: verificationCode.value.trim() }) });
     currentUser = user;
     verificationForm.reset();
     otpBoxes.forEach(b => b.value = '');
+    pendingVerificationEmail = '';
     showDashboard(user);
   } catch (err) {
     verificationError.textContent = err.message;
