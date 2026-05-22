@@ -1053,7 +1053,7 @@ button:disabled::before { display: none; }
   .browse-rider-layout.rider-active .browse-top-row {
     display: flex;
     gap: 1.5rem;
-    align-items: start;
+    align-items: stretch;
     margin-bottom: 1.5rem;
   }
 
@@ -1065,10 +1065,14 @@ button:disabled::before { display: none; }
   .browse-rider-layout.rider-active .browse-map-panel {
     flex: 1 1 0;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
 
-  .browse-radius-map-fullpanel {
-    height: clamp(420px, 55vh, 580px);
+  .browse-rider-layout.rider-active .browse-radius-map-fullpanel {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 420px;
   }
 
   .browse-rider-layout.rider-active .browse-controls {
