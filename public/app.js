@@ -3463,6 +3463,9 @@ async function startTripTracking() {
     const trustedEmail = trackingRecipientEmail.value.trim();
     const data = await fetchJson('/api/trips/track/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trustedEmail }) });
     activeTrackingTripId = data.id;
+    if (window.LinkUpNative?.isNative) {
+      window.LinkUpNative.postMessage({ action: 'startTracking', tripId: data.id });
+    }
     activeTrackingViewerUrl = data.viewerUrl || '';
     copyTrackingLinkButton?.classList.toggle('hidden', !activeTrackingViewerUrl);
     updateTrackingDriverInfo();
@@ -3544,6 +3547,9 @@ async function copyTrackingLink() {
 
 async function stopTripTracking() {
   clearTrackingMessages();
+  if (window.LinkUpNative?.isNative) {
+    window.LinkUpNative.postMessage({ action: 'stopTracking' });
+  }
   if (trackingWatchId !== null) {
     navigator.geolocation.clearWatch(trackingWatchId);
     trackingWatchId = null;

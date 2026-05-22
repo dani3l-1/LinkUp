@@ -7,6 +7,8 @@ extension Notification.Name {
     static let linkUpNavigate = Notification.Name("linkUpNavigate")
     static let linkUpRequestLocation = Notification.Name("linkUpRequestLocation")
     static let linkUpRequestNotifications = Notification.Name("linkUpRequestNotifications")
+    static let linkUpStartTracking = Notification.Name("linkUpStartTracking")
+    static let linkUpStopTracking = Notification.Name("linkUpStopTracking")
 }
 
 struct LinkUpWebView: UIViewRepresentable {
@@ -117,6 +119,12 @@ struct LinkUpWebView: UIViewRepresentable {
                     NotificationCenter.default.post(name: .linkUpRequestLocation, object: nil)
                 case "requestNotifications":
                     NotificationCenter.default.post(name: .linkUpRequestNotifications, object: nil)
+                case "startTracking":
+                    if let tripId = body["tripId"] as? String {
+                        NotificationCenter.default.post(name: .linkUpStartTracking, object: tripId)
+                    }
+                case "stopTracking":
+                    NotificationCenter.default.post(name: .linkUpStopTracking, object: nil)
                 default:
                     break
                 }
