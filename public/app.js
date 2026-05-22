@@ -6298,7 +6298,9 @@ requestRideForm.addEventListener('submit', async (event) => {
     dropoffRadiusMiles: getRadiusInputMiles(requestDropoffRadiusInput),
     date: document.getElementById('request-date').value,
     time: document.getElementById('request-time').value,
-    riderCount: Number(document.getElementById('request-rider-count').value),
+    requestType: document.getElementById('request-type')?.value || 'ride',
+    movingSize: document.getElementById('request-moving-size')?.value || 'Small',
+    riderCount: Number(document.getElementById('request-rider-count').value) || 1,
     willingToPay: Number(document.getElementById('request-price').value),
     estimatedDurationMinutes: requestRideMetrics.durationMinutes,
     distanceMiles: requestRideMetrics.distanceMiles,
@@ -6310,6 +6312,13 @@ requestRideForm.addEventListener('submit', async (event) => {
   try {
     await fetchJson('/api/ride-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     requestRideForm.reset();
+    document.getElementById('request-type').value = 'ride';
+    document.querySelectorAll('.request-type-btn').forEach((b) => b.classList.toggle('active', b.dataset.requestType === 'ride'));
+    document.getElementById('request-riders-field')?.classList.remove('hidden');
+    document.getElementById('request-moving-fields')?.classList.add('hidden');
+    document.getElementById('request-share-field')?.classList.remove('hidden');
+    document.getElementById('request-notes').placeholder = 'Luggage, timing flexibility, pickup details…';
+    document.getElementById('request-submit-btn').textContent = 'Post request';
     requestPickupRadiusCircle = drawMapFlexCircle(requestPickupRadiusCircle, requestOriginMap, null, 0, '#3ecfcf');
     requestDropoffRadiusCircle = drawMapFlexCircle(requestDropoffRadiusCircle, requestOriginMap, null, 0, '#4d9ef5');
     ['request-origin-selected', 'request-destination-selected'].forEach((id) => {
@@ -6328,6 +6337,32 @@ requestRideForm.addEventListener('submit', async (event) => {
     requestRideError.classList.add('show');
   }
 });
+document.querySelectorAll('.request-type-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.requestType;
+    document.getElementById('request-type').value = type;
+    document.querySelectorAll('.request-type-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    const isMoving = type === 'moving';
+    document.getElementById('request-riders-field')?.classList.toggle('hidden', isMoving);
+    document.getElementById('request-moving-fields')?.classList.toggle('hidden', !isMoving);
+    document.getElementById('request-share-field')?.classList.toggle('hidden', isMoving);
+    const priceLabel = document.getElementById('request-price-label');
+    if (priceLabel?.firstChild?.nodeType === Node.TEXT_NODE) {
+      priceLabel.firstChild.textContent = isMoving ? 'Price willing to pay ($) ' : 'Price willing to pay ($) ';
+    }
+    const notesInput = document.getElementById('request-notes');
+    if (notesInput) notesInput.placeholder = isMoving ? 'Stairs, fragile items, parking, time window…' : 'Luggage, timing flexibility, pickup details…';
+    const submitBtn = document.getElementById('request-submit-btn');
+    if (submitBtn) submitBtn.textContent = isMoving ? 'Post moving request' : 'Post request';
+    const originLabel = document.getElementById('request-origin-label');
+    if (originLabel) originLabel.textContent = isMoving ? 'Pick-up address' : 'Pick-up location';
+    const destLabel = document.getElementById('request-destination-label');
+    if (destLabel) destLabel.textContent = isMoving ? 'Drop-off address' : 'Drop-off location';
+    const riderCount = document.getElementById('request-rider-count');
+    if (riderCount) riderCount.required = !isMoving;
+  });
+});
+
 listRideButton.addEventListener('click', () => showListRidePage());
 listRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 chatButton.addEventListener('click', () => showChatPage());

@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260521-btn-order" />
+    <link rel="stylesheet" href="styles.css?v=20260521-moving-request" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -817,16 +817,20 @@
             </div>
 
             <article class="card request-ride-card">
-              <h3>Trip request</h3>
+              <div class="request-type-toggle">
+                <button type="button" class="request-type-btn active" data-request-type="ride">Ride</button>
+                <button type="button" class="request-type-btn" data-request-type="moving">Moving</button>
+              </div>
+              <input type="hidden" id="request-type" value="ride" />
               <form id="request-ride-form">
                 <div class="request-ride-grid">
                   <div class="location-picker request-location-picker">
-                    <label>Pick-up location</label>
+                    <label id="request-origin-label">Pick-up location</label>
                     <input type="text" id="request-origin" placeholder="Campus, dorm, airport, address..." required />
                     <div id="request-origin-selected" class="selected-location"></div>
                   </div>
                   <div class="location-picker request-location-picker">
-                    <label>Drop-off location</label>
+                    <label id="request-destination-label">Drop-off location</label>
                     <input type="text" id="request-destination" placeholder="Where do you want to go?" required />
                     <div id="request-destination-selected" class="selected-location"></div>
                   </div>
@@ -835,25 +839,36 @@
                   <input type="hidden" id="request-destination-lat" />
                   <input type="hidden" id="request-destination-lng" />
                   <div class="route-map-block request-route-map-block">
-                    <div class="route-map-heading">
-                      <span>Route map</span>
-                    </div>
+                    <div class="route-map-heading"><span>Route map</span></div>
                     <div id="request-origin-map" class="map-container route-map"></div>
                   </div>
                   <div class="radius-preference-grid">
-                    <label>Max walk to pick-up (mi) <input type="number" id="request-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
-                    <label>Max walk from drop-off (mi) <input type="number" id="request-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Max distance to pick-up (mi) <input type="number" id="request-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
+                    <label>Max distance from drop-off (mi) <input type="number" id="request-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
                   </div>
                   <label>Date <input type="date" id="request-date" required /></label>
-                  <label>Departure time <input type="time" id="request-time" required /></label>
-                  <label>Riders <input type="number" id="request-rider-count" min="1" max="7" value="1" required /></label>
-                  <label>Price willing to pay ($) <input type="number" id="request-price" min="0.50" step="0.01" placeholder="10.00" required /></label>
+                  <label>Time needed <input type="time" id="request-time" required /></label>
+                  <div id="request-riders-field">
+                    <label>Riders <input type="number" id="request-rider-count" min="1" max="7" value="1" /></label>
+                  </div>
+                  <div id="request-moving-fields" class="hidden">
+                    <label>Cargo size
+                      <select id="request-moving-size">
+                        <option value="Small">Small — bags &amp; boxes</option>
+                        <option value="Medium">Medium — small furniture + boxes</option>
+                        <option value="Large">Large — full room or more</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label id="request-price-label">Price willing to pay ($) <input type="number" id="request-price" min="0.50" step="0.01" placeholder="10.00" required /></label>
                 </div>
-                <label class="checkbox-label"><input type="checkbox" id="request-share-ride" /> I am willing to share this ride with other riders</label>
+                <div id="request-share-field">
+                  <label class="checkbox-label"><input type="checkbox" id="request-share-ride" /> I am willing to share this ride with other riders</label>
+                </div>
                 <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
                 <label class="checkbox-label"><input type="checkbox" id="request-same-school-driver" /> Same school driver only</label>
                 <label>Notes <input type="text" id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." /></label>
-                <button type="submit">Post request</button>
+                <button type="submit" id="request-submit-btn">Post request</button>
                 <div id="request-ride-message" class="success-message"></div>
                 <div id="request-ride-error" class="error-message"></div>
               </form>
@@ -1289,6 +1304,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260521-moving"></script>
+    <script src="app.js?v=20260521-moving-request"></script>
   </body>
 </html>

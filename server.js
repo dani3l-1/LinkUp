@@ -3834,7 +3834,13 @@ app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
   const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, estimatedDurationMinutes, distanceMiles, notes } = req.body;
-  if (!origin || !destination || !date || !time || !riderCount || willingToPay === undefined) {
+  const requestType = req.body.requestType === 'moving' ? 'moving' : 'ride';
+  const isMovingRequest = requestType === 'moving';
+  const movingSize = isMovingRequest ? String(req.body.movingSize || 'Small').trim() : '';
+  if (!origin || !destination || !date || !time || willingToPay === undefined) {
+    return res.status(400).json({ error: 'Missing trip request information' });
+  }
+  if (!isMovingRequest && !riderCount) {
     return res.status(400).json({ error: 'Missing trip request information' });
   }
   if (String(origin).length > 200 || String(destination).length > 200) {
@@ -3852,8 +3858,8 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
   if (!Number.isInteger(willingToPayCents) || willingToPayCents < 50) {
     return res.status(400).json({ error: 'Offer amount must be at least $0.50' });
   }
-  const riderCountNumber = Number(riderCount);
-  if (!Number.isInteger(riderCountNumber) || riderCountNumber < 1 || riderCountNumber > 7) {
+  const riderCountNumber = isMovingRequest ? 1 : Number(riderCount);
+  if (!isMovingRequest && (!Number.isInteger(riderCountNumber) || riderCountNumber < 1 || riderCountNumber > 7)) {
     return res.status(400).json({ error: 'Rider count must be between 1 and 7' });
   }
   const parsedOriginLat = parseOptionalLatitude(originLat);
@@ -3903,10 +3909,12 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     distanceMiles: parsedDistanceMiles,
     date,
     time,
+    requestType,
+    movingSize,
     riderCount: riderCountNumber,
     willingToPayCents,
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
-    shareRideWithOthers: Boolean(shareRideWithOthers),
+    shareRideWithOthers: isMovingRequest ? false : Boolean(shareRideWithOthers),
     sameGenderDriverOnly: Boolean(sameGenderDriverOnly),
     sameSchoolDriverOnly: Boolean(sameSchoolDriverOnly),
     notes: notes || '',
