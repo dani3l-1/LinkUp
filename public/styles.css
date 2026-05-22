@@ -8658,6 +8658,28 @@ html[data-theme="light"] .tracking-map {
   100% { opacity: 0; }
 }
 
+/* ── Moving Service ─────────────────────────────────────────────── */
+.moving-service-badge {
+  display: inline-block;
+  padding: 0.18rem 0.55rem;
+  background: rgba(245,170,50,0.18);
+  color: #c97b10;
+  border: 1px solid rgba(245,170,50,0.35);
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+html[data-theme="dark"] .moving-service-badge {
+  background: rgba(245,170,50,0.15);
+  color: #f5aa32;
+  border-color: rgba(245,170,50,0.3);
+}
+
 /* ── Two-factor authentication ──────────────────────────────────── */
 .twofa-methods-list {
   display: flex;

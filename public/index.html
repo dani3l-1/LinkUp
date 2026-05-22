@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260521-light-align" />
+    <link rel="stylesheet" href="styles.css?v=20260521-moving" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -882,6 +882,10 @@
                     <span>Rideshare Service</span>
                     <small>Share an Uber, Lyft, or another rideshare. Riders reserve general spots.</small>
                   </button>
+                  <button class="ride-provider-choice" type="button" data-provider-type="moving_service">
+                    <span>Moving Service</span>
+                    <small>Transport boxes, furniture, or other items. No passengers — cargo only.</small>
+                  </button>
                 </div>
                 <form id="offer-form" class="hidden">
                   <div class="ride-provider-summary">
@@ -929,6 +933,27 @@
                     </label>
                     <label>Available rider spots <input type="number" id="rideshare-seat-count" min="1" max="7" value="1" /></label>
                   </div>
+                  <div id="moving-service-fields" class="vehicle-grid hidden">
+                    <label>Vehicle type
+                      <select id="moving-vehicle-type">
+                        <option value="">Select vehicle…</option>
+                        <option value="Pickup Truck">Pickup Truck</option>
+                        <option value="Cargo Van">Cargo Van</option>
+                        <option value="Box Truck">Box Truck</option>
+                        <option value="SUV / Minivan">SUV / Minivan</option>
+                        <option value="Standard Car">Standard Car (small loads)</option>
+                      </select>
+                    </label>
+                    <label>Cargo capacity
+                      <select id="moving-capacity">
+                        <option value="Small">Small — bags &amp; boxes</option>
+                        <option value="Medium">Medium — small furniture + boxes</option>
+                        <option value="Large">Large — full room or more</option>
+                      </select>
+                    </label>
+                    <label class="checkbox-label"><input type="checkbox" id="moving-loading-help" /> I'll help load &amp; unload</label>
+                    <label class="checkbox-label"><input type="checkbox" id="moving-furniture" /> Can move large/heavy furniture</label>
+                  </div>
                   <div id="personal-car-fields" class="vehicle-grid hidden">
                     <label>Car maker <input type="text" id="car-maker" placeholder="Tesla" required /></label>
                     <label>Car model <input type="text" id="car-model" placeholder="Model Y" required /></label>
@@ -952,7 +977,7 @@
                     <div id="driver-seat-layout" class="seat-layout driver-seat-layout"></div>
                     <input type="hidden" id="seats" value="0" required />
                   </div>
-                  <label>Price per seat ($) <input type="number" id="ride-price" min="0.50" step="0.01" placeholder="5.00" required /></label>
+                  <label id="price-field-label">Price per seat ($) <input type="number" id="ride-price" min="0.50" step="0.01" placeholder="5.00" required /></label>
                   <label>Notes <input type="text" id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." /></label>
                   <label class="checkbox-label terms-agreement">
                     <input type="checkbox" id="ride-terms-agree" required />
@@ -1264,6 +1289,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260521-email-2fa"></script>
+    <script src="app.js?v=20260521-moving"></script>
   </body>
 </html>

@@ -595,6 +595,7 @@ const vehicleLayoutField = document.getElementById('vehicle-layout-field');
 const rideshareServiceFields = document.getElementById('rideshare-service-fields');
 const rideshareServiceSelect = document.getElementById('rideshare-service');
 const rideshareSeatCountInput = document.getElementById('rideshare-seat-count');
+const movingServiceFields = document.getElementById('moving-service-fields');
 const offerPickupRadiusInput = document.getElementById('offer-pickup-radius');
 const offerDropoffRadiusInput = document.getElementById('offer-dropoff-radius');
 const requestPickupRadiusInput = document.getElementById('request-pickup-radius');
@@ -3158,18 +3159,34 @@ function updateOfferProviderFields() {
   const providerType = rideProviderTypeSelect?.value || '';
   const isPersonalCar = providerType === 'personal_car';
   const isRideshare = providerType === 'rideshare_service';
+  const isMoving = providerType === 'moving_service';
   offerForm?.classList.toggle('hidden', !providerType);
   rideProviderStep?.classList.toggle('hidden', Boolean(providerType));
   rideProviderChoices.forEach((button) => button.classList.toggle('active', button.dataset.providerType === providerType));
   if (rideProviderSummaryText) {
     rideProviderSummaryText.textContent = isPersonalCar
       ? 'Personal Car'
-      : (isRideshare ? 'Rideshare Service' : 'Ride type selected');
+      : (isRideshare ? 'Rideshare Service' : (isMoving ? 'Moving Service' : 'Ride type selected'));
   }
   personalCarFields?.classList.toggle('hidden', !isPersonalCar);
   personalSeatSelection?.classList.toggle('hidden', !isPersonalCar);
   vehicleLayoutField?.classList.toggle('hidden', !isPersonalCar);
   rideshareServiceFields?.classList.toggle('hidden', !isRideshare);
+  movingServiceFields?.classList.toggle('hidden', !isMoving);
+
+  const priceLabel = document.getElementById('price-field-label');
+  if (priceLabel) {
+    const firstChild = priceLabel.firstChild;
+    if (firstChild && firstChild.nodeType === Node.TEXT_NODE) {
+      firstChild.textContent = isMoving ? 'Price for the job ($) ' : 'Price per seat ($) ';
+    }
+  }
+  const notesInput = document.getElementById('notes');
+  if (notesInput) {
+    notesInput.placeholder = isMoving
+      ? 'Stairs, fragile items, parking notes, etc.'
+      : 'Music OK, study-friendly, etc.';
+  }
 
   ['car-maker', 'car-model', 'car-color', 'license-plate'].forEach((id) => {
     setRequired(document.getElementById(id), isPersonalCar);
@@ -3178,6 +3195,7 @@ function updateOfferProviderFields() {
   setRequired(document.getElementById('seats'), isPersonalCar);
   setRequired(rideshareServiceSelect, isRideshare);
   setRequired(rideshareSeatCountInput, isRideshare);
+  setRequired(document.getElementById('moving-vehicle-type'), isMoving);
 }
 
 function chooseOfferProviderType(providerType) {
@@ -4244,8 +4262,9 @@ function renderRideCard(ride) {
     pinBadge.innerHTML = '<span class="request-pin-label">' + esc(pinInfo.label) + '</span><span>Pin ' + esc(pinInfo.label) + (distParts ? ' · ' + esc(distParts) : '') + '</span>';
     card.appendChild(pinBadge);
   }
+  const isMovingCard = ride.rideProviderType === 'moving_service';
   const title = document.createElement('h4');
-  title.textContent = `${ride.origin} → ${ride.destination}`;
+  title.innerHTML = `${isMovingCard ? '<span class="moving-service-badge">Moving</span> ' : ''}${esc(ride.origin)} → ${esc(ride.destination)}`;
   card.appendChild(title);
   const details = document.createElement('div');
   details.className = 'ride-details';
@@ -4254,16 +4273,15 @@ function renderRideCard(ride) {
     <div><strong>Driver:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
     <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
     <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
-    <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>
-    ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school riders only</div>' : ''}
+    ${!isMovingCard ? `<div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>` : ''}
+    ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school only</div>' : ''}
     ${getFlexRadiusMarkup(ride, 'driver')}
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
-    <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
+    <div><strong>Estimated time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
     ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
-    <div><strong>Seats left:</strong> ${esc(ride.seatsAvailable)}</div>
-    ${ride.seatingChartUnavailable ? '<div><strong>Seats:</strong> Seating chart unavailable</div>' : ''}
+    <div><strong>${isMovingCard ? 'Slots left' : 'Seats left'}:</strong> ${esc(ride.seatsAvailable)}</div>
     <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
-    <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
+    <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}${isMovingCard ? ' (flat rate)' : ''}</div>
     ${getVehicleDetailMarkup(ride)}
     ${ride.notes ? `<div><strong>Notes:</strong> ${esc(ride.notes)}</div>` : ''}
   `;
@@ -4381,6 +4399,14 @@ function canSeeRideLicensePlate(ride) {
 }
 
 function getVehicleDetailMarkup(ride) {
+  if (ride.rideProviderType === 'moving_service') {
+    return [
+      ride.movingVehicleType ? `<div><strong>Vehicle:</strong> ${esc(ride.movingVehicleType)}</div>` : '',
+      ride.movingCapacity ? `<div><strong>Cargo capacity:</strong> ${esc(ride.movingCapacity)}</div>` : '',
+      ride.movingLoadingHelp ? `<div><strong>Loading help:</strong> Included</div>` : '',
+      ride.movingFurniture ? `<div><strong>Large furniture:</strong> Accepted</div>` : '',
+    ].join('');
+  }
   if (ride.rideProviderType === 'rideshare_service') {
     return `<div><strong>Ride provider:</strong> ${esc(ride.rideshareService || 'Rideshare service')}</div>`;
   }
@@ -4908,33 +4934,39 @@ function buildRideSummary(ride, options = {}) {
   const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
   const container = document.createElement('div');
   container.className = 'ride-card';
+  const isMoving = ride.rideProviderType === 'moving_service';
   container.innerHTML = `
-    <h4>${esc(ride.origin)} → ${esc(ride.destination)}</h4>
+    <h4>${isMoving ? '<span class="moving-service-badge">Moving</span> ' : ''}${esc(ride.origin)} → ${esc(ride.destination)}</h4>
     <div class="ride-details">
-      <div><strong>Driver:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
+      <div><strong>${isMoving ? 'Driver' : 'Driver'}:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
       <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
       <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
-      <div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>
-      ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school riders only</div>' : ''}
+      ${!isMoving ? `<div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>` : ''}
+      ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school only</div>' : ''}
       ${getCoordinateMarkup(ride)}
       <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
-      <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
+      <div><strong>Estimated time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
       ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
-      <div><strong>Seats available:</strong> ${esc(ride.seatsAvailable)}</div>
-      ${selectedSeatId ? `<div><strong>Seat:</strong> ${esc(getSeatLabel(selectedSeatId))}</div>` : ''}
+      ${isMoving
+        ? `<div><strong>Slots available:</strong> ${esc(ride.seatsAvailable)}</div>`
+        : `<div><strong>Seats available:</strong> ${esc(ride.seatsAvailable)}</div>
+           ${selectedSeatId ? `<div><strong>Seat:</strong> ${esc(getSeatLabel(selectedSeatId))}</div>` : ''}`
+      }
       ${getRiderStopDetailMarkup(currentPassenger || ride)}
       <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
-      <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
+      <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}${isMoving ? ' (flat rate)' : ''}</div>
       ${getVehicleDetailMarkup(ride)}
-      <div><strong>Passengers:</strong> ${esc((ride.passengers || []).length)}</div>
+      ${!isMoving ? `<div><strong>Passengers:</strong> ${esc((ride.passengers || []).length)}</div>` : ''}
     </div>
   `;
   if (ride.seatingChartUnavailable) {
     const notice = document.createElement('div');
     notice.className = 'seat-picker-hint shared-seat-notice';
-    notice.textContent = ride.rideProviderType === 'rideshare_service'
-      ? 'Rideshare service — riders reserve general spots.'
-      : 'Seating chart unavailable for this shared ride.';
+    notice.textContent = ride.rideProviderType === 'moving_service'
+      ? 'Moving service — items and cargo only, no passengers.'
+      : (ride.rideProviderType === 'rideshare_service'
+        ? 'Rideshare service — riders reserve general spots.'
+        : 'Seating chart unavailable for this shared ride.');
     container.appendChild(notice);
   } else {
     const readonlyPicker = document.createElement('div');
@@ -6156,8 +6188,12 @@ offerForm.addEventListener('submit', async (event) => {
     showToast('Enter a rideshare service name and 1–7 available spots.', 'error');
     return;
   }
+  if (rideProviderType === 'moving_service' && !document.getElementById('moving-vehicle-type')?.value) {
+    showToast('Select a vehicle type for your moving service.', 'error');
+    return;
+  }
   if (Number(price) < 0.5) {
-    showToast('Price per seat must be at least $0.50.', 'error');
+    showToast('Price must be at least $0.50.', 'error');
     return;
   }
   if (sameGenderOnly && (!currentUser.gender || currentUser.gender === 'prefer-not-to-say')) {
@@ -6203,6 +6239,10 @@ offerForm.addEventListener('submit', async (event) => {
         estimatedDurationMinutes: rideMetrics.durationMinutes,
         distanceMiles: rideMetrics.distanceMiles,
         notes,
+        movingVehicleType: document.getElementById('moving-vehicle-type')?.value || '',
+        movingCapacity: document.getElementById('moving-capacity')?.value || 'Small',
+        movingLoadingHelp: document.getElementById('moving-loading-help')?.checked || false,
+        movingFurniture: document.getElementById('moving-furniture')?.checked || false,
       }),
     });
     offerForm.reset();

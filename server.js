@@ -4066,19 +4066,24 @@ app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, sameSchoolOnly, seatsAvailable, price, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, distanceMiles, notes } = req.body;
-  const rideProviderType = ['personal_car', 'rideshare_service'].includes(req.body.rideProviderType) ? req.body.rideProviderType : '';
+  const rideProviderType = ['personal_car', 'rideshare_service', 'moving_service'].includes(req.body.rideProviderType) ? req.body.rideProviderType : '';
   const isRideshareService = rideProviderType === 'rideshare_service';
+  const isMovingService = rideProviderType === 'moving_service';
   const rideshareService = String(req.body.rideshareService || '').trim();
   const rideshareSeatCount = Number(req.body.rideshareSeatCount);
+  const movingVehicleType = isMovingService ? String(req.body.movingVehicleType || '').trim() : '';
+  const movingCapacity = isMovingService ? String(req.body.movingCapacity || 'Small').trim() : '';
+  const movingLoadingHelp = isMovingService ? Boolean(req.body.movingLoadingHelp) : false;
+  const movingFurniture = isMovingService ? Boolean(req.body.movingFurniture) : false;
   const vehicleSeatCount = normalizeVehicleSeatCount(req.body.vehicleSeatCount);
   const availableSeatIds = normalizeSeatIds(req.body.availableSeatIds, vehicleSeatCount);
   if (!origin || !destination || !date || !time || !rideProviderType || price === undefined || originLat === undefined || originLng === undefined || destinationLat === undefined || destinationLng === undefined) {
     return res.status(400).json({ error: 'Missing ride information' });
   }
-  if (!isRideshareService && (!carMaker || !carModel || !carColor || !licensePlate)) {
+  if (!isRideshareService && !isMovingService && (!carMaker || !carModel || !carColor || !licensePlate)) {
     return res.status(400).json({ error: 'Personal car rides require vehicle information' });
   }
-  if (!isRideshareService && !availableSeatIds.length) {
+  if (!isRideshareService && !isMovingService && !availableSeatIds.length) {
     return res.status(400).json({ error: 'Select at least one available passenger seat' });
   }
   if (isRideshareService && !rideshareService) {
@@ -4086,6 +4091,9 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   }
   if (isRideshareService && (!Number.isInteger(rideshareSeatCount) || rideshareSeatCount < 1 || rideshareSeatCount > 7)) {
     return res.status(400).json({ error: 'Rideshare service rides must have 1 to 7 available rider spots' });
+  }
+  if (isMovingService && !movingVehicleType) {
+    return res.status(400).json({ error: 'Select a vehicle type for your moving service' });
   }
   if (termsAccepted !== true) {
     return res.status(400).json({ error: 'You must agree to the driver terms and conditions before listing a ride' });
@@ -4153,16 +4161,20 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     returnRide: hasReturnRide ? { date: returnDate, time: returnTime } : null,
     rideProviderType,
     rideshareService: isRideshareService ? rideshareService : '',
-    seatingChartUnavailable: isRideshareService,
-    sharedSeatCapacity: isRideshareService ? rideshareSeatCount : null,
-    vehicleSeatCount: isRideshareService ? 0 : vehicleSeatCount,
-    availableSeatIds: isRideshareService ? [] : availableSeatIds,
-    seatsAvailable: isRideshareService ? rideshareSeatCount : availableSeatIds.length,
+    movingVehicleType,
+    movingCapacity,
+    movingLoadingHelp,
+    movingFurniture,
+    seatingChartUnavailable: isRideshareService || isMovingService,
+    sharedSeatCapacity: isRideshareService ? rideshareSeatCount : (isMovingService ? 1 : null),
+    vehicleSeatCount: (isRideshareService || isMovingService) ? 0 : vehicleSeatCount,
+    availableSeatIds: (isRideshareService || isMovingService) ? [] : availableSeatIds,
+    seatsAvailable: isRideshareService ? rideshareSeatCount : (isMovingService ? 1 : availableSeatIds.length),
     priceCents,
-    carMaker: isRideshareService ? '' : String(carMaker).trim(),
-    carModel: isRideshareService ? '' : String(carModel).trim(),
-    carColor: isRideshareService ? '' : String(carColor).trim(),
-    licensePlate: isRideshareService ? '' : String(licensePlate).trim().toUpperCase(),
+    carMaker: (isRideshareService || isMovingService) ? '' : String(carMaker).trim(),
+    carModel: (isRideshareService || isMovingService) ? '' : String(carModel).trim(),
+    carColor: (isRideshareService || isMovingService) ? '' : String(carColor).trim(),
+    licensePlate: (isRideshareService || isMovingService) ? '' : String(licensePlate).trim().toUpperCase(),
     termsAcceptedAt: new Date().toISOString(),
     notes: notes || '',
     passengers: [],
