@@ -57,9 +57,8 @@
     document.getElementById('auth-section')?.classList.add('hidden');
     document.getElementById('dashboard')?.classList.remove('hidden');
     document.getElementById('header-actions')?.classList.remove('hidden');
-    document.getElementById('header-left-actions')?.classList.remove('hidden');
     const welcomeMessage = document.getElementById('welcome-message');
-    if (welcomeMessage) welcomeMessage.textContent = `Welcome, ${user.firstName || 'there'}`;
+    if (welcomeMessage) welcomeMessage.textContent = `Hey, ${user.firstName || 'there'}.`;
   };
 
   const apiJson = async (url, options = {}) => {
@@ -206,7 +205,6 @@
       document.getElementById('dashboard')?.classList.add('hidden');
       document.getElementById('auth-section')?.classList.remove('hidden');
       document.getElementById('header-actions')?.classList.add('hidden');
-      document.getElementById('header-left-actions')?.classList.add('hidden');
       return;
     }
     await action();

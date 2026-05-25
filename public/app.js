@@ -40,7 +40,6 @@ const authSection = document.getElementById('auth-section');
 const dashboard = document.getElementById('dashboard');
 const siteLogo = document.querySelector('.site-logo');
 const headerActions = document.getElementById('header-actions');
-const headerLeftActions = document.getElementById('header-left-actions');
 const signinForm = document.getElementById('signin-form');
 const signupForm = document.getElementById('signup-form');
 const privacyPage = document.getElementById('privacy-page');
@@ -48,8 +47,6 @@ const termsPage = document.getElementById('terms-page');
 const privacyContent = document.getElementById('privacy-content');
 const termsContent = document.getElementById('terms-content');
 const releaseNoteFeed = document.getElementById('release-note-feed');
-const privacyLink = document.getElementById('privacy-link');
-const termsLink = document.getElementById('terms-link');
 const legalBackButtons = document.querySelectorAll('.legal-back');
 const legalModal = document.getElementById('legal-modal');
 const legalModalTitle = document.getElementById('legal-modal-title');
@@ -437,8 +434,6 @@ document.addEventListener('click', async (event) => {
     'chat-back-home': () => returnToBrowseRides(),
     'your-rides-back-home': () => returnToBrowseRides(),
     'continue-shopping': () => returnToBrowseRides(),
-    'privacy-link': () => showLegalPage('privacy'),
-    'terms-link': () => showLegalPage('terms'),
     'forgot-auth-link': () => {
       clearRecoveryMessages();
       showAuthForm('recovery-form');
@@ -1591,7 +1586,6 @@ function showLegalPage(pageName) {
   sharedTrackPage.classList.add('hidden');
   hideLegalPages();
   document.body.classList.remove('dashboard-mode');
-  headerLeftActions.classList.add('hidden');
   headerActions.classList.add('hidden');
   if (pageName === 'privacy') privacyPage.classList.remove('hidden');
   if (pageName === 'terms') termsPage.classList.remove('hidden');
@@ -1606,7 +1600,6 @@ function showAuthSection() {
   siteLogo.removeAttribute('aria-label');
   siteLogo.removeAttribute('tabindex');
   document.body.classList.remove('dashboard-mode');
-  headerLeftActions.classList.add('hidden');
   headerActions.classList.add('hidden');
   authSection.classList.remove('hidden');
   dashboard.classList.add('hidden');
@@ -1630,7 +1623,6 @@ function showDashboardShell(user = currentUser) {
   siteLogo.setAttribute('aria-label', 'Go to home');
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
-  headerLeftActions.classList.remove('hidden');
   headerActions.classList.remove('hidden');
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
@@ -1736,10 +1728,15 @@ function hideDashboardPages() {
 
 
 function updateUserHeader(user) {
-  welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
-  studentUniversityLabel.textContent = user.rideServicesPaused
-    ? 'Ride services temporarily paused'
-    : user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
+  if (welcomeMessage) {
+    const name = (user?.firstName || '').trim() || getDisplayName(user);
+    welcomeMessage.textContent = name ? `Hey, ${name}.` : 'Where to next?';
+  }
+  if (studentUniversityLabel) {
+    studentUniversityLabel.textContent = user.rideServicesPaused
+      ? 'Ride services temporarily paused'
+      : user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
+  }
 }
 
 function clearProfileMessages() {
@@ -1924,11 +1921,18 @@ function showProfileTab(tabName) {
   if (!profilePage.classList.contains('hidden')) setAppRoute(profileRouteForTab(tabName));
   profileSidebarButtons.forEach((button) => button.classList.toggle('active', button.dataset.profileTab === tabName));
   profilePanels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.profilePanel !== tabName));
+  document.body.classList.add('profile-detail-view');
   if (tabName === 'payment') fillDefaultPaymentForm(currentUser || {});
   if (tabName === 'payouts') fillDriverPayoutForm(currentUser || {});
   if (tabName === 'policies') fillPolicyConsentForm(currentUser || {});
   if (tabName === 'appearance') applyThemePreference(currentUser?.themePreference || getStoredThemePreference() || 'dark');
   if (tabName === 'security') render2FAPanel(currentUser);
+}
+
+function showProfileMenu() {
+  profilePanels.forEach((panel) => panel.classList.add('hidden'));
+  profileSidebarButtons.forEach((button) => button.classList.remove('active'));
+  document.body.classList.remove('profile-detail-view');
 }
 
 function clearDefaultPaymentMessages() {
@@ -2512,8 +2516,12 @@ async function showPublicProfilePage(userId) {
   }
 }
 
-function showProfilePage(tabName = 'info') {
-  setAppRoute(profileRouteForTab(tabName));
+function showProfilePage(tabName) {
+  // On mobile, opening the profile icon with no specific tab shows the menu list
+  // rather than auto-selecting the info panel — iOS push-nav style.
+  const isMobile = window.matchMedia('(max-width: 780px)').matches;
+  const effectiveTab = tabName ?? (isMobile ? null : 'info');
+  setAppRoute(profileRouteForTab(effectiveTab || 'info'));
   clearCartMessages();
   clearProfileMessages();
   clearPolicyMessages();
@@ -2522,8 +2530,12 @@ function showProfilePage(tabName = 'info') {
   fillDefaultPaymentForm(currentUser || {});
   fillDriverPayoutForm(currentUser || {});
   fillPolicyConsentForm(currentUser || {});
-  if (tabName === 'security') render2FAPanel(currentUser);
-  showProfileTab(tabName);
+  if (effectiveTab === 'security') render2FAPanel(currentUser);
+  if (effectiveTab) {
+    showProfileTab(effectiveTab);
+  } else {
+    showProfileMenu();
+  }
   profilePage.classList.remove('hidden');
 }
 
@@ -2582,7 +2594,9 @@ function loadDashboardHome() {
 
 async function loadDashboardUpcomingRide() {
   const container = document.getElementById('dashboard-ride-card');
+  const section = container?.closest('.dashboard-next-ride');
   if (!container) return;
+  if (section) section.classList.add('is-loading');
   container.textContent = 'Loading...';
   try {
     const data = await fetchJson('/api/profile');
@@ -2599,17 +2613,21 @@ async function loadDashboardUpcomingRide() {
 
     container.innerHTML = '';
     if (!upcoming.length) {
-      const empty = document.createElement('div');
-      empty.className = 'dashboard-no-ride';
-      empty.innerHTML = 'No upcoming rides. <button type="button" id="dashboard-browse-cta" class="inline-cta">Browse rides</button> to find your next trip.';
-      empty.querySelector('#dashboard-browse-cta').addEventListener('click', () => showBrowsePage());
-      container.appendChild(empty);
+      if (section) section.hidden = true;
       return;
+    }
+    if (section) {
+      section.hidden = false;
+      section.classList.remove('is-loading');
     }
     const next = upcoming[0];
     const card = next._dashRole === 'driver' ? buildDriverRideSummary(next) : buildRideSummary(next);
     container.appendChild(card);
   } catch {
+    if (section) {
+      section.hidden = false;
+      section.classList.remove('is-loading');
+    }
     container.textContent = 'Unable to load your next ride.';
   }
 }
@@ -2638,6 +2656,12 @@ function populateDashboardStats(data) {
       : savingsCents > 0
         ? '<$1'
         : '$0';
+  }
+
+  const strip = el('dashboard-stats-strip');
+  if (strip) {
+    const hasActivity = ridesTaken > 0 || ridesOffered > 0 || savingsCents > 0;
+    strip.hidden = !hasActivity;
   }
 }
 
@@ -2993,11 +3017,9 @@ function showDashboard(user) {
   siteLogo.setAttribute('aria-label', 'Go to home');
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
-  headerLeftActions.classList.remove('hidden');
   headerActions.classList.remove('hidden');
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
-  welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
   updateUserHeader(user);
   if (!user.serviceApproved) {
     showWaitlistPage(user);
@@ -5331,6 +5353,7 @@ async function loadCart() {
       .filter((rideId) => hasExistingSelection ? previousSelection.has(rideId) : true));
     data.rides.forEach((ride) => { if (ride.selectedSeatId) selectedSeatByRide.set(ride.id, ride.selectedSeatId); });
     cartCount.textContent = data.rides.length;
+    cartCount.dataset.empty = data.rides.length > 0 ? 'false' : 'true';
     cartItems.innerHTML = '';
     cartSubtotal.classList.add('hidden');
     cartSubtotal.innerHTML = '';
@@ -5404,11 +5427,18 @@ function setBrowseRole(role) {
 
 function renderBrowseRoleChoice() {
   setBrowseRole(null);
-  browseDriverButton.disabled = Boolean(currentUser?.rideServicesPaused);
-  browseRiderButton.disabled = Boolean(currentUser?.rideServicesPaused);
-  listRideButton.disabled = Boolean(currentUser?.rideServicesPaused);
-  requestRideButton.disabled = Boolean(currentUser?.rideServicesPaused);
-  cartButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  const paused = Boolean(currentUser?.rideServicesPaused);
+  browseDriverButton.disabled = paused;
+  browseRiderButton.disabled = paused;
+  if (listRideButton) listRideButton.disabled = paused;
+  if (requestRideButton) requestRideButton.disabled = paused;
+  const homeList = document.getElementById('home-list-ride-btn');
+  if (homeList) homeList.disabled = paused;
+  const fabList = document.getElementById('fab-list-ride');
+  if (fabList) fabList.disabled = paused;
+  const fabRequest = document.getElementById('fab-request-ride');
+  if (fabRequest) fabRequest.disabled = paused;
+  cartButton.disabled = paused;
   browseTitle.textContent = 'Browse rides';
   browseSubtitle.textContent = 'Are you a driver looking for riders, or a rider looking for a seat?';
   browseControls.classList.add('hidden');
@@ -6434,7 +6464,7 @@ offerForm.addEventListener('submit', async (event) => {
   }
 });
 
-requestRideButton.addEventListener('click', () => showRequestRidePage());
+requestRideButton?.addEventListener('click', () => showRequestRidePage());
 requestRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 requestRideForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -6583,7 +6613,7 @@ document.querySelectorAll('.request-type-btn').forEach((btn) => {
   });
 });
 
-listRideButton.addEventListener('click', () => showListRidePage());
+listRideButton?.addEventListener('click', () => showListRidePage());
 listRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 chatButton.addEventListener('click', () => showChatPage());
 chatBackHomeButton.addEventListener('click', () => returnToBrowseRides());
@@ -6615,6 +6645,41 @@ document.addEventListener('keydown', (event) => {
 });
 legalBackButtons.forEach((button) => {
   button.addEventListener('click', () => returnFromLegalPage());
+});
+
+const profileDetailBackBtn = document.getElementById('profile-detail-back');
+profileDetailBackBtn?.addEventListener('click', () => {
+  showProfileMenu();
+  setAppRoute('profile');
+});
+
+// ── Floating action button (request a ride / offer a ride) ──
+const fabMenu = document.getElementById('fab-menu');
+const fabToggleBtn = document.getElementById('fab-toggle');
+const fabRequestRideBtn = document.getElementById('fab-request-ride');
+const fabListRideBtn = document.getElementById('fab-list-ride');
+const fabBackdrop = fabMenu?.querySelector('[data-fab-close]');
+
+function setFabOpen(open) {
+  if (!fabMenu) return;
+  const next = open ?? !fabMenu.classList.contains('open');
+  fabMenu.classList.toggle('open', next);
+  fabMenu.setAttribute('aria-hidden', next ? 'false' : 'true');
+  fabToggleBtn?.setAttribute('aria-expanded', next ? 'true' : 'false');
+}
+
+fabToggleBtn?.addEventListener('click', () => setFabOpen());
+fabBackdrop?.addEventListener('click', () => setFabOpen(false));
+fabRequestRideBtn?.addEventListener('click', () => {
+  setFabOpen(false);
+  showRequestRidePage();
+});
+fabListRideBtn?.addEventListener('click', () => {
+  setFabOpen(false);
+  showListRidePage();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && fabMenu?.classList.contains('open')) setFabOpen(false);
 });
 document.addEventListener('click', (event) => {
   const profileLink = event.target.closest('.user-profile-link');
@@ -7178,7 +7243,7 @@ stripePayoutRefreshButton?.addEventListener('click', async () => {
     setButtonLoading(stripePayoutRefreshButton, false);
   }
 });
-browseRidesButton.addEventListener('click', () => showBrowsePage());
+browseRidesButton?.addEventListener('click', () => showBrowsePage());
 copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
 sendTrackingInviteButton?.addEventListener('click', () => sendTrackingInvite());
 startTrackingButton.addEventListener('click', () => startTripTracking());
@@ -7486,6 +7551,3 @@ if (trackingViewerToken) {
   checkAuth().finally(finishAppBoot);
 }
 
-// Footer — dynamic copyright year
-const footerYear = document.getElementById('footer-year');
-if (footerYear) footerYear.textContent = new Date().getFullYear();
