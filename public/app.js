@@ -6682,7 +6682,7 @@ function setFabOpen(open) {
   fabToggleBtn?.setAttribute('aria-expanded', next ? 'true' : 'false');
 }
 
-fabToggleBtn?.addEventListener('click', () => setFabOpen());
+// fab-toggle uses an inline onclick in HTML so it works even if this script fails to bind
 fabBackdrop?.addEventListener('click', () => setFabOpen(false));
 fabRequestRideBtn?.addEventListener('click', () => {
   setFabOpen(false);

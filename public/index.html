@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260524-bg6" />
+    <link rel="stylesheet" href="styles.css?v=20260524-fab7" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -1314,7 +1314,7 @@
           </span>
         </button>
       </div>
-      <button id="fab-toggle" class="fab-main" type="button" aria-label="Add" aria-expanded="false" aria-controls="fab-menu">
+      <button id="fab-toggle" class="fab-main" type="button" aria-label="Add" aria-expanded="false" aria-controls="fab-menu" onclick="(function(b){var m=document.getElementById('fab-menu');if(!m)return;var open=m.classList.toggle('open');m.setAttribute('aria-hidden',open?'false':'true');b.setAttribute('aria-expanded',open?'true':'false');})(this)">
         <svg class="fab-main-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
     </div>
@@ -1322,6 +1322,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260524-bg6"></script>
+    <script src="app.js?v=20260524-fab7"></script>
   </body>
 </html>
