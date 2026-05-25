@@ -424,6 +424,7 @@ document.addEventListener('click', async (event) => {
     'request-ride-button': () => showRequestRidePage(),
     'list-ride-button': () => showListRidePage(),
     'home-find-ride-btn': () => showBrowsePage(),
+    'home-request-ride-btn': () => showRequestRidePage(),
     'home-list-ride-btn': () => showListRidePage(),
     'your-rides-button': () => showYourRidesPage(),
     'leaderboard-button': () => showLeaderboardPage(),
@@ -2592,11 +2593,16 @@ function showDashboardHome() {
 
 function loadDashboardHome() {
   const findBtn = document.getElementById('home-find-ride-btn');
+  const requestBtn = document.getElementById('home-request-ride-btn');
   const listBtn = document.getElementById('home-list-ride-btn');
   const paused = Boolean(currentUser?.rideServicesPaused);
   if (findBtn) {
     findBtn.disabled = false;
     findBtn.onclick = () => showBrowsePage();
+  }
+  if (requestBtn) {
+    requestBtn.disabled = paused;
+    requestBtn.onclick = () => showRequestRidePage();
   }
   if (listBtn) {
     listBtn.disabled = paused;
@@ -5446,12 +5452,8 @@ function renderBrowseRoleChoice() {
   browseRiderButton.disabled = paused;
   if (listRideButton) listRideButton.disabled = paused;
   if (requestRideButton) requestRideButton.disabled = paused;
-  const homeList = document.getElementById('home-list-ride-btn');
-  if (homeList) homeList.disabled = paused;
-  const fabList = document.getElementById('fab-list-ride');
-  if (fabList) fabList.disabled = paused;
-  const fabRequest = document.getElementById('fab-request-ride');
-  if (fabRequest) fabRequest.disabled = paused;
+  document.getElementById('home-list-ride-btn') && (document.getElementById('home-list-ride-btn').disabled = paused);
+  document.getElementById('home-request-ride-btn') && (document.getElementById('home-request-ride-btn').disabled = paused);
   cartButton.disabled = paused;
   browseTitle.textContent = 'Browse rides';
   browseSubtitle.textContent = 'Are you a driver looking for riders, or a rider looking for a seat?';
@@ -6667,34 +6669,6 @@ profileDetailBackBtn?.addEventListener('click', () => {
   setAppRoute('profile');
 });
 
-// ── Floating action button (request a ride / offer a ride) ──
-const fabMenu = document.getElementById('fab-menu');
-const fabToggleBtn = document.getElementById('fab-toggle');
-const fabRequestRideBtn = document.getElementById('fab-request-ride');
-const fabListRideBtn = document.getElementById('fab-list-ride');
-const fabBackdrop = fabMenu?.querySelector('[data-fab-close]');
-
-function setFabOpen(open) {
-  if (!fabMenu) return;
-  const next = open ?? !fabMenu.classList.contains('open');
-  fabMenu.classList.toggle('open', next);
-  fabMenu.setAttribute('aria-hidden', next ? 'false' : 'true');
-  fabToggleBtn?.setAttribute('aria-expanded', next ? 'true' : 'false');
-}
-
-// fab-toggle uses an inline onclick in HTML so it works even if this script fails to bind
-fabBackdrop?.addEventListener('click', () => setFabOpen(false));
-fabRequestRideBtn?.addEventListener('click', () => {
-  setFabOpen(false);
-  showRequestRidePage();
-});
-fabListRideBtn?.addEventListener('click', () => {
-  setFabOpen(false);
-  showListRidePage();
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && fabMenu?.classList.contains('open')) setFabOpen(false);
-});
 document.addEventListener('click', (event) => {
   const profileLink = event.target.closest('.user-profile-link');
   if (!profileLink) return;
