@@ -59,7 +59,7 @@
     document.getElementById('header-actions')?.classList.remove('hidden');
     document.getElementById('header-left-actions')?.classList.remove('hidden');
     const welcomeMessage = document.getElementById('welcome-message');
-    if (welcomeMessage) welcomeMessage.textContent = `Hey, ${user.firstName || 'there'}.`;
+    if (welcomeMessage) welcomeMessage.textContent = `Welcome, ${user.firstName || 'there'}`;
   };
 
   const apiJson = async (url, options = {}) => {

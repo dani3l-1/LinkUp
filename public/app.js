@@ -48,6 +48,8 @@ const termsPage = document.getElementById('terms-page');
 const privacyContent = document.getElementById('privacy-content');
 const termsContent = document.getElementById('terms-content');
 const releaseNoteFeed = document.getElementById('release-note-feed');
+const privacyLink = document.getElementById('privacy-link');
+const termsLink = document.getElementById('terms-link');
 const legalBackButtons = document.querySelectorAll('.legal-back');
 const legalModal = document.getElementById('legal-modal');
 const legalModalTitle = document.getElementById('legal-modal-title');
@@ -103,8 +105,6 @@ const leaderboardSavedMiles = document.getElementById('leaderboard-saved-miles')
 const schoolLeaderboardChart = document.getElementById('school-leaderboard-chart');
 const milesLeaderboardSummary = document.getElementById('miles-leaderboard-summary');
 const milesLeaderboardChart = document.getElementById('miles-leaderboard-chart');
-const ordersLeaderboardSummary = document.getElementById('orders-leaderboard-summary');
-const ordersLeaderboardChart = document.getElementById('orders-leaderboard-chart');
 const leaderboardError = document.getElementById('leaderboard-error');
 const publicProfilePage = document.getElementById('public-profile-page');
 const publicProfileTitle = document.getElementById('public-profile-title');
@@ -196,7 +196,6 @@ const recoveryForm = document.getElementById('recovery-form');
 const resetPasswordForm = document.getElementById('reset-password-form');
 const verificationForm = document.getElementById('verification-form');
 const verificationCode = document.getElementById('verification-code');
-const otpBoxes = Array.from(document.querySelectorAll('#otp-boxes .otp-box'));
 const verificationEmailLabel = document.getElementById('verification-email-label');
 const resendVerificationButton = document.getElementById('resend-verification');
 const verificationBackToSigninButton = document.getElementById('verification-back-to-signin');
@@ -423,9 +422,6 @@ document.addEventListener('click', async (event) => {
     'browse-back-home': () => returnToBrowseRides(),
     'request-ride-button': () => showRequestRidePage(),
     'list-ride-button': () => showListRidePage(),
-    'home-find-ride-btn': () => showBrowsePage(),
-    'home-request-ride-btn': () => showRequestRidePage(),
-    'home-list-ride-btn': () => showListRidePage(),
     'your-rides-button': () => showYourRidesPage(),
     'leaderboard-button': () => showLeaderboardPage(),
     'profile-button': () => showProfilePage(),
@@ -438,6 +434,8 @@ document.addEventListener('click', async (event) => {
     'chat-back-home': () => returnToBrowseRides(),
     'your-rides-back-home': () => returnToBrowseRides(),
     'continue-shopping': () => returnToBrowseRides(),
+    'privacy-link': () => showLegalPage('privacy'),
+    'terms-link': () => showLegalPage('terms'),
     'forgot-auth-link': () => {
       clearRecoveryMessages();
       showAuthForm('recovery-form');
@@ -461,7 +459,6 @@ document.addEventListener('click', async (event) => {
     'twofa-login-back': () => {
       document.getElementById('twofa-login-error').textContent = '';
       document.getElementById('twofa-login-code').value = '';
-      fetchJson('/api/auth/clear-session', { method: 'POST' }).catch(() => {});
       showAuthForm('signin-form');
     },
   };
@@ -1590,8 +1587,8 @@ function showLegalPage(pageName) {
   sharedTrackPage.classList.add('hidden');
   hideLegalPages();
   document.body.classList.remove('dashboard-mode');
+  headerLeftActions.classList.add('hidden');
   headerActions.classList.add('hidden');
-  headerLeftActions?.classList.add('hidden');
   if (pageName === 'privacy') privacyPage.classList.remove('hidden');
   if (pageName === 'terms') termsPage.classList.remove('hidden');
 }
@@ -1605,8 +1602,8 @@ function showAuthSection() {
   siteLogo.removeAttribute('aria-label');
   siteLogo.removeAttribute('tabindex');
   document.body.classList.remove('dashboard-mode');
+  headerLeftActions.classList.add('hidden');
   headerActions.classList.add('hidden');
-  headerLeftActions?.classList.add('hidden');
   authSection.classList.remove('hidden');
   dashboard.classList.add('hidden');
   dashboardHome?.classList.remove('hidden');
@@ -1629,8 +1626,8 @@ function showDashboardShell(user = currentUser) {
   siteLogo.setAttribute('aria-label', 'Go to home');
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
+  headerLeftActions.classList.remove('hidden');
   headerActions.classList.remove('hidden');
-  headerLeftActions?.classList.remove('hidden');
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
   updateUserHeader(user);
@@ -1657,7 +1654,6 @@ function showVerificationForm(email, message) {
   pendingVerificationEmail = email;
   clearRecoveryMessages();
   verificationForm.reset();
-  otpBoxes.forEach(b => b.value = '');
   verificationEmailLabel.textContent = `Enter the 6-digit code sent to ${email}.`;
   if (message) {
     verificationMessage.textContent = message;
@@ -1735,15 +1731,10 @@ function hideDashboardPages() {
 
 
 function updateUserHeader(user) {
-  if (welcomeMessage) {
-    const name = (user?.firstName || '').trim() || getDisplayName(user);
-    welcomeMessage.textContent = name ? `Hey, ${name}.` : 'Where to next?';
-  }
-  if (studentUniversityLabel) {
-    studentUniversityLabel.textContent = user.rideServicesPaused
-      ? 'Ride services temporarily paused'
-      : user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
-  }
+  welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
+  studentUniversityLabel.textContent = user.rideServicesPaused
+    ? 'Ride services temporarily paused'
+    : user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
 }
 
 function clearProfileMessages() {
@@ -1928,18 +1919,11 @@ function showProfileTab(tabName) {
   if (!profilePage.classList.contains('hidden')) setAppRoute(profileRouteForTab(tabName));
   profileSidebarButtons.forEach((button) => button.classList.toggle('active', button.dataset.profileTab === tabName));
   profilePanels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.profilePanel !== tabName));
-  document.body.classList.add('profile-detail-view');
   if (tabName === 'payment') fillDefaultPaymentForm(currentUser || {});
   if (tabName === 'payouts') fillDriverPayoutForm(currentUser || {});
   if (tabName === 'policies') fillPolicyConsentForm(currentUser || {});
   if (tabName === 'appearance') applyThemePreference(currentUser?.themePreference || getStoredThemePreference() || 'dark');
   if (tabName === 'security') render2FAPanel(currentUser);
-}
-
-function showProfileMenu() {
-  profilePanels.forEach((panel) => panel.classList.add('hidden'));
-  profileSidebarButtons.forEach((button) => button.classList.remove('active'));
-  document.body.classList.remove('profile-detail-view');
 }
 
 function clearDefaultPaymentMessages() {
@@ -2382,13 +2366,6 @@ function renderSchoolLeaderboard(data) {
     ? formatMiles(totalMiles) + ' traveled across ' + mileageSchools.length + ' school' + (mileageSchools.length === 1 ? '' : 's') + '.'
     : 'No ride miles have been posted yet.';
   renderLeaderboardRows(mileageSchools, milesLeaderboardChart, 'miles', (school) => formatMiles(school.miles) + ' across ' + school.tripCount + ' trip' + (school.tripCount === 1 ? '' : 's'));
-
-  const ordersBySchool = data.ordersBySchool || [];
-  ordersLeaderboardSummary.textContent = ordersBySchool.length
-    ? ordersBySchool.reduce((sum, s) => sum + (s.tripCount || 0), 0) + ' total order' + (ordersBySchool.reduce((sum, s) => sum + (s.tripCount || 0), 0) === 1 ? '' : 's') + ' across ' + ordersBySchool.length + ' school' + (ordersBySchool.length === 1 ? '' : 's') + '.'
-    : 'No orders have been fulfilled yet.';
-  ordersLeaderboardChart.innerHTML = '';
-  renderLeaderboardRows(ordersBySchool, ordersLeaderboardChart, 'tripCount', (s) => s.tripCount + ' order' + (s.tripCount === 1 ? '' : 's'));
 }
 
 async function loadLeaderboard() {
@@ -2400,8 +2377,6 @@ async function loadLeaderboard() {
     if (savedMilesValue) savedMilesValue.textContent = 'Loading...';
   }
   schoolLeaderboardChart.innerHTML = '';
-  ordersLeaderboardSummary.textContent = 'Loading orders...';
-  ordersLeaderboardChart.innerHTML = '';
   try {
     const data = await fetchJson('/api/leaderboard/schools');
     renderSchoolLeaderboard(data);
@@ -2523,12 +2498,8 @@ async function showPublicProfilePage(userId) {
   }
 }
 
-function showProfilePage(tabName) {
-  // On mobile, opening the profile icon with no specific tab shows the menu list
-  // rather than auto-selecting the info panel — iOS push-nav style.
-  const isMobile = window.matchMedia('(max-width: 780px)').matches;
-  const effectiveTab = tabName ?? (isMobile ? null : 'info');
-  setAppRoute(profileRouteForTab(effectiveTab || 'info'));
+function showProfilePage(tabName = 'info') {
+  setAppRoute(profileRouteForTab(tabName));
   clearCartMessages();
   clearProfileMessages();
   clearPolicyMessages();
@@ -2537,12 +2508,8 @@ function showProfilePage(tabName) {
   fillDefaultPaymentForm(currentUser || {});
   fillDriverPayoutForm(currentUser || {});
   fillPolicyConsentForm(currentUser || {});
-  if (effectiveTab === 'security') render2FAPanel(currentUser);
-  if (effectiveTab) {
-    showProfileTab(effectiveTab);
-  } else {
-    showProfileMenu();
-  }
+  if (tabName === 'security') render2FAPanel(currentUser);
+  showProfileTab(tabName);
   profilePage.classList.remove('hidden');
 }
 
@@ -2593,29 +2560,15 @@ function showDashboardHome() {
 
 function loadDashboardHome() {
   const findBtn = document.getElementById('home-find-ride-btn');
-  const requestBtn = document.getElementById('home-request-ride-btn');
   const listBtn = document.getElementById('home-list-ride-btn');
-  const paused = Boolean(currentUser?.rideServicesPaused);
-  if (findBtn) {
-    findBtn.disabled = false;
-    findBtn.onclick = () => showBrowsePage();
-  }
-  if (requestBtn) {
-    requestBtn.disabled = paused;
-    requestBtn.onclick = () => showRequestRidePage();
-  }
-  if (listBtn) {
-    listBtn.disabled = paused;
-    listBtn.onclick = () => showListRidePage();
-  }
+  if (findBtn) findBtn.onclick = () => showBrowsePage();
+  if (listBtn) listBtn.onclick = () => showListRidePage();
   loadDashboardUpcomingRide();
 }
 
 async function loadDashboardUpcomingRide() {
   const container = document.getElementById('dashboard-ride-card');
-  const section = container?.closest('.dashboard-next-ride');
   if (!container) return;
-  if (section) section.classList.add('is-loading');
   container.textContent = 'Loading...';
   try {
     const data = await fetchJson('/api/profile');
@@ -2632,21 +2585,17 @@ async function loadDashboardUpcomingRide() {
 
     container.innerHTML = '';
     if (!upcoming.length) {
-      if (section) section.hidden = true;
+      const empty = document.createElement('div');
+      empty.className = 'dashboard-no-ride';
+      empty.innerHTML = 'No upcoming rides. <button type="button" id="dashboard-browse-cta" class="inline-cta">Browse rides</button> to find your next trip.';
+      empty.querySelector('#dashboard-browse-cta').addEventListener('click', () => showBrowsePage());
+      container.appendChild(empty);
       return;
-    }
-    if (section) {
-      section.hidden = false;
-      section.classList.remove('is-loading');
     }
     const next = upcoming[0];
     const card = next._dashRole === 'driver' ? buildDriverRideSummary(next) : buildRideSummary(next);
     container.appendChild(card);
   } catch {
-    if (section) {
-      section.hidden = false;
-      section.classList.remove('is-loading');
-    }
     container.textContent = 'Unable to load your next ride.';
   }
 }
@@ -2675,12 +2624,6 @@ function populateDashboardStats(data) {
       : savingsCents > 0
         ? '<$1'
         : '$0';
-  }
-
-  const strip = el('dashboard-stats-strip');
-  if (strip) {
-    const hasActivity = ridesTaken > 0 || ridesOffered > 0 || savingsCents > 0;
-    strip.hidden = !hasActivity;
   }
 }
 
@@ -3036,10 +2979,11 @@ function showDashboard(user) {
   siteLogo.setAttribute('aria-label', 'Go to home');
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
+  headerLeftActions.classList.remove('hidden');
   headerActions.classList.remove('hidden');
-  headerLeftActions?.classList.remove('hidden');
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
+  welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
   updateUserHeader(user);
   if (!user.serviceApproved) {
     showWaitlistPage(user);
@@ -3505,9 +3449,6 @@ async function startTripTracking() {
     const trustedEmail = trackingRecipientEmail.value.trim();
     const data = await fetchJson('/api/trips/track/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trustedEmail }) });
     activeTrackingTripId = data.id;
-    if (window.LinkUpNative?.isNative) {
-      window.LinkUpNative.postMessage({ action: 'startTracking', tripId: data.id });
-    }
     activeTrackingViewerUrl = data.viewerUrl || '';
     copyTrackingLinkButton?.classList.toggle('hidden', !activeTrackingViewerUrl);
     updateTrackingDriverInfo();
@@ -3589,9 +3530,6 @@ async function copyTrackingLink() {
 
 async function stopTripTracking() {
   clearTrackingMessages();
-  if (window.LinkUpNative?.isNative) {
-    window.LinkUpNative.postMessage({ action: 'stopTracking' });
-  }
   if (trackingWatchId !== null) {
     navigator.geolocation.clearWatch(trackingWatchId);
     trackingWatchId = null;
@@ -3883,21 +3821,9 @@ function getAlphabetLabel(index) {
 }
 
 
-function syncBrowseMapHeight() {
-  if (!browseMapPanel || !browseRadiusMapDiv) return;
-  const hintEl = document.getElementById('browse-map-hint-panel');
-  const hintH = hintEl ? hintEl.offsetHeight : 0;
-  const h = browseMapPanel.clientHeight - hintH;
-  if (h > 100) {
-    browseRadiusMapDiv.style.height = h + 'px';
-    if (browseRadiusMap) google.maps.event.trigger(browseRadiusMap, 'resize');
-  }
-}
-
 function ensureBrowseRadiusMap() {
   if (!window.google?.maps || !browseRadiusMapDiv) return null;
   if (!browseRadiusMap) {
-    syncBrowseMapHeight();
     browseRadiusMap = new google.maps.Map(browseRadiusMapDiv, {
       zoom: 12,
       center: getInitialMapCenter(),
@@ -3908,9 +3834,6 @@ function ensureBrowseRadiusMap() {
       zoom: 12,
       shouldApply: () => !getRadiusCenter(pickupRadiusLocationInput) && !getRadiusCenter(dropoffRadiusLocationInput),
     });
-    if (window.ResizeObserver) {
-      new ResizeObserver(syncBrowseMapHeight).observe(browseMapPanel);
-    }
   }
   return browseRadiusMap;
 }
@@ -4922,101 +4845,6 @@ function buildRequestBrowseCard(request) {
   return card;
 }
 
-function buildNavMultiStopUrl(addresses) {
-  return 'https://www.google.com/maps/dir/' + addresses.map(encodeURIComponent).join('/');
-}
-
-function buildDriverNavSection(ride) {
-  const paid = (ride.passengers || []).filter((p) => p.paid);
-  const stops = [];
-
-  if (ride.origin) stops.push({ label: 'Start', address: ride.origin, type: 'start' });
-
-  const seenPickups = new Set();
-  for (const p of paid) {
-    if (p.actualPickup && !seenPickups.has(p.actualPickup)) {
-      seenPickups.add(p.actualPickup);
-      const name = [p.studentFirstName, p.studentLastName].filter(Boolean).join(' ') || 'Rider';
-      stops.push({ label: `Pick up ${name}`, address: p.actualPickup, type: 'pickup' });
-    }
-  }
-
-  const seenDropoffs = new Set();
-  for (const p of paid) {
-    if (p.actualDropoff && !seenDropoffs.has(p.actualDropoff)) {
-      seenDropoffs.add(p.actualDropoff);
-      const name = [p.studentFirstName, p.studentLastName].filter(Boolean).join(' ') || 'Rider';
-      stops.push({ label: `Drop off ${name}`, address: p.actualDropoff, type: 'dropoff' });
-    }
-  }
-
-  if (ride.destination) stops.push({ label: 'End', address: ride.destination, type: 'end' });
-
-  if (stops.length < 2) return null;
-
-  const wrap = document.createElement('div');
-  wrap.className = 'driver-nav-section';
-
-  const header = document.createElement('div');
-  header.className = 'driver-nav-header';
-  header.textContent = 'Navigation';
-  wrap.appendChild(header);
-
-  const list = document.createElement('div');
-  list.className = 'driver-nav-stops';
-
-  stops.forEach((stop, i) => {
-    const link = document.createElement('a');
-    link.className = `driver-nav-stop driver-nav-stop--${stop.type}`;
-    link.href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address)}`;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-
-    const dot = document.createElement('span');
-    dot.className = 'driver-nav-stop-dot';
-
-    const info = document.createElement('span');
-    info.className = 'driver-nav-stop-info';
-
-    const label = document.createElement('span');
-    label.className = 'driver-nav-stop-label';
-    label.textContent = stop.label;
-
-    const addr = document.createElement('span');
-    addr.className = 'driver-nav-stop-address';
-    addr.textContent = stop.address;
-
-    const arrow = document.createElement('span');
-    arrow.className = 'driver-nav-stop-arrow';
-    arrow.textContent = '›';
-
-    info.appendChild(label);
-    info.appendChild(addr);
-    link.appendChild(dot);
-    link.appendChild(info);
-    link.appendChild(arrow);
-    list.appendChild(link);
-
-    if (i < stops.length - 1) {
-      const connector = document.createElement('div');
-      connector.className = 'driver-nav-connector';
-      list.appendChild(connector);
-    }
-  });
-
-  wrap.appendChild(list);
-
-  const fullRoute = document.createElement('a');
-  fullRoute.className = 'driver-nav-full-route';
-  fullRoute.href = buildNavMultiStopUrl(stops.map((s) => s.address));
-  fullRoute.target = '_blank';
-  fullRoute.rel = 'noopener noreferrer';
-  fullRoute.textContent = 'Navigate full route';
-  wrap.appendChild(fullRoute);
-
-  return wrap;
-}
-
 function buildDriverRideSummary(ride) {
   const container = buildRideSummary(ride);
   container.classList.add('driver-pinned-ride');
@@ -5031,9 +4859,6 @@ function buildDriverRideSummary(ride) {
   } else if ((ride.passengers || []).length) {
     container.appendChild(buildDriverSeatManifest(ride));
   }
-
-  const navSection = buildDriverNavSection(ride);
-  if (navSection) container.appendChild(navSection);
 
   // Show trip completion form after departure if the ride uses completion codes
   const hasPaidRiders = (ride.passengers || []).some((p) => p.paid);
@@ -5373,7 +5198,6 @@ async function loadCart() {
       .filter((rideId) => hasExistingSelection ? previousSelection.has(rideId) : true));
     data.rides.forEach((ride) => { if (ride.selectedSeatId) selectedSeatByRide.set(ride.id, ride.selectedSeatId); });
     cartCount.textContent = data.rides.length;
-    cartCount.dataset.empty = data.rides.length > 0 ? 'false' : 'true';
     cartItems.innerHTML = '';
     cartSubtotal.classList.add('hidden');
     cartSubtotal.innerHTML = '';
@@ -5447,14 +5271,11 @@ function setBrowseRole(role) {
 
 function renderBrowseRoleChoice() {
   setBrowseRole(null);
-  const paused = Boolean(currentUser?.rideServicesPaused);
-  browseDriverButton.disabled = paused;
-  browseRiderButton.disabled = paused;
-  if (listRideButton) listRideButton.disabled = paused;
-  if (requestRideButton) requestRideButton.disabled = paused;
-  document.getElementById('home-list-ride-btn') && (document.getElementById('home-list-ride-btn').disabled = paused);
-  document.getElementById('home-request-ride-btn') && (document.getElementById('home-request-ride-btn').disabled = paused);
-  cartButton.disabled = paused;
+  browseDriverButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  browseRiderButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  listRideButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  requestRideButton.disabled = Boolean(currentUser?.rideServicesPaused);
+  cartButton.disabled = Boolean(currentUser?.rideServicesPaused);
   browseTitle.textContent = 'Browse rides';
   browseSubtitle.textContent = 'Are you a driver looking for riders, or a rider looking for a seat?';
   browseControls.classList.add('hidden');
@@ -5488,12 +5309,13 @@ function showRiderBrowse() {
   loadGoogleMapsAPI().then(() => {
     initializeRadiusAutocomplete();
     loadRides();
+    // Show map immediately; trigger resize after layout settles
     browseMapPanel?.classList.remove('hidden');
     browseRiderLayout?.classList.add('rider-active');
     setTimeout(() => {
-      ensureBrowseRadiusMap();
-      syncBrowseMapHeight();
-    }, 300);
+      const map = ensureBrowseRadiusMap();
+      if (map) google.maps.event.trigger(map, 'resize');
+    }, 100);
   }).catch((error) => {
     console.error('Browse map failed to load:', error);
     showBrowseMapLoadError(error);
@@ -5526,9 +5348,9 @@ function showDriverBrowse() {
     browseMapPanel?.classList.remove('hidden');
     browseRiderLayout?.classList.add('rider-active');
     setTimeout(() => {
-      ensureBrowseRadiusMap();
-      syncBrowseMapHeight();
-    }, 300);
+      const map = ensureBrowseRadiusMap();
+      if (map) google.maps.event.trigger(map, 'resize');
+    }, 100);
   }).catch((error) => {
     console.error('Browse map failed to load:', error);
     showBrowseMapLoadError(error);
@@ -6122,32 +5944,7 @@ signupPassword.addEventListener('input', (event) => validatePasswordRequirements
 forgotAuthLink.addEventListener('click', () => { clearRecoveryMessages(); showAuthForm('recovery-form'); });
 backToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); recoveryForm.reset(); showAuthForm('signin-form'); });
 resetBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); resetPasswordForm.reset(); window.history.replaceState({}, document.title, window.location.pathname); showAuthForm('signin-form'); });
-verificationBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); verificationForm.reset(); otpBoxes.forEach(b => b.value = ''); showAuthForm('signin-form'); });
-
-otpBoxes.forEach((box, i) => {
-  box.addEventListener('input', () => {
-    const val = box.value.replace(/\D/g, '');
-    box.value = val.slice(-1);
-    if (val && i < otpBoxes.length - 1) otpBoxes[i + 1].focus();
-    verificationCode.value = otpBoxes.map(b => b.value).join('');
-  });
-  box.addEventListener('keydown', (e) => {
-    if (e.key === 'Backspace' && !box.value && i > 0) {
-      otpBoxes[i - 1].value = '';
-      otpBoxes[i - 1].focus();
-      verificationCode.value = otpBoxes.map(b => b.value).join('');
-    }
-  });
-  box.addEventListener('paste', (e) => {
-    e.preventDefault();
-    const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
-    text.split('').forEach((ch, j) => { if (otpBoxes[j]) otpBoxes[j].value = ch; });
-    verificationCode.value = otpBoxes.map(b => b.value).join('');
-    if (text.length === 6) { verificationForm.requestSubmit(); return; }
-    const next = otpBoxes[Math.min(text.length, otpBoxes.length - 1)];
-    if (next) next.focus();
-  });
-});
+verificationBackToSigninButton.addEventListener('click', () => { clearRecoveryMessages(); verificationForm.reset(); showAuthForm('signin-form'); });
 
 function updateTwoFALoginForm() {
   const desc = document.getElementById('twofa-login-desc');
@@ -6269,13 +6066,10 @@ resendVerificationButton.addEventListener('click', async () => {
 verificationForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearRecoveryMessages();
-  verificationCode.value = otpBoxes.map(b => b.value).join('');
   try {
     const user = await fetchJson('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: pendingVerificationEmail, code: verificationCode.value.trim() }) });
     currentUser = user;
     verificationForm.reset();
-    otpBoxes.forEach(b => b.value = '');
-    pendingVerificationEmail = '';
     showDashboard(user);
   } catch (err) {
     verificationError.textContent = err.message;
@@ -6480,7 +6274,7 @@ offerForm.addEventListener('submit', async (event) => {
   }
 });
 
-requestRideButton?.addEventListener('click', () => showRequestRidePage());
+requestRideButton.addEventListener('click', () => showRequestRidePage());
 requestRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 requestRideForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -6629,7 +6423,7 @@ document.querySelectorAll('.request-type-btn').forEach((btn) => {
   });
 });
 
-listRideButton?.addEventListener('click', () => showListRidePage());
+listRideButton.addEventListener('click', () => showListRidePage());
 listRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 chatButton.addEventListener('click', () => showChatPage());
 chatBackHomeButton.addEventListener('click', () => returnToBrowseRides());
@@ -6662,13 +6456,6 @@ document.addEventListener('keydown', (event) => {
 legalBackButtons.forEach((button) => {
   button.addEventListener('click', () => returnFromLegalPage());
 });
-
-const profileDetailBackBtn = document.getElementById('profile-detail-back');
-profileDetailBackBtn?.addEventListener('click', () => {
-  showProfileMenu();
-  setAppRoute('profile');
-});
-
 document.addEventListener('click', (event) => {
   const profileLink = event.target.closest('.user-profile-link');
   if (!profileLink) return;
@@ -7231,7 +7018,7 @@ stripePayoutRefreshButton?.addEventListener('click', async () => {
     setButtonLoading(stripePayoutRefreshButton, false);
   }
 });
-browseRidesButton?.addEventListener('click', () => showBrowsePage());
+browseRidesButton.addEventListener('click', () => showBrowsePage());
 copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
 sendTrackingInviteButton?.addEventListener('click', () => sendTrackingInvite());
 startTrackingButton.addEventListener('click', () => startTripTracking());
@@ -7539,3 +7326,6 @@ if (trackingViewerToken) {
   checkAuth().finally(finishAppBoot);
 }
 
+// Footer — dynamic copyright year
+const footerYear = document.getElementById('footer-year');
+if (footerYear) footerYear.textContent = new Date().getFullYear();

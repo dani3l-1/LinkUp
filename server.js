@@ -62,7 +62,7 @@ const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15
 const STRIPE_FEE_RATE = 0.029;
 const STRIPE_FEE_FIXED_CENTS = 30;
 const ADMIN_PAYOUT_SECRET = process.env.ADMIN_PAYOUT_SECRET || '';
-const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED === 'true';
+const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
 // Email verification can be bypassed in local test mode via .env.local.
 const BYPASS_EMAIL_VERIFICATION = NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
 const PAYMENT_PROVIDER = String(process.env.PAYMENT_PROVIDER || 'stripe').trim().toLowerCase();
@@ -145,7 +145,6 @@ if (NODE_ENV === 'production') {
     ['STRIPE_PUBLISHABLE_KEY', STRIPE_PUBLISHABLE_KEY],
     ['STRIPE_WEBHOOK_SECRET', process.env.STRIPE_WEBHOOK_SECRET],
     ['SMTP_HOST/SMTP_USER/SMTP_PASS', process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS],
-    ['ADMIN_PAYOUT_SECRET', ADMIN_PAYOUT_SECRET],
   ].filter(([, ok]) => !ok).map(([name]) => name);
   if (missingProductionVars.length) {
     console.error('FATAL: Missing production config variables: ' + missingProductionVars.join(', '));
@@ -1536,7 +1535,7 @@ function sendVerificationCode(user, code) {
                 <!-- Header -->
                 <tr>
                   <td style="background:linear-gradient(135deg,#082a2f 0%,#0a3840 100%);padding:32px 36px;border-radius:20px 20px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
-                    <img src="${APP_BASE_URL}/favicon-96.png" alt="LinkUp" width="60" height="60" style="display:block;margin:0 auto 10px;font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;text-align:center;" />
+                    <div style="font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
                     <div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">Student ride sharing</div>
                   </td>
                 </tr>
@@ -1700,7 +1699,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d7fbfb;">
                 <tr>
                   <td style="background:#082023;padding:28px 32px;text-align:center;">
-                    <img src="${APP_BASE_URL}/favicon-96.png" alt="LinkUp" width="56" height="56" style="display:block;margin:0 auto 10px;font-size:30px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;text-align:center;" />
+                    <div style="font-size:30px;line-height:1;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">LinkUp</div>
                     <div style="margin-top:8px;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#61e0e0;">Seat reserved</div>
                   </td>
                 </tr>
@@ -1931,7 +1930,7 @@ async function sendTwoFactorEmail(to, code) {
   const html = `
     <div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid #e0f5f5;">
       <div style="background:linear-gradient(135deg,#082023 0%,#0d3535 100%);padding:32px 36px 28px;">
-        <img src="${APP_BASE_URL}/favicon-96.png" alt="LinkUp" width="52" height="52" style="display:block;margin:0 auto 8px;font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#3ecfcf;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;text-align:center;" />
+        <div style="font-size:22px;font-weight:800;color:#3ecfcf;letter-spacing:-0.5px;">LinkUp</div>
         <div style="font-size:15px;color:#b0e8e8;margin-top:4px;">Sign-in verification</div>
       </div>
       <div style="padding:32px 36px;">
@@ -2987,7 +2986,7 @@ app.post('/api/auth/2fa/verify', sensitiveWriteRateLimit, async (req, res) => {
     if (!storedCode || !expiry || Date.now() > expiry) {
       return res.status(401).json({ error: 'Code expired. Please sign in again to receive a new code.' });
     }
-    if (!timingSafeEqualText(code, storedCode)) return res.status(401).json({ error: 'Incorrect code. Check your email and try again.' });
+    if (code !== storedCode) return res.status(401).json({ error: 'Incorrect code. Check your email and try again.' });
   } else {
     return res.status(401).json({ error: 'Sign-in session expired. Please sign in again.' });
   }
@@ -3114,7 +3113,7 @@ app.post('/api/auth/forgot-password', (req, res) => {
     );
 
     if (NODE_ENV !== 'production') {
-      console.log('[dev] Password reset token:', hashToken(token));
+      console.log('[dev] Password reset link:', resetUrl);
     }
   }
 
@@ -3180,9 +3179,6 @@ app.put('/api/profile', requireAuth, (req, res) => {
 
   if (!firstName || !lastName) {
     return res.status(400).json({ error: 'First name and last name are required' });
-  }
-  if (firstName.length > 50 || middleName.length > 50 || lastName.length > 50) {
-    return res.status(400).json({ error: 'Name fields must be 50 characters or fewer' });
   }
   if (classYear && (!/^\d{4}$/.test(classYear) || Number(classYear) < 1900 || Number(classYear) > 2100)) {
     return res.status(400).json({ error: 'Class year must be a valid 4-digit year' });
@@ -3587,10 +3583,17 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
     entry.serviceApproved = entry.serviceApproved || user.serviceApproved === true;
   });
 
+  const schools = Array.from(schoolCounts.values()).sort((a, b) => {
+    if (b.userCount !== a.userCount) return b.userCount - a.userCount;
+    return a.school.localeCompare(b.school);
+  });
+
   const milesBySchool = new Map();
   (db.rides || []).forEach((ride) => {
     if (!hasTripEnded(ride)) return;
     if (!hasConfirmedRidePassenger(ride)) return;
+    const rideMiles = getRideMiles(ride);
+    if (!rideMiles) return;
 
     const driver = (db.users || []).find((user) => user.id === ride.driverId);
     const domain = driver?.universityDomain || getEmailDomain(driver?.email) || '';
@@ -3612,48 +3615,22 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
     }
 
     const entry = milesBySchool.get(key);
-    const rideMiles = getRideMiles(ride);
-    if (rideMiles) entry.miles += rideMiles;
+    entry.miles += rideMiles;
     entry.tripCount += 1;
   });
 
-  // Attach orders-fulfilled count to each school entry, then filter to approved only
-  const allSchools = Array.from(schoolCounts.values());
-  allSchools.forEach((entry) => {
-    entry.ordersFulfilled = milesBySchool.get(entry.domain || entry.school)?.tripCount || 0;
-  });
-
-  const schools = allSchools
-    .filter((s) => s.serviceApproved)
-    .sort((a, b) => {
-      if (b.userCount !== a.userCount) return b.userCount - a.userCount;
-      return a.school.localeCompare(b.school);
-    });
-
   const mileageSchools = Array.from(milesBySchool.values())
-    .filter((s) => s.serviceApproved)
     .map((entry) => ({ ...entry, miles: Math.round(entry.miles * 10) / 10 }))
     .sort((a, b) => {
       if (b.miles !== a.miles) return b.miles - a.miles;
       return a.school.localeCompare(b.school);
     });
-
-  const ordersBySchool = Array.from(milesBySchool.values())
-    .filter((s) => s.serviceApproved)
-    .map((entry) => ({ ...entry, miles: Math.round(entry.miles * 10) / 10 }))
-    .sort((a, b) => {
-      if (b.tripCount !== a.tripCount) return b.tripCount - a.tripCount;
-      return a.school.localeCompare(b.school);
-    });
-
   const totalMilesSaved = Math.round((db.rides || [])
     .filter(hasTripEnded)
     .filter(hasConfirmedRidePassenger)
     .reduce((sum, ride) => sum + getRideMilesSaved(ride), 0) * 10) / 10;
 
-  const totalUsers = schools.reduce((sum, s) => sum + s.userCount, 0);
-
-  res.json({ schools, mileageSchools, ordersBySchool, totalUsers, totalMilesSaved });
+  res.json({ schools, mileageSchools, totalUsers: (db.users || []).length, totalMilesSaved });
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting
@@ -3965,7 +3942,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     shareRideWithOthers: isMovingRequest ? false : Boolean(shareRideWithOthers),
     sameGenderDriverOnly: Boolean(sameGenderDriverOnly),
     sameSchoolDriverOnly: Boolean(sameSchoolDriverOnly),
-    notes: String(notes || '').trim().slice(0, 500),
+    notes: notes || '',
     driverOffers: [],
     status: 'open',
     createdAt: new Date().toISOString(),
@@ -4227,12 +4204,12 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     availableSeatIds: (isRideshareService || isMovingService) ? [] : availableSeatIds,
     seatsAvailable: isRideshareService ? rideshareSeatCount : (isMovingService ? 1 : availableSeatIds.length),
     priceCents,
-    carMaker: (isRideshareService || isMovingService) ? '' : String(carMaker).trim().slice(0, 60),
-    carModel: (isRideshareService || isMovingService) ? '' : String(carModel).trim().slice(0, 60),
-    carColor: (isRideshareService || isMovingService) ? '' : String(carColor).trim().slice(0, 40),
-    licensePlate: (isRideshareService || isMovingService) ? '' : String(licensePlate).trim().toUpperCase().slice(0, 15),
+    carMaker: (isRideshareService || isMovingService) ? '' : String(carMaker).trim(),
+    carModel: (isRideshareService || isMovingService) ? '' : String(carModel).trim(),
+    carColor: (isRideshareService || isMovingService) ? '' : String(carColor).trim(),
+    licensePlate: (isRideshareService || isMovingService) ? '' : String(licensePlate).trim().toUpperCase(),
     termsAcceptedAt: new Date().toISOString(),
-    notes: String(notes || '').trim().slice(0, 500),
+    notes: notes || '',
     passengers: [],
     completionPin: generateCompletionPin(),
     completionPinAttempts: 0,
@@ -4269,9 +4246,6 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
   const ride = db.rides.find((r) => r.id === rideId);
   if (!ride) {
     return res.status(404).json({ error: 'Ride not found' });
-  }
-  if (ride.priceCents > 0) {
-    return res.status(400).json({ error: 'This ride requires payment. Add it to your cart and checkout.' });
   }
 
   const reserveError = canStudentReserveRide(student, ride, seatId, db);
@@ -4552,19 +4526,16 @@ function reserveCartRides(db, student, cartEntries) {
   }
 
   ridesToReserve.forEach(({ ride, seatId, actualPickup, actualDropoff }) => {
-    const alreadyBooked = (ride.passengers || []).some((p) => p.studentId === student.id && p.seatId === seatId);
-    if (!alreadyBooked) {
-      ride.passengers.push({
-        studentId: student.id,
-        studentFirstName: student.firstName,
-        studentLastName: student.lastName,
-        studentGender: student.gender || '',
-        email: student.email,
-        seatId,
-        actualPickup,
-        actualDropoff,
-      });
-    }
+    ride.passengers.push({
+      studentId: student.id,
+      studentFirstName: student.firstName,
+      studentLastName: student.lastName,
+      studentGender: student.gender || '',
+      email: student.email,
+      seatId,
+      actualPickup,
+      actualDropoff,
+    });
     ride.seatsAvailable = getAvailableOpenSeatIds(ride).length;
   });
 
@@ -5211,13 +5182,11 @@ async function shutdown(signal) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('unhandledRejection', (reason) => console.error('Unhandled promise rejection:', reason));
 
 migrateDbOnStartup().then(() => {
   const listenArgs = HOST ? [PORT, HOST] : [PORT];
   server = httpServer.listen(...listenArgs, () => {
     console.log(`LinkUp server listening on http://${HOST || 'localhost'}:${PORT}`);
-    if (RIDE_SERVICES_PAUSED) console.warn('⚠️  RIDE_SERVICES_PAUSED=true — all ride endpoints are disabled. Set RIDE_SERVICES_PAUSED=false to open the service.');
   });
   server.on('error', (err) => {
     console.error('Server startup error:', err);
