@@ -40,6 +40,7 @@ const authSection = document.getElementById('auth-section');
 const dashboard = document.getElementById('dashboard');
 const siteLogo = document.querySelector('.site-logo');
 const headerActions = document.getElementById('header-actions');
+const headerLeftActions = document.getElementById('header-left-actions');
 const signinForm = document.getElementById('signin-form');
 const signupForm = document.getElementById('signup-form');
 const privacyPage = document.getElementById('privacy-page');
@@ -1587,6 +1588,7 @@ function showLegalPage(pageName) {
   hideLegalPages();
   document.body.classList.remove('dashboard-mode');
   headerActions.classList.add('hidden');
+  headerLeftActions?.classList.add('hidden');
   if (pageName === 'privacy') privacyPage.classList.remove('hidden');
   if (pageName === 'terms') termsPage.classList.remove('hidden');
 }
@@ -1601,6 +1603,7 @@ function showAuthSection() {
   siteLogo.removeAttribute('tabindex');
   document.body.classList.remove('dashboard-mode');
   headerActions.classList.add('hidden');
+  headerLeftActions?.classList.add('hidden');
   authSection.classList.remove('hidden');
   dashboard.classList.add('hidden');
   dashboardHome?.classList.remove('hidden');
@@ -1624,6 +1627,7 @@ function showDashboardShell(user = currentUser) {
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
   headerActions.classList.remove('hidden');
+  headerLeftActions?.classList.remove('hidden');
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
   updateUserHeader(user);
@@ -3018,6 +3022,7 @@ function showDashboard(user) {
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
   headerActions.classList.remove('hidden');
+  headerLeftActions?.classList.remove('hidden');
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
   updateUserHeader(user);
