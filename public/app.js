@@ -423,6 +423,8 @@ document.addEventListener('click', async (event) => {
     'browse-back-home': () => returnToBrowseRides(),
     'request-ride-button': () => showRequestRidePage(),
     'list-ride-button': () => showListRidePage(),
+    'home-find-ride-btn': () => showBrowsePage(),
+    'home-list-ride-btn': () => showListRidePage(),
     'your-rides-button': () => showYourRidesPage(),
     'leaderboard-button': () => showLeaderboardPage(),
     'profile-button': () => showProfilePage(),
@@ -2591,8 +2593,15 @@ function showDashboardHome() {
 function loadDashboardHome() {
   const findBtn = document.getElementById('home-find-ride-btn');
   const listBtn = document.getElementById('home-list-ride-btn');
-  if (findBtn) findBtn.onclick = () => showBrowsePage();
-  if (listBtn) listBtn.onclick = () => showListRidePage();
+  const paused = Boolean(currentUser?.rideServicesPaused);
+  if (findBtn) {
+    findBtn.disabled = false;
+    findBtn.onclick = () => showBrowsePage();
+  }
+  if (listBtn) {
+    listBtn.disabled = paused;
+    listBtn.onclick = () => showListRidePage();
+  }
   loadDashboardUpcomingRide();
 }
 
