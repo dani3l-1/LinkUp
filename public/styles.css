@@ -5937,7 +5937,7 @@ textarea:disabled,
   padding: 0;
 }
 
-#request-ride-form .request-location-picker label,
+#request-ride-form .request-location-picker label:not(.checkbox-label),
 #request-ride-form .request-ride-grid > label,
 #request-ride-form .radius-preference-grid label {
   display: grid;
@@ -5945,7 +5945,7 @@ textarea:disabled,
   margin: 0;
 }
 
-#request-ride-form .request-location-picker input,
+#request-ride-form .request-location-picker input:not([type="checkbox"]),
 #request-ride-form .request-ride-grid > label input,
 #request-ride-form .radius-preference-grid input,
 #request-notes {
