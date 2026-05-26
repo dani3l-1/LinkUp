@@ -1901,6 +1901,71 @@ function validateProfilePictureDataUrl(value) {
   return { valid: true, dataUrl };
 }
 
+function normalizeSocialProfileUrl(platform, value) {
+  const raw = String(value || '').trim();
+  if (!raw) return { valid: true, url: '' };
+  if (raw.length > 160 || /\s/.test(raw)) {
+    return { valid: false, error: 'Social links must be valid profile URLs or usernames' };
+  }
+
+  const platformConfig = {
+    instagram: {
+      hostPattern: /(^|\.)instagram\.com$/i,
+      baseUrl: 'https://www.instagram.com/',
+      label: 'Instagram',
+    },
+    linkedin: {
+      hostPattern: /(^|\.)linkedin\.com$/i,
+      baseUrl: 'https://www.linkedin.com/in/',
+      label: 'LinkedIn',
+    },
+    x: {
+      hostPattern: /(^|\.)(x|twitter)\.com$/i,
+      baseUrl: 'https://x.com/',
+      label: 'X',
+    },
+  }[platform];
+
+  const usernamePattern = platform === 'linkedin'
+    ? /^[A-Za-z0-9-]{3,100}$/
+    : /^@?[A-Za-z0-9._]{1,30}$/;
+
+  if (usernamePattern.test(raw)) {
+    return { valid: true, url: platformConfig.baseUrl + encodeURIComponent(raw.replace(/^@/, '')) };
+  }
+
+  const candidate = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.replace(/^www\./i, '');
+    if (!platformConfig.hostPattern.test(host)) {
+      return { valid: false, error: platformConfig.label + ' link must use the official ' + platformConfig.label + ' domain' };
+    }
+    if (platform === 'linkedin' && !parsed.pathname.toLowerCase().startsWith('/in/')) {
+      return { valid: false, error: 'LinkedIn link must be a public profile URL under /in/' };
+    }
+    if ((platform === 'instagram' || platform === 'x') && parsed.pathname.split('/').filter(Boolean).length > 1) {
+      return { valid: false, error: platformConfig.label + ' link must point to a profile, not a post or page' };
+    }
+    parsed.protocol = 'https:';
+    parsed.hash = '';
+    parsed.search = '';
+    return { valid: true, url: parsed.toString() };
+  } catch (_) {
+    return { valid: false, error: 'Social links must be valid profile URLs or usernames' };
+  }
+}
+
+function normalizeSocialLinks(value = {}) {
+  const links = {};
+  for (const platform of ['instagram', 'linkedin', 'x']) {
+    const result = normalizeSocialProfileUrl(platform, value?.[platform]);
+    if (!result.valid) return result;
+    links[platform] = result.url;
+  }
+  return { valid: true, links };
+}
+
 function userNeedsRequiredSettings(user) {
   return getMissingRequiredSettings(user).length > 0;
 }
@@ -1918,6 +1983,7 @@ function publicUser(user, db = null) {
     profilePictureDataUrl: user.profilePictureDataUrl || '',
     classYear: user.classYear || '',
     major: user.major || '',
+    socialLinks: user.socialLinks || {},
     themePreference: normalizeThemePreference(user.themePreference),
     email: user.email,
     university: getUserUniversityDisplay(user),
@@ -3204,8 +3270,12 @@ app.put('/api/profile', requireAuth, (req, res) => {
   const classYear = String(req.body.classYear || '').trim();
   const major = String(req.body.major || '').trim();
   const profilePictureValidation = validateProfilePictureDataUrl(req.body.profilePictureDataUrl);
+  const socialLinksValidation = normalizeSocialLinks(req.body.socialLinks || {});
   if (!profilePictureValidation.valid) {
     return res.status(400).json({ error: profilePictureValidation.error });
+  }
+  if (!socialLinksValidation.valid) {
+    return res.status(400).json({ error: socialLinksValidation.error });
   }
 
   if (!firstName || !lastName) {
@@ -3265,6 +3335,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
   }
   user.classYear = classYear;
   user.major = major;
+  user.socialLinks = socialLinksValidation.links;
   user.themePreference = normalizeThemePreference(req.body.themePreference ?? user.themePreference);
   user.updatedAt = new Date().toISOString();
 
@@ -5119,6 +5190,7 @@ app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, r
     profilePictureDataUrl: user.profilePictureDataUrl || '',
     classYear: user.classYear || '',
     major: user.major || '',
+    socialLinks: user.socialLinks || {},
     fullNameVisible: canSeeFullName,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),

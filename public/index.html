@@ -336,6 +336,9 @@
                         <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
                         <label>Class of <input type="number" id="profile-class-year" min="1900" max="2100" placeholder="2028" /></label>
                         <label>Major <input type="text" id="profile-major" maxlength="80" placeholder="Optional" /></label>
+                        <label>Instagram <input type="text" id="profile-instagram" maxlength="80" placeholder="@username or profile link" /></label>
+                        <label>LinkedIn <input type="text" id="profile-linkedin" maxlength="120" placeholder="linkedin.com/in/username" /></label>
+                        <label>X <input type="text" id="profile-x" maxlength="80" placeholder="@username or profile link" /></label>
                         <label class="profile-field-locked">Birthday
                           <span class="profile-lock-badge" aria-hidden="true">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
@@ -364,7 +367,7 @@
                           <input type="email" id="profile-email" disabled />
                         </label>
                       </div>
-                      <p class="profile-note">Birthday and gender can only be set once. Names can be updated once every 6 months.</p>
+                      <p class="profile-note">Birthday and gender can only be set once. Names can be updated once every 6 months. Social links are optional and visible on your public profile.</p>
                     </div>
 
                     <button type="submit">Save Profile</button>
@@ -1318,6 +1321,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260526-release-notes"></script>
+    <script src="app.js?v=20260526-social-links"></script>
   </body>
 </html>

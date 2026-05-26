@@ -3766,6 +3766,34 @@ article.card h3 {
   font-size: 0.9rem;
 }
 
+.public-profile-social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.15rem 0 0.55rem;
+}
+
+.public-profile-social-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0.28rem 0.58rem;
+  border: 1px solid rgba(62,207,207,0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(62,207,207,0.08);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.public-profile-social-links a:hover,
+.public-profile-social-links a:focus-visible {
+  border-color: rgba(62,207,207,0.5);
+  background: rgba(62,207,207,0.14);
+  color: #ecffff;
+}
+
 .public-profile-status {
   display: inline-flex;
   width: fit-content;

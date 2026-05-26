@@ -1752,6 +1752,9 @@ function fillProfileForm(user) {
   document.getElementById('profile-last-name').value = user.lastName || '';
   document.getElementById('profile-class-year').value = user.classYear || '';
   document.getElementById('profile-major').value = user.major || '';
+  document.getElementById('profile-instagram').value = user.socialLinks?.instagram || '';
+  document.getElementById('profile-linkedin').value = user.socialLinks?.linkedin || '';
+  document.getElementById('profile-x').value = user.socialLinks?.x || '';
   birthdayInput.value = user.birthday || '';
   genderInput.value = user.gender || '';
   document.getElementById('profile-email').value = user.email || '';
@@ -2414,6 +2417,21 @@ function formatPublicRating(profile) {
   return average ? average.toFixed(1) + ' / 5 from ' + count + ' rating' + (count === 1 ? '' : 's') : 'No driver ratings yet';
 }
 
+function renderPublicSocialLinks(profile) {
+  const links = profile?.socialLinks || {};
+  const items = [
+    ['Instagram', links.instagram],
+    ['LinkedIn', links.linkedin],
+    ['X', links.x],
+  ].filter(([, url]) => url);
+  if (!items.length) return '';
+  return `
+    <div class="public-profile-social-links" aria-label="Social links">
+      ${items.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join('')}
+    </div>
+  `;
+}
+
 async function toggleUserBlock(profile) {
   if (!profile?.id || profile.isCurrentUser) return;
   const blocking = !profile.isBlockedByCurrentUser;
@@ -2453,6 +2471,7 @@ function renderPublicProfile(profile) {
         <h4>${esc(profile.name || 'LinkUp user')}</h4>
         <p>${esc(profile.university || profile.universityDomain || 'University rider')}</p>
         ${profileDetails.length ? `<p class="public-profile-academic">${esc(profileDetails.join(' | '))}</p>` : ''}
+        ${renderPublicSocialLinks(profile)}
         <span class="public-profile-status">${profile.serviceApproved ? 'Verified university network' : 'Waitlist account'}</span>
       </div>
     </div>
@@ -7084,6 +7103,11 @@ profileForm.addEventListener('submit', async (event) => {
     lastName: document.getElementById('profile-last-name').value.trim(),
     classYear: document.getElementById('profile-class-year').value.trim(),
     major: document.getElementById('profile-major').value.trim(),
+    socialLinks: {
+      instagram: document.getElementById('profile-instagram').value.trim(),
+      linkedin: document.getElementById('profile-linkedin').value.trim(),
+      x: document.getElementById('profile-x').value.trim(),
+    },
     birthday: document.getElementById('profile-birthday').value,
     gender: document.getElementById('profile-gender').value,
     profilePictureDataUrl: pendingProfilePictureDataUrl ?? currentUser?.profilePictureDataUrl ?? '',
