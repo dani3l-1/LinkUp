@@ -1517,7 +1517,7 @@ function renderReleaseNotesMarkdown(markdown, target) {
 async function loadReleaseNotes() {
   if (!releaseNoteFeed) return;
   try {
-    const response = await fetch('release-notes.md');
+    const response = await fetch('release-notes.md', { cache: 'no-store' });
     if (!response.ok) throw new Error('Failed to load release-notes.md');
     renderReleaseNotesMarkdown(await response.text(), releaseNoteFeed);
   } catch (error) {

@@ -536,7 +536,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   maxAge: NODE_ENV === 'production' ? '1h' : 0,
   setHeaders(res, filePath) {
-    if (filePath.endsWith('index.html')) {
+    if (filePath.endsWith('index.html') || filePath.endsWith('release-notes.md')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
