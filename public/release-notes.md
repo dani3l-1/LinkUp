@@ -2,6 +2,26 @@
 
 ---
 
+## v2026.05.26 BETA
+
+### New
+- **Drop-off privacy.** When you post a ride request, your exact drop-off address is hidden from public view. Drivers browsing requests see only a general neighborhood area — your precise location is revealed only after a driver makes you an offer.
+
+### Improvements
+- **Notes fields are now multi-line.** Both the ride offer and ride request forms now use a proper text box for notes, so you can write more without losing track of what you typed.
+- **Moving service cards show "Mover" instead of "Driver".** Listings posted as a moving service now correctly label the provider as "Mover" to match the context.
+- **Budget label for moving requests.** When posting a moving service request, the price field is now labeled "Budget for move" instead of the generic rider label.
+
+### Fixed
+- **Trip completion form now appears for drivers.** After a rider pays and the trip departs, drivers can now see and submit the 6-digit completion code. This form was not appearing due to a missing payment status flag — earnings confirmation now works as intended.
+- **Signup button no longer freezes.** If you tried to sign up without checking the terms checkboxes, the Create Account button would get stuck in a loading state. It now resets correctly.
+- **Offer submit button no longer freezes on route errors.** If the route estimate failed during posting, the Post Ride button would get stuck. It now always resets regardless of what goes wrong.
+- **Passenger data is no longer visible to other riders.** Email addresses and rating details stored on passenger records were included in API responses visible to other users on the same ride. Only the driver and each individual rider can now see their own details.
+- **Completion code no longer visible in profile data.** The 6-digit trip completion PIN was inadvertently included in profile responses for drivers. It is now correctly withheld from the driver — only the confirmed rider sees it after departure.
+- **Browse no longer fetches ride data twice on load.** Navigating to Browse Rides was triggering two simultaneous API calls. Only one fetch now runs.
+
+---
+
 ## v2026.05.21 BETA
 
 ### New
