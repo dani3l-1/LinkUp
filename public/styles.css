@@ -509,6 +509,17 @@ input, select {
   outline: none;
 }
 
+input[type="checkbox"] {
+  display: inline-block;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 1.15rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 input:focus, select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow), 0 0 10px rgba(62,207,207,0.07);
@@ -1124,13 +1135,7 @@ button:disabled::before { display: none; }
 }
 
 .checkbox-label input[type="checkbox"] {
-  width: 1.15rem;
-  height: 1.15rem;
-  accent-color: var(--accent);
-  cursor: pointer;
   border-radius: 4px;
-  margin: 0;
-  flex-shrink: 0;
 }
 
 /* ─── Rides list ────────────────────────────────────────────── */
