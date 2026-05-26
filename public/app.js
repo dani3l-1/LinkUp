@@ -1775,7 +1775,8 @@ function fillProfileForm(user) {
   if (profileDisplayJoined && user.createdAt) {
     const joined = new Date(user.createdAt);
     if (!isNaN(joined)) {
-      profileDisplayJoined.textContent = `Member since ${joined.toLocaleString('default', { month: 'long', year: 'numeric' })}`;
+      const memberNumber = formatMemberNumber(user.memberNumber);
+      profileDisplayJoined.textContent = `Member since ${joined.toLocaleString('default', { month: 'long', year: 'numeric' })}${memberNumber ? ' · Member ' + memberNumber : ''}`;
     }
   }
 }
@@ -2411,6 +2412,11 @@ function formatPublicProfileDate(value) {
   return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
+function formatMemberNumber(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? '#' + number.toLocaleString() : '';
+}
+
 function formatPublicRating(profile) {
   const average = profile?.stats?.driverRatingAverage;
   const count = profile?.stats?.driverRatingCount || 0;
@@ -2463,7 +2469,8 @@ function renderPublicProfile(profile) {
     ? `<img class="public-profile-avatar-image" src="${esc(profile.profilePictureDataUrl)}" alt="${esc(profile.name || 'Profile')} profile picture" />`
     : esc((profile.firstName || profile.name || 'U').charAt(0).toUpperCase());
   publicProfileTitle.textContent = profile.name || 'User profile';
-  publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince)].filter(Boolean).join(' - ');
+  const publicMemberNumber = formatMemberNumber(profile.memberNumber);
+  publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), publicMemberNumber ? 'Member ' + publicMemberNumber : ''].filter(Boolean).join(' - ');
   publicProfileContent.innerHTML = `
     <div class="public-profile-hero">
       <div class="public-profile-avatar">${avatarMarkup}</div>

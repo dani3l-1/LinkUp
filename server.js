@@ -1970,6 +1970,12 @@ function userNeedsRequiredSettings(user) {
   return getMissingRequiredSettings(user).length > 0;
 }
 
+function getUserMemberNumber(db, userId) {
+  const users = Array.isArray(db?.users) ? db.users : [];
+  const index = users.findIndex((entry) => entry.id === userId);
+  return index >= 0 ? index + 1 : null;
+}
+
 function publicUser(user, db = null) {
   const fallbackName = user.name || user.email.split('@')[0];
   const missingRequiredSettings = getMissingRequiredSettings(user);
@@ -1992,6 +1998,7 @@ function publicUser(user, db = null) {
     waitlisted: user.serviceApproved !== true,
     emailVerified: user.emailVerified !== false,
     nameLastChangedAt: user.nameLastChangedAt || null,
+    memberNumber: db ? getUserMemberNumber(db, user.id) : null,
     defaultPaymentMethod: user.defaultPaymentMethod || null,
     payoutInfo: user.payoutInfo || null,
     paymentProvider: getPaymentProviderName(),
@@ -5195,6 +5202,7 @@ app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, r
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
     memberSince: user.createdAt || null,
+    memberNumber: getUserMemberNumber(db, user.id),
     serviceApproved: user.serviceApproved === true,
     isCurrentUser: user.id === req.session.userId,
     isBlockedByCurrentUser: isUserBlocked(db, req.session.userId, user.id),
