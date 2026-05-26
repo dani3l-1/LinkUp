@@ -330,44 +330,67 @@
                     </div>
 
                     <div class="profile-fields-section">
-                      <div class="profile-grid">
-                        <label>First Name <input type="text" id="profile-first-name" required /></label>
-                        <label>Last Name <input type="text" id="profile-last-name" required /></label>
-                        <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
-                        <label>Class of <input type="number" id="profile-class-year" min="1900" max="2100" placeholder="2028" /></label>
-                        <label>Major <input type="text" id="profile-major" maxlength="80" placeholder="Optional" /></label>
-                        <label>Instagram <input type="text" id="profile-instagram" maxlength="80" placeholder="@username or profile link" /></label>
-                        <label>LinkedIn <input type="text" id="profile-linkedin" maxlength="120" placeholder="linkedin.com/in/username" /></label>
-                        <label>X <input type="text" id="profile-x" maxlength="80" placeholder="@username or profile link" /></label>
-                        <label class="profile-field-locked">Birthday
-                          <span class="profile-lock-badge" aria-hidden="true">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-                            locked
-                          </span>
-                          <input type="date" id="profile-birthday" disabled />
-                        </label>
-                        <label class="profile-field-locked">Gender
-                          <span class="profile-lock-badge" aria-hidden="true">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-                            locked
-                          </span>
-                          <select id="profile-gender" disabled>
-                            <option value="">Select gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="nonbinary">Non-binary</option>
-                            <option value="prefer-not-to-say">Prefer not to say</option>
-                          </select>
-                        </label>
-                        <label class="profile-field-locked">University Email
-                          <span class="profile-lock-badge" aria-hidden="true">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-                            locked
-                          </span>
-                          <input type="email" id="profile-email" disabled />
-                        </label>
+
+                      <div class="profile-section-group">
+                        <p class="profile-section-label">Name</p>
+                        <div class="profile-grid profile-grid-3">
+                          <label>First Name <input type="text" id="profile-first-name" required /></label>
+                          <label>Last Name <input type="text" id="profile-last-name" required /></label>
+                          <label>Middle Name <input type="text" id="profile-middle-name" placeholder="Optional" /></label>
+                        </div>
                       </div>
-                      <p class="profile-note">Birthday and gender can only be set once. Names can be updated once every 6 months. Social links are optional and visible on your public profile.</p>
+
+                      <div class="profile-section-group">
+                        <p class="profile-section-label">Academic</p>
+                        <div class="profile-grid">
+                          <label>Major <input type="text" id="profile-major" maxlength="80" placeholder="Optional" /></label>
+                          <label>Class of <input type="number" id="profile-class-year" min="1900" max="2100" placeholder="2028" /></label>
+                        </div>
+                      </div>
+
+                      <div class="profile-section-group">
+                        <p class="profile-section-label">Social <span class="profile-section-optional">optional · shown on your public profile</span></p>
+                        <div class="profile-grid profile-grid-3">
+                          <label>Instagram <input type="text" id="profile-instagram" maxlength="80" placeholder="@username" /></label>
+                          <label>LinkedIn <input type="text" id="profile-linkedin" maxlength="120" placeholder="linkedin.com/in/you" /></label>
+                          <label>X <input type="text" id="profile-x" maxlength="80" placeholder="@username" /></label>
+                        </div>
+                      </div>
+
+                      <div class="profile-section-group">
+                        <p class="profile-section-label">Account</p>
+                        <div class="profile-grid profile-grid-3">
+                          <label class="profile-field-locked">Birthday
+                            <span class="profile-lock-badge" aria-hidden="true">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+                              locked
+                            </span>
+                            <input type="date" id="profile-birthday" disabled />
+                          </label>
+                          <label class="profile-field-locked">Gender
+                            <span class="profile-lock-badge" aria-hidden="true">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+                              locked
+                            </span>
+                            <select id="profile-gender" disabled>
+                              <option value="">Select gender</option>
+                              <option value="male">Male</option>
+                              <option value="female">Female</option>
+                              <option value="nonbinary">Non-binary</option>
+                              <option value="prefer-not-to-say">Prefer not to say</option>
+                            </select>
+                          </label>
+                          <label class="profile-field-locked">University Email
+                            <span class="profile-lock-badge" aria-hidden="true">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+                              locked
+                            </span>
+                            <input type="email" id="profile-email" disabled />
+                          </label>
+                        </div>
+                      </div>
+
+                      <p class="profile-note">Birthday and gender can only be set once. Names can be updated once every 6 months.</p>
                     </div>
 
                     <button type="submit">Save Profile</button>
