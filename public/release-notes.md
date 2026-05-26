@@ -5,7 +5,7 @@
 ## v2026.05.26 BETA
 
 ### New
-- **Drop-off privacy.** When you post a ride request, your exact drop-off address is hidden from public view. Drivers browsing requests see only a general neighborhood area — your precise location is revealed only after a driver makes you an offer.
+- **Drop-off privacy.** When you post a ride request, your exact drop-off address is hidden from public view by default. Drivers browsing requests see only a general neighborhood area — your precise location is revealed only after a driver makes you an offer. You can turn this off in the request form if you prefer your destination to be shown exactly.
 
 ### Improvements
 - **Notes fields are now multi-line.** Both the ride offer and ride request forms now use a proper text box for notes, so you can write more without losing track of what you typed.

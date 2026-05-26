@@ -2345,11 +2345,13 @@ button:disabled::before { display: none; }
 /* ── Profile editor hero ────────────────────────────────────── */
 .profile-editor-hero {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1.75rem;
-  padding: 0 0 1.75rem;
+  padding: 1.25rem 1.5rem;
   margin-bottom: 1.75rem;
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(62,207,207,0.035);
   position: relative;
   overflow: visible;
 }
@@ -2518,6 +2520,7 @@ button:disabled::before { display: none; }
   gap: 0.28rem;
   position: relative;
   z-index: 1;
+  padding-top: 0.2rem;
 }
 
 .profile-editor-name {
@@ -2574,7 +2577,7 @@ button:disabled::before { display: none; }
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 1.5rem 1.25rem 1.25rem;
+    padding: 1.25rem;
     gap: 1rem;
   }
 
@@ -8984,8 +8987,12 @@ html[data-theme="dark"] .moving-photo-required {
   border: 1px solid rgba(62,207,120,0.25);
 }
 
+.destination-privacy-toggle {
+  margin-top: 0.5rem;
+}
+
 .destination-privacy-hint {
-  margin: 0.3rem 0 0;
+  margin: 0.2rem 0 0 1.45rem;
   font-size: 0.72rem;
   color: var(--text-muted, #8888aa);
   line-height: 1.4;

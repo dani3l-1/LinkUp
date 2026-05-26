@@ -1389,7 +1389,7 @@ function publicRideRequest(request, viewerId) {
   safe.riderLastName = request.riderId === viewerId ? riderLastName : getMaskedLastName(riderLastName);
   const isRider = request.riderId === viewerId;
   const hasOffered = (request.driverOffers || []).some((offer) => offer.driverId === viewerId);
-  if (!isRider && !hasOffered) {
+  if (!isRider && !hasOffered && request.hideDestination !== false) {
     safe.destination = fuzzDestinationLabel(request.destination);
     if (request.destinationLat != null && request.destinationLng != null) {
       const [fLat, fLng] = fuzzCoordinates(request.destinationLat, request.destinationLng, request.id);
@@ -3864,7 +3864,7 @@ app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
 });
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
-  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, estimatedDurationMinutes, distanceMiles, notes } = req.body;
+  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, estimatedDurationMinutes, distanceMiles, notes, hideDestination } = req.body;
   const requestType = req.body.requestType === 'moving' ? 'moving' : 'ride';
   const isMovingRequest = requestType === 'moving';
   const movingSize = isMovingRequest ? String(req.body.movingSize || 'Small').trim() : '';
@@ -3970,6 +3970,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     riderCount: riderCountNumber,
     willingToPayCents,
     estimatedDurationMinutes: sanitizeDurationMinutes(estimatedDurationMinutes),
+    hideDestination: hideDestination !== false,
     shareRideWithOthers: isMovingRequest ? false : Boolean(shareRideWithOthers),
     sameGenderDriverOnly: Boolean(sameGenderDriverOnly),
     sameSchoolDriverOnly: Boolean(sameSchoolDriverOnly),

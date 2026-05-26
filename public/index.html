@@ -833,7 +833,8 @@
                     <label id="request-destination-label">Drop-off location</label>
                     <input type="text" id="request-destination" placeholder="Where do you want to go?" required />
                     <div id="request-destination-selected" class="selected-location"></div>
-                    <p class="destination-privacy-hint">Your exact drop-off is hidden from public view — only a general area is shown to drivers until one accepts your request.</p>
+                    <label class="checkbox-label destination-privacy-toggle"><input type="checkbox" id="request-hide-destination" checked /> Hide my exact drop-off from public view</label>
+                    <p class="destination-privacy-hint" id="request-destination-hint">Only a general area is shown to drivers until one accepts your request.</p>
                   </div>
                   <input type="hidden" id="request-origin-lat" />
                   <input type="hidden" id="request-origin-lng" />

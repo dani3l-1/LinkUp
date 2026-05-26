@@ -6336,6 +6336,7 @@ requestRideForm.addEventListener('submit', async (event) => {
     willingToPay: Number(document.getElementById('request-price').value),
     estimatedDurationMinutes: requestRideMetrics.durationMinutes,
     distanceMiles: requestRideMetrics.distanceMiles,
+    hideDestination: document.getElementById('request-hide-destination').checked,
     shareRideWithOthers: document.getElementById('request-share-ride').checked,
     sameGenderDriverOnly: document.getElementById('request-same-gender-driver').checked,
     sameSchoolDriverOnly: document.getElementById('request-same-school-driver').checked,
@@ -6346,6 +6347,8 @@ requestRideForm.addEventListener('submit', async (event) => {
     await fetchJson('/api/ride-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     setButtonLoading(requestSubmitButton, false);
     requestRideForm.reset();
+    const destHint = document.getElementById('request-destination-hint');
+    if (destHint) destHint.textContent = 'Only a general area is shown to drivers until one accepts your request.';
     resetMovingPhoto();
     document.getElementById('request-type').value = 'ride';
     document.querySelectorAll('.request-type-btn').forEach((b) => b.classList.toggle('active', b.dataset.requestType === 'ride'));
@@ -6414,6 +6417,13 @@ if (movingPhotoInput) {
 if (movingPhotoRemove) {
   movingPhotoRemove.addEventListener('click', () => resetMovingPhoto());
 }
+
+document.getElementById('request-hide-destination')?.addEventListener('change', (e) => {
+  const hint = document.getElementById('request-destination-hint');
+  if (hint) hint.textContent = e.target.checked
+    ? 'Only a general area is shown to drivers until one accepts your request.'
+    : 'Your exact drop-off will be visible to all drivers browsing requests.';
+});
 
 document.querySelectorAll('.request-type-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
