@@ -85,7 +85,6 @@
       'profile-page',
       'request-ride-page',
       'list-ride-page',
-      'track-trip-page',
       'chat-page',
       'your-rides-page',
       'cart-page',
@@ -191,7 +190,6 @@
       'chat-button': () => showPageFallback('chat-page'),
       'request-ride-button': () => showPageFallback('request-ride-page'),
       'list-ride-button': () => showPageFallback('list-ride-page'),
-      'track-trip-button': () => showPageFallback('track-trip-page'),
     };
     const action = fallbackActions[button.id];
     if (!action && button.id !== 'signout') return;
