@@ -800,6 +800,7 @@ button:disabled::before { display: none; }
   line-height: 1;
   padding: 0.1rem 0.3rem;
 }
+#cart-count.hidden { display: none; }
 
 /* ─── Marketplace header ────────────────────────────────────── */
 .marketplace-header {
@@ -8981,4 +8982,31 @@ html[data-theme="dark"] .moving-photo-required {
   background: rgba(62,207,120,0.1);
   color: #3ecf78;
   border: 1px solid rgba(62,207,120,0.25);
+}
+
+.destination-privacy-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted, #8888aa);
+  line-height: 1.4;
+}
+
+.destination-fuzzy-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  background: rgba(120,120,180,0.12);
+  color: #8888bb;
+  border: 1px solid rgba(120,120,180,0.28);
+  border-radius: 99px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  margin-left: 0.3rem;
+}
+
+html[data-theme="dark"] .destination-fuzzy-badge {
+  background: rgba(160,160,220,0.1);
+  color: #aaaadd;
+  border-color: rgba(160,160,220,0.25);
 }

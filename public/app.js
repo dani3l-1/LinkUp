@@ -4726,7 +4726,11 @@ function buildRequestSummary(request) {
   }
 
   const title = document.createElement('h4');
-  title.textContent = request.origin + ' → ' + request.destination;
+  if (request.destinationFuzzy) {
+    title.innerHTML = esc(request.origin) + ' → ' + esc(request.destination) + ' <span class="destination-fuzzy-badge" title="Exact drop-off hidden for privacy">(approx.)</span>';
+  } else {
+    title.textContent = request.origin + ' → ' + request.destination;
+  }
   container.appendChild(title);
 
   const requestTime = formatRideDateTime({ date: request.date, time: request.time });
@@ -4947,7 +4951,7 @@ function buildRideSummary(ride, options = {}) {
   container.innerHTML = `
     <h4>${isMoving ? '<span class="moving-service-badge">Moving</span> ' : ''}${esc(ride.origin)} → ${esc(ride.destination)}</h4>
     <div class="ride-details">
-      <div><strong>${isMoving ? 'Driver' : 'Driver'}:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
+      <div><strong>${isMoving ? 'Mover' : 'Driver'}:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
       <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
       <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
       ${!isMoving ? `<div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>` : ''}
@@ -5197,7 +5201,8 @@ async function loadCart() {
       .map((ride) => ride.id)
       .filter((rideId) => hasExistingSelection ? previousSelection.has(rideId) : true));
     data.rides.forEach((ride) => { if (ride.selectedSeatId) selectedSeatByRide.set(ride.id, ride.selectedSeatId); });
-    cartCount.textContent = data.rides.length;
+    cartCount.textContent = data.rides.length || '';
+    cartCount.classList.toggle('hidden', !data.rides.length);
     cartItems.innerHTML = '';
     cartSubtotal.classList.add('hidden');
     cartSubtotal.innerHTML = '';
@@ -5308,7 +5313,6 @@ function showRiderBrowse() {
   setBrowseRole('rider');
   loadGoogleMapsAPI().then(() => {
     initializeRadiusAutocomplete();
-    loadRides();
     // Show map immediately; trigger resize after layout settles
     browseMapPanel?.classList.remove('hidden');
     browseRiderLayout?.classList.add('rider-active');
@@ -5344,7 +5348,6 @@ function showDriverBrowse() {
   setBrowseRole('driver');
   loadGoogleMapsAPI().then(() => {
     initializeRadiusAutocomplete();
-    loadRideRequests();
     browseMapPanel?.classList.remove('hidden');
     browseRiderLayout?.classList.add('rider-active');
     setTimeout(() => {
@@ -6113,6 +6116,8 @@ signupForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   signupError.textContent = '';
   signupError.classList.remove('show');
+  const submitButton = signupForm.querySelector('button[type="submit"]');
+  setButtonLoading(submitButton, true);
   const firstName = document.getElementById('signup-first-name').value.trim();
   const middleName = document.getElementById('signup-middle-name').value.trim();
   const lastName = document.getElementById('signup-last-name').value.trim();
@@ -6123,12 +6128,14 @@ signupForm.addEventListener('submit', async (event) => {
   const termsAccepted = document.getElementById('signup-terms-agree').checked;
   const privacyAccepted = document.getElementById('signup-privacy-agree').checked;
   if (!termsAccepted || !privacyAccepted) {
+    setButtonLoading(submitButton, false);
     signupError.textContent = 'You must agree to the Terms and Conditions and Privacy Notice before creating an account.';
     signupError.classList.add('show');
     return;
   }
   try {
     const data = await fetchJson('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, middleName, lastName, birthday, gender, email, password, termsAccepted, privacyAccepted }) });
+    setButtonLoading(submitButton, false);
     signupForm.reset();
     if (data.requiresVerification === false) {
       currentUser = data.user || await fetchJson('/api/auth/me');
@@ -6137,6 +6144,7 @@ signupForm.addEventListener('submit', async (event) => {
     }
     showVerificationForm(data.email, data.message);
   } catch (err) {
+    setButtonLoading(submitButton, false);
     signupError.textContent = err.message;
     signupError.classList.add('show');
     if (err.message === 'This email is already associated with an account') {
@@ -6155,6 +6163,7 @@ window.__linkupSignupHandlerAttached = true;
 
 offerForm.addEventListener('submit', async (event) => {
   event.preventDefault();
+  const offerSubmitButton = offerForm.querySelector('button[type="submit"]');
   const origin = document.getElementById('origin').value.trim();
   const destination = document.getElementById('destination').value.trim();
   const originLat = document.getElementById('origin-lat').value;
@@ -6210,13 +6219,14 @@ offerForm.addEventListener('submit', async (event) => {
     return;
   }
   // All validation passed — now estimate route metrics
-  const rideMetrics = await estimateRideMetrics(
-    { lat: Number(originLat), lng: Number(originLng) },
-    { lat: Number(destinationLat), lng: Number(destinationLng) },
-    date,
-    time
-  );
+  setButtonLoading(offerSubmitButton, true);
   try {
+    const rideMetrics = await estimateRideMetrics(
+      { lat: Number(originLat), lng: Number(originLng) },
+      { lat: Number(destinationLat), lng: Number(destinationLng) },
+      date,
+      time
+    );
     await fetchJson('/api/rides', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -6266,10 +6276,13 @@ offerForm.addEventListener('submit', async (event) => {
     document.getElementById('origin-selected').classList.remove('active');
     document.getElementById('destination-selected').textContent = '';
     document.getElementById('destination-selected').classList.remove('active');
+    setButtonLoading(offerSubmitButton, false);
     loadRides();
     loadProfile();
+    showToast('Ride posted! Riders can now find and book it.', 'success');
     showDashboardHome();
   } catch (err) {
+    setButtonLoading(offerSubmitButton, false);
     showToast(err.message, 'error');
   }
 });
@@ -6279,6 +6292,7 @@ requestRideBackHomeButton.addEventListener('click', () => returnToBrowseRides())
 requestRideForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearRequestRideMessages();
+  const requestSubmitButton = document.getElementById('request-submit-btn');
   const submittingRequestType = document.getElementById('request-type')?.value || 'ride';
   if (submittingRequestType === 'moving' && !movingRequestPhotoDataUrl) {
     requestRideError.textContent = 'Please add a photo of your items so drivers know what to expect.';
@@ -6326,8 +6340,10 @@ requestRideForm.addEventListener('submit', async (event) => {
     sameSchoolDriverOnly: document.getElementById('request-same-school-driver').checked,
     notes: document.getElementById('request-notes').value.trim(),
   };
+  setButtonLoading(requestSubmitButton, true);
   try {
     await fetchJson('/api/ride-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    setButtonLoading(requestSubmitButton, false);
     requestRideForm.reset();
     resetMovingPhoto();
     document.getElementById('request-type').value = 'ride';
@@ -6351,6 +6367,7 @@ requestRideForm.addEventListener('submit', async (event) => {
     requestRideMessage.classList.add('show');
     loadProfile();
   } catch (err) {
+    setButtonLoading(requestSubmitButton, false);
     requestRideError.textContent = err.message;
     requestRideError.classList.add('show');
   }
@@ -6408,7 +6425,7 @@ document.querySelectorAll('.request-type-btn').forEach((btn) => {
     document.getElementById('request-share-field')?.classList.toggle('hidden', isMoving);
     const priceLabel = document.getElementById('request-price-label');
     if (priceLabel?.firstChild?.nodeType === Node.TEXT_NODE) {
-      priceLabel.firstChild.textContent = isMoving ? 'Price willing to pay ($) ' : 'Price willing to pay ($) ';
+      priceLabel.firstChild.textContent = isMoving ? 'Budget for move ($) ' : 'Price willing to pay ($) ';
     }
     const notesInput = document.getElementById('request-notes');
     if (notesInput) notesInput.placeholder = isMoving ? 'Stairs, fragile items, parking, time window…' : 'Luggage, timing flexibility, pickup details…';

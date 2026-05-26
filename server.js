@@ -1285,9 +1285,14 @@ function appendRideChatMessage(db, ride, sender, text) {
 function rideForUser(ride, userId, db = null) {
   const publicRide = withRideMiles(ride, db);
   publicRide.passengers = (publicRide.passengers || []).map((passenger) => {
-    const canSeeRiderStops = publicRide.driverId === userId || passenger.studentId === userId;
-    if (canSeeRiderStops) return passenger;
-    const { actualPickup, actualDropoff, ...safePassenger } = passenger;
+    const isDriver = publicRide.driverId === userId;
+    const isOwnRecord = passenger.studentId === userId;
+    if (isDriver) return passenger;
+    // Strip private fields from other passengers' records
+    const { email, actualPickup, actualDropoff, driverRating, driverRatingComment, driverRatedAt, ...safePassenger } = passenger;
+    if (isOwnRecord) {
+      return { ...safePassenger, actualPickup, actualDropoff, driverRating, driverRatingComment, driverRatedAt };
+    }
     return safePassenger;
   });
   if (!canUserSeeDriverFullName(ride, userId)) {
@@ -1364,9 +1369,35 @@ function isRideRequestVisibleToUser(db, request, userId) {
   return !areUsersBlocked(db, userId, request.riderId);
 }
 
+function fuzzDestinationLabel(name) {
+  const parts = String(name || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length <= 1) return name ? name + ' (area)' : name;
+  const filtered = parts.slice(1).filter((p) => !/^(USA|US|\d{5}(-\d{4})?)$/.test(p));
+  const label = filtered.slice(0, 2).join(', ') || parts[1];
+  return label + ' area';
+}
+
+function fuzzCoordinates(lat, lng, seed) {
+  const hash = crypto.createHash('sha256').update(String(seed || '')).digest();
+  const latOffset = (hash.readUInt32BE(0) / 0xFFFFFFFF - 0.5) * 0.008;
+  const lngOffset = (hash.readUInt32BE(4) / 0xFFFFFFFF - 0.5) * 0.008;
+  return [Number(lat) + latOffset, Number(lng) + lngOffset];
+}
+
 function publicRideRequest(request, viewerId) {
   const { riderEmail, riderLastName, ...safe } = request;
   safe.riderLastName = request.riderId === viewerId ? riderLastName : getMaskedLastName(riderLastName);
+  const isRider = request.riderId === viewerId;
+  const hasOffered = (request.driverOffers || []).some((offer) => offer.driverId === viewerId);
+  if (!isRider && !hasOffered) {
+    safe.destination = fuzzDestinationLabel(request.destination);
+    if (request.destinationLat != null && request.destinationLng != null) {
+      const [fLat, fLng] = fuzzCoordinates(request.destinationLat, request.destinationLng, request.id);
+      safe.destinationLat = fLat;
+      safe.destinationLng = fLng;
+    }
+    safe.destinationFuzzy = true;
+  }
   return safe;
 }
 
@@ -4535,6 +4566,7 @@ function reserveCartRides(db, student, cartEntries) {
       seatId,
       actualPickup,
       actualDropoff,
+      paid: true,
     });
     ride.seatsAvailable = getAvailableOpenSeatIds(ride).length;
   });
@@ -5117,11 +5149,11 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
   const driverOffers = rideRequests.filter((request) => (request.driverOffers || []).some((offer) => offer.driverId === studentId));
 
   res.json({
-    createdRides: createdRides.map((ride) => withRideMiles(ride, db)),
+    createdRides: createdRides.map((ride) => rideForUser(ride, studentId, db)),
     joinedRides: joinedRides.map((ride) => {
       const passenger = (ride.passengers || []).find((p) => p.studentId === studentId);
       return {
-        ...withRideMiles(ride, db),
+        ...rideForUser(ride, studentId, db),
         selectedSeatId: passenger?.seatId || '',
         actualPickup: passenger?.actualPickup || '',
         actualDropoff: passenger?.actualDropoff || '',
@@ -5130,7 +5162,7 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
       };
     }),
     riderRequests,
-    driverOffers,
+    driverOffers: driverOffers.map((request) => publicRideRequest(request, studentId)),
     wallet: buildDriverWalletSummary(db, studentId),
   });
 });

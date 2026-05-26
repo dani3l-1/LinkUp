@@ -833,6 +833,7 @@
                     <label id="request-destination-label">Drop-off location</label>
                     <input type="text" id="request-destination" placeholder="Where do you want to go?" required />
                     <div id="request-destination-selected" class="selected-location"></div>
+                    <p class="destination-privacy-hint">Your exact drop-off is hidden from public view — only a general area is shown to drivers until one accepts your request.</p>
                   </div>
                   <input type="hidden" id="request-origin-lat" />
                   <input type="hidden" id="request-origin-lng" />
@@ -879,7 +880,7 @@
                 </div>
                 <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
                 <label class="checkbox-label"><input type="checkbox" id="request-same-school-driver" /> Same school driver only</label>
-                <label>Notes <input type="text" id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." /></label>
+                <label>Notes <textarea id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." rows="3"></textarea></label>
                 <button type="submit" id="request-submit-btn">Post request</button>
                 <div id="request-ride-message" class="success-message"></div>
                 <div id="request-ride-error" class="error-message"></div>
@@ -1005,7 +1006,7 @@
                     <input type="hidden" id="seats" value="0" required />
                   </div>
                   <label id="price-field-label">Price per seat ($) <input type="number" id="ride-price" min="0.50" step="0.01" placeholder="5.00" required /></label>
-                  <label>Notes <input type="text" id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." /></label>
+                  <label>Notes <textarea id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." rows="3"></textarea></label>
                   <label class="checkbox-label terms-agreement">
                     <input type="checkbox" id="ride-terms-agree" required />
                     I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> as a driver.
