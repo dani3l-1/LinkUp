@@ -998,7 +998,8 @@ function normalizeUserAccess(db) {
       changed = true;
     }
     const supportedUniversity = SUPPORTED_UNIVERSITY_DOMAINS[user.universityDomain];
-    if (supportedUniversity && user.serviceApproved !== true) {
+    const adminEmail = isAdminEmail(user.email);
+    if ((supportedUniversity || adminEmail) && user.serviceApproved !== true) {
       user.serviceApproved = true;
       user.waitlistedAt = null;
       changed = true;
@@ -1991,6 +1992,10 @@ function isAdminUser(user) {
   return Boolean(user?.isAdmin) || ADMIN_EMAILS.has(normalizeEmail(user?.email || ''));
 }
 
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.has(normalizeEmail(email));
+}
+
 function publicUser(user, db = null) {
   const fallbackName = user.name || user.email.split('@')[0];
   const missingRequiredSettings = getMissingRequiredSettings(user);
@@ -2892,13 +2897,14 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 
   const normalizedEmail = normalizeEmail(email);
-  if (!isUniversityEmail(normalizedEmail)) {
+  const adminEmail = isAdminEmail(normalizedEmail);
+  if (!isUniversityEmail(normalizedEmail) && !adminEmail) {
     return res.status(400).json({ error: 'Please use a valid university email address' });
   }
   const universityDomain = getEmailDomain(normalizedEmail);
   const supportedUniversity = extractUniversityFromEmail(normalizedEmail);
-  const serviceApproved = Boolean(supportedUniversity);
-  const university = supportedUniversity || getUniversityInfoFromDomain(universityDomain).name;
+  const serviceApproved = Boolean(supportedUniversity) || adminEmail;
+  const university = supportedUniversity || (adminEmail ? 'LinkUp Admin' : getUniversityInfoFromDomain(universityDomain).name);
 
   const passwordValidation = validatePassword(password);
   if (!passwordValidation.valid) {

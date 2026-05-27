@@ -10,6 +10,7 @@
 
 ### Improvements
 - **Campus launch operations.** Admins can update user access and move reports through open, reviewing, resolved, and dismissed states.
+- **Persistent admin access.** Emails listed as admins can create admin accounts even if they are not `.edu` addresses, so founders do not lose access when school emails expire.
 
 ---
 

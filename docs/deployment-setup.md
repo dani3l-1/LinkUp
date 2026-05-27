@@ -20,7 +20,7 @@ Set these on the host. Do not commit real values.
 NODE_ENV=production
 PORT=3000
 SESSION_SECRET=replace_with_a_64_byte_random_hex_string
-ADMIN_EMAILS=founder@university.edu,ops@university.edu
+ADMIN_EMAILS=founder@university.edu,ops@gmail.com
 
 DATABASE_URL=postgresql://user:password@host:5432/database
 DATABASE_SSL=true
@@ -44,6 +44,8 @@ EMAIL_FROM="LinkUp <your-linkup-email@gmail.com>"
 REQUIRED_TERMS_VERSION=v2026.05.8
 REQUIRED_PRIVACY_VERSION=v2026.05.8
 ```
+
+Emails listed in `ADMIN_EMAILS` can create admin accounts even if they are not `.edu` addresses. Use this for founder/operator accounts whose school emails may expire.
 
 Generate a session secret:
 
