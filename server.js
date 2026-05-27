@@ -746,6 +746,7 @@ function getEmptyDb() {
     trackingTrips: [],
     rideMessages: {},
     userReports: [],
+    adminAuditLog: [],
     userBlocks: [],
     passwordResetTokens: [],
   };
@@ -867,6 +868,7 @@ function normalizeDbShape(db) {
   });
   normalized.rideMessages = normalizeRideMessages(normalized.rideMessages);
   normalized.userReports = uniqueById(normalized.userReports);
+  normalized.adminAuditLog = uniqueById(normalized.adminAuditLog).filter(isPlainObject);
   normalized.userBlocks = asArray(normalized.userBlocks).filter(isPlainObject);
   normalized.passwordResetTokens = asArray(normalized.passwordResetTokens).filter(isPlainObject);
   return normalized;
@@ -5394,6 +5396,86 @@ function summarizeAdminReport(report) {
   };
 }
 
+function addAdminAuditEntry(db, adminUser, action, targetType, target, details = {}) {
+  db.adminAuditLog = Array.isArray(db.adminAuditLog) ? db.adminAuditLog : [];
+  const entry = {
+    id: uuidv4(),
+    action,
+    targetType,
+    targetId: target?.id || '',
+    targetLabel: details.targetLabel || target?.email || target?.id || '',
+    adminId: adminUser?.id || '',
+    adminEmail: adminUser?.email || '',
+    adminName: getUserDisplayName(adminUser || {}),
+    details,
+    createdAt: new Date().toISOString(),
+  };
+  db.adminAuditLog.push(entry);
+  if (db.adminAuditLog.length > 500) db.adminAuditLog = db.adminAuditLog.slice(-500);
+  return entry;
+}
+
+function summarizeAdminAuditEntry(entry) {
+  return {
+    id: entry.id,
+    action: entry.action || '',
+    targetType: entry.targetType || '',
+    targetId: entry.targetId || '',
+    targetLabel: entry.targetLabel || '',
+    adminName: entry.adminName || '',
+    adminEmail: entry.adminEmail || '',
+    details: entry.details || {},
+    createdAt: entry.createdAt || '',
+  };
+}
+
+function summarizeAdminActivity(db) {
+  const users = (db.users || []).map((user) => ({
+    id: user.id,
+    type: 'User',
+    title: getUserDisplayName(user),
+    detail: [user.email, getUserUniversityDisplay(user)].filter(Boolean).join(' - '),
+    status: user.suspendedAt ? 'Suspended' : user.serviceApproved === true ? 'Approved' : 'Waitlist',
+    createdAt: user.createdAt || '',
+  }));
+  const rides = (db.rides || []).map((ride) => ({
+    id: ride.id,
+    type: 'Ride',
+    title: [ride.origin, ride.destination].filter(Boolean).join(' -> '),
+    detail: [summarizeAdminRide(ride).driverName, ride.date, ride.time].filter(Boolean).join(' - '),
+    status: ride.status || 'listed',
+    createdAt: ride.createdAt || '',
+  }));
+  const requests = (db.rideRequests || []).map((request) => ({
+    id: request.id,
+    type: 'Request',
+    title: [request.origin, request.destination].filter(Boolean).join(' -> '),
+    detail: [summarizeAdminRequest(request).riderName, request.date, request.time].filter(Boolean).join(' - '),
+    status: request.status || 'open',
+    createdAt: request.createdAt || '',
+  }));
+  const reports = (db.userReports || []).map((report) => ({
+    id: report.id,
+    type: 'Report',
+    title: report.reason || 'User report',
+    detail: [report.reportedUserName, report.reporterName ? 'reported by ' + report.reporterName : ''].filter(Boolean).join(' - '),
+    status: report.status || 'open',
+    createdAt: report.createdAt || '',
+  }));
+  const payments = (db.payments || []).map((payment) => ({
+    id: payment.id,
+    type: 'Payment',
+    title: payment.status || 'payment',
+    detail: payment.amountCents ? '$' + (Number(payment.amountCents) / 100).toFixed(2) : '',
+    status: payment.status || '',
+    createdAt: payment.createdAt || '',
+  }));
+  return [...users, ...rides, ...requests, ...reports, ...payments]
+    .filter((item) => item.createdAt)
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 120);
+}
+
 app.get('/api/admin/overview', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
   const db = expireUnclaimedRideRequests(req.adminDb || loadDb());
   const users = Array.isArray(db.users) ? db.users : [];
@@ -5424,6 +5506,8 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, adminDashboardRateLimi
     rides: rides.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminRide),
     rideRequests: rideRequests.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminRequest),
     reports: reports.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminReport),
+    activity: summarizeAdminActivity(db),
+    auditLog: (db.adminAuditLog || []).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 120).map(summarizeAdminAuditEntry),
   });
 });
 
@@ -5436,6 +5520,9 @@ app.patch('/api/admin/users/:userId', requireAuth, requireAdmin, adminDashboardR
     user.serviceApproved = req.body.serviceApproved === true;
     user.waitlistedAt = user.serviceApproved ? null : (user.waitlistedAt || new Date().toISOString());
     user.manuallyWaitlistedAt = user.serviceApproved ? null : (user.manuallyWaitlistedAt || new Date().toISOString());
+    addAdminAuditEntry(db, req.adminUser, user.serviceApproved ? 'approved_user' : 'waitlisted_user', 'user', user, {
+      targetLabel: user.email || getUserDisplayName(user),
+    });
   }
   if (req.body.suspended !== undefined) {
     const shouldSuspend = req.body.suspended === true;
@@ -5456,11 +5543,18 @@ app.patch('/api/admin/users/:userId', requireAuth, requireAdmin, adminDashboardR
       user.waitlistedAt = null;
       user.manuallyWaitlistedAt = null;
     }
+    addAdminAuditEntry(db, req.adminUser, shouldSuspend ? 'suspended_user' : 'restored_user', 'user', user, {
+      targetLabel: user.email || getUserDisplayName(user),
+    });
   }
   if (req.body.moderationNote !== undefined) {
     const note = String(req.body.moderationNote || '').trim();
     if (note.length > 1000) return res.status(400).json({ error: 'Moderation note must be 1000 characters or fewer' });
     user.moderationNote = note;
+    addAdminAuditEntry(db, req.adminUser, 'saved_user_note', 'user', user, {
+      targetLabel: user.email || getUserDisplayName(user),
+      notePreview: note.slice(0, 120),
+    });
   }
   user.updatedAt = new Date().toISOString();
   saveDb(db);
@@ -5484,6 +5578,11 @@ app.patch('/api/admin/reports/:reportId', requireAuth, requireAdmin, adminDashbo
   report.updatedByAdminId = req.adminUser.id;
   report.updatedAt = new Date().toISOString();
   if (status === 'resolved' || status === 'dismissed') report.resolvedAt = report.updatedAt;
+  addAdminAuditEntry(db, req.adminUser, 'updated_report', 'report', report, {
+    targetLabel: report.reason || report.reportedUserEmail || report.id,
+    status,
+    notePreview: String(report.adminNote || '').slice(0, 120),
+  });
   saveDb(db);
   res.json({ message: 'Report updated.', report: summarizeAdminReport(report) });
 });
@@ -5498,6 +5597,10 @@ app.delete('/api/admin/rides/:rideId', requireAuth, requireAdmin, adminDashboard
   ride.removedAt = new Date().toISOString();
   ride.removedByAdminId = req.adminUser.id;
   ride.moderationNote = note || ride.moderationNote || 'Removed by LinkUp moderation';
+  addAdminAuditEntry(db, req.adminUser, 'removed_ride', 'ride', ride, {
+    targetLabel: [ride.origin, ride.destination].filter(Boolean).join(' -> ') || ride.id,
+    notePreview: ride.moderationNote.slice(0, 120),
+  });
   saveDb(db);
   res.json({ message: 'Ride removed.', ride: summarizeAdminRide(ride) });
 });
@@ -5512,6 +5615,10 @@ app.delete('/api/admin/ride-requests/:requestId', requireAuth, requireAdmin, adm
   request.removedAt = new Date().toISOString();
   request.removedByAdminId = req.adminUser.id;
   request.moderationNote = note || request.moderationNote || 'Removed by LinkUp moderation';
+  addAdminAuditEntry(db, req.adminUser, 'removed_request', 'request', request, {
+    targetLabel: [request.origin, request.destination].filter(Boolean).join(' -> ') || request.id,
+    notePreview: request.moderationNote.slice(0, 120),
+  });
   saveDb(db);
   res.json({ message: 'Request removed.', request: summarizeAdminRequest(request) });
 });

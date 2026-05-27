@@ -2463,6 +2463,14 @@ function adminCell(value) {
   return `<td>${esc(text)}</td>`;
 }
 
+function formatAdminDetails(details = {}) {
+  if (!details || typeof details !== 'object') return '-';
+  const parts = Object.entries(details)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${key}: ${String(value)}`);
+  return parts.length ? parts.join(' - ') : '-';
+}
+
 function renderAdminTable() {
   if (!adminTableWrap || !adminSnapshot) return;
   adminTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.adminTab === adminView));
@@ -2522,6 +2530,33 @@ function renderAdminTable() {
       </tr>
     `).join('');
     adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Driver</th><th>Origin</th><th>Destination</th><th>When</th><th>Passengers</th><th>Status</th><th>Note</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No rides yet.</td></tr>'}</tbody></table>`;
+    return;
+  }
+  if (adminView === 'activity') {
+    const rows = (adminSnapshot.activity || []).map((item) => `
+      <tr>
+        ${adminCell(item.type)}
+        ${adminCell(item.title)}
+        ${adminCell(item.detail)}
+        ${adminCell(item.status)}
+        ${adminCell(formatPublicProfileDate(item.createdAt))}
+      </tr>
+    `).join('');
+    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Type</th><th>What</th><th>Detail</th><th>Status</th><th>When</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No activity yet.</td></tr>'}</tbody></table>`;
+    return;
+  }
+  if (adminView === 'audit') {
+    const rows = (adminSnapshot.auditLog || []).map((entry) => `
+      <tr>
+        ${adminCell(entry.action)}
+        ${adminCell(entry.targetType)}
+        ${adminCell(entry.targetLabel)}
+        ${adminCell(entry.adminEmail || entry.adminName)}
+        ${adminCell(formatAdminDetails(entry.details))}
+        ${adminCell(formatPublicProfileDate(entry.createdAt))}
+      </tr>
+    `).join('');
+    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Action</th><th>Target</th><th>Record</th><th>Admin</th><th>Details</th><th>When</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No admin actions yet.</td></tr>'}</tbody></table>`;
     return;
   }
   const rows = (adminSnapshot.rideRequests || []).map((request) => `
