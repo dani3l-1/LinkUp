@@ -2445,6 +2445,7 @@ function renderAdminMetrics(data) {
     ['Users', metrics.users],
     ['Approved', metrics.serviceApprovedUsers],
     ['Waitlist', metrics.waitlistedUsers],
+    ['Suspended', metrics.suspendedUsers],
     ['Rides', metrics.rides],
     ['Requests', metrics.rideRequests],
     ['Open reports', metrics.openReports],
@@ -2470,6 +2471,7 @@ function renderAdminTable() {
       <tr>
         ${adminCell(report.status)}
         ${adminCell(report.reason)}
+        ${adminCell(report.details)}
         ${adminCell(report.reportedUserName)}
         ${adminCell(report.reporterName)}
         ${adminCell(report.rideRoute)}
@@ -2478,10 +2480,12 @@ function renderAdminTable() {
           <select class="admin-report-status" data-report-id="${esc(report.id)}">
             ${['open', 'reviewing', 'resolved', 'dismissed'].map((status) => `<option value="${status}" ${report.status === status ? 'selected' : ''}>${status}</option>`).join('')}
           </select>
+          <textarea class="admin-report-note" data-report-id="${esc(report.id)}" rows="2" placeholder="Admin note">${esc(report.adminNote || '')}</textarea>
+          <button type="button" class="admin-report-save" data-report-id="${esc(report.id)}">Save</button>
         </td>
       </tr>
     `).join('');
-    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Status</th><th>Reason</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No reports yet.</td></tr>'}</tbody></table>`;
+    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Status</th><th>Reason</th><th>Details</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No reports yet.</td></tr>'}</tbody></table>`;
     return;
   }
   if (adminView === 'users') {
@@ -2491,9 +2495,14 @@ function renderAdminTable() {
         ${adminCell(user.name)}
         ${adminCell(user.email)}
         ${adminCell(user.university)}
-        ${adminCell(user.serviceApproved ? 'Approved' : 'Waitlist')}
+        ${adminCell(user.suspended ? 'Suspended' : user.serviceApproved ? 'Approved' : 'Waitlist')}
         ${adminCell(user.emailVerified ? 'Verified' : 'Unverified')}
-        <td><button type="button" class="admin-user-toggle" data-user-id="${esc(user.id)}" data-approved="${user.serviceApproved ? 'false' : 'true'}">${user.serviceApproved ? 'Move to waitlist' : 'Approve'}</button></td>
+        <td>
+          <button type="button" class="admin-user-toggle" data-user-id="${esc(user.id)}" data-approved="${user.serviceApproved ? 'false' : 'true'}">${user.serviceApproved ? 'Move to waitlist' : 'Approve'}</button>
+          <button type="button" class="admin-user-suspend danger" data-user-id="${esc(user.id)}" data-suspended="${user.suspended ? 'false' : 'true'}">${user.suspended ? 'Restore' : 'Suspend'}</button>
+          <input class="admin-user-note" data-user-id="${esc(user.id)}" value="${esc(user.moderationNote || '')}" placeholder="Moderation note" />
+          <button type="button" class="admin-user-save-note" data-user-id="${esc(user.id)}">Save note</button>
+        </td>
       </tr>
     `).join('');
     adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>#</th><th>Name</th><th>Email</th><th>University</th><th>Access</th><th>Email</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No users yet.</td></tr>'}</tbody></table>`;
@@ -2508,9 +2517,11 @@ function renderAdminTable() {
         ${adminCell([ride.date, ride.time].filter(Boolean).join(' '))}
         ${adminCell(ride.passengerCount + ' riders')}
         ${adminCell(ride.status)}
+        ${adminCell(ride.moderationNote)}
+        <td><button type="button" class="admin-remove-ride danger" data-ride-id="${esc(ride.id)}" ${ride.status === 'removed' ? 'disabled' : ''}>Remove</button></td>
       </tr>
     `).join('');
-    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Driver</th><th>Origin</th><th>Destination</th><th>When</th><th>Passengers</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No rides yet.</td></tr>'}</tbody></table>`;
+    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Driver</th><th>Origin</th><th>Destination</th><th>When</th><th>Passengers</th><th>Status</th><th>Note</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No rides yet.</td></tr>'}</tbody></table>`;
     return;
   }
   const rows = (adminSnapshot.rideRequests || []).map((request) => `
@@ -2522,9 +2533,11 @@ function renderAdminTable() {
       ${adminCell(request.requestType)}
       ${adminCell(request.offerCount + ' offers')}
       ${adminCell(request.status)}
+      ${adminCell(request.moderationNote)}
+      <td><button type="button" class="admin-remove-request danger" data-request-id="${esc(request.id)}" ${request.status === 'removed' ? 'disabled' : ''}>Remove</button></td>
     </tr>
   `).join('');
-  adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Rider</th><th>Origin</th><th>Destination</th><th>When</th><th>Type</th><th>Offers</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No requests yet.</td></tr>'}</tbody></table>`;
+  adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Rider</th><th>Origin</th><th>Destination</th><th>When</th><th>Type</th><th>Offers</th><th>Status</th><th>Note</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="9">No requests yet.</td></tr>'}</tbody></table>`;
 }
 
 async function loadAdminOverview() {
@@ -6690,11 +6703,12 @@ adminTableWrap?.addEventListener('change', async (event) => {
   const select = event.target.closest?.('.admin-report-status');
   if (!select) return;
   clearAdminMessages();
+  const note = adminTableWrap.querySelector(`.admin-report-note[data-report-id="${CSS.escape(select.dataset.reportId || '')}"]`);
   try {
     await fetchJson('/api/admin/reports/' + encodeURIComponent(select.dataset.reportId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: select.value }),
+      body: JSON.stringify({ status: select.value, adminNote: note?.value || '' }),
     });
     showAdminMessage('Report status updated.');
     await loadAdminOverview();
@@ -6704,6 +6718,29 @@ adminTableWrap?.addEventListener('change', async (event) => {
 });
 
 adminTableWrap?.addEventListener('click', async (event) => {
+  const reportButton = event.target.closest?.('.admin-report-save');
+  if (reportButton) {
+    clearAdminMessages();
+    const reportId = reportButton.dataset.reportId || '';
+    const status = adminTableWrap.querySelector(`.admin-report-status[data-report-id="${CSS.escape(reportId)}"]`);
+    const note = adminTableWrap.querySelector(`.admin-report-note[data-report-id="${CSS.escape(reportId)}"]`);
+    setButtonLoading(reportButton, true);
+    try {
+      await fetchJson('/api/admin/reports/' + encodeURIComponent(reportId), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: status?.value || 'open', adminNote: note?.value || '' }),
+      });
+      showAdminMessage('Report note saved.');
+      await loadAdminOverview();
+    } catch (err) {
+      showAdminMessage(err.message || 'Unable to update report.', 'error');
+    } finally {
+      setButtonLoading(reportButton, false);
+    }
+    return;
+  }
+
   const button = event.target.closest?.('.admin-user-toggle');
   if (!button) return;
   clearAdminMessages();
@@ -6718,6 +6755,50 @@ adminTableWrap?.addEventListener('click', async (event) => {
     await loadAdminOverview();
   } catch (err) {
     showAdminMessage(err.message || 'Unable to update user.', 'error');
+  } finally {
+    setButtonLoading(button, false);
+  }
+});
+
+adminTableWrap?.addEventListener('click', async (event) => {
+  const button = event.target.closest?.('.admin-user-suspend, .admin-user-save-note, .admin-remove-ride, .admin-remove-request');
+  if (!button) return;
+  clearAdminMessages();
+  setButtonLoading(button, true);
+  try {
+    if (button.classList.contains('admin-user-suspend') || button.classList.contains('admin-user-save-note')) {
+      const userId = button.dataset.userId || '';
+      const note = adminTableWrap.querySelector(`.admin-user-note[data-user-id="${CSS.escape(userId)}"]`)?.value || '';
+      const payload = { moderationNote: note };
+      if (button.classList.contains('admin-user-suspend')) {
+        const suspending = button.dataset.suspended === 'true';
+        if (suspending && !window.confirm('Suspend this user and block ride services?')) return;
+        payload.suspended = suspending;
+      }
+      await fetchJson('/api/admin/users/' + encodeURIComponent(userId), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      showAdminMessage(button.classList.contains('admin-user-suspend') ? 'User moderation status updated.' : 'Moderation note saved.');
+      await loadAdminOverview();
+      return;
+    }
+
+    const isRideRemoval = button.classList.contains('admin-remove-ride');
+    const id = isRideRemoval ? button.dataset.rideId : button.dataset.requestId;
+    const label = isRideRemoval ? 'ride' : 'request';
+    const note = window.prompt('Moderation note for removing this ' + label + ':', 'Removed by LinkUp moderation') || '';
+    if (!window.confirm('Remove this ' + label + ' from public views?')) return;
+    await fetchJson('/api/admin/' + (isRideRemoval ? 'rides/' : 'ride-requests/') + encodeURIComponent(id || ''), {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moderationNote: note }),
+    });
+    showAdminMessage((isRideRemoval ? 'Ride' : 'Request') + ' removed.');
+    await loadAdminOverview();
+  } catch (err) {
+    showAdminMessage(err.message || 'Unable to complete moderation action.', 'error');
   } finally {
     setButtonLoading(button, false);
   }

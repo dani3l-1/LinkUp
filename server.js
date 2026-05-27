@@ -999,7 +999,7 @@ function normalizeUserAccess(db) {
     }
     const supportedUniversity = SUPPORTED_UNIVERSITY_DOMAINS[user.universityDomain];
     const adminEmail = isAdminEmail(user.email);
-    if ((supportedUniversity || adminEmail) && user.serviceApproved !== true) {
+    if ((supportedUniversity || adminEmail) && !user.suspendedAt && !user.manuallyWaitlistedAt && user.serviceApproved !== true) {
       user.serviceApproved = true;
       user.waitlistedAt = null;
       changed = true;
@@ -1359,6 +1359,7 @@ function areUsersBlocked(db, firstUserId, secondUserId) {
 
 function isRideVisibleToUser(db, ride, userId) {
   if (!ride || !userId) return false;
+  if (ride.status === 'removed') return false;
   if (ride.driverId === userId) return true;
   const viewer = (db.users || []).find((user) => user.id === userId);
   if (ride.sameSchoolOnly && !isSameSchoolUser(viewer, ride.university)) return false;
@@ -1375,6 +1376,7 @@ function isRideBrowseVisibleToUser(db, ride, userId) {
 
 function isRideRequestVisibleToUser(db, request, userId) {
   if (!request || !userId) return false;
+  if (request.status === 'removed') return false;
   if (request.riderId === userId) return true;
   const viewer = (db.users || []).find((user) => user.id === userId);
   if (request.sameSchoolDriverOnly && !isSameSchoolUser(viewer, request.university)) return false;
@@ -2597,6 +2599,9 @@ function requireServiceAccess(req, res, next) {
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
+  }
+  if (user.suspendedAt) {
+    return res.status(403).json({ error: 'This account has been suspended by LinkUp moderation.' });
   }
   if (user.serviceApproved !== true) {
     return res.status(403).json({ error: 'LinkUp has not launched at your university yet. Your account is on the waitlist, and we will notify you when access opens.' });
@@ -5328,6 +5333,9 @@ function summarizeAdminUser(user, db) {
     serviceApproved: user.serviceApproved === true,
     emailVerified: user.emailVerified !== false,
     isAdmin: isAdminUser(user),
+    suspended: Boolean(user.suspendedAt),
+    suspendedAt: user.suspendedAt || '',
+    moderationNote: user.moderationNote || '',
     joinedAt: user.createdAt || '',
     lastUpdatedAt: user.updatedAt || '',
   };
@@ -5343,6 +5351,7 @@ function summarizeAdminRide(ride) {
     date: ride.date || '',
     time: ride.time || '',
     status: ride.status || 'listed',
+    moderationNote: ride.moderationNote || '',
     seatsAvailable: ride.seatsAvailable ?? ride.seats ?? 0,
     passengerCount: (ride.passengers || []).length,
     createdAt: ride.createdAt || '',
@@ -5359,6 +5368,7 @@ function summarizeAdminRequest(request) {
     date: request.date || '',
     time: request.time || '',
     status: request.status || 'open',
+    moderationNote: request.moderationNote || '',
     requestType: request.requestType || 'ride',
     offerCount: (request.driverOffers || []).length,
     createdAt: request.createdAt || '',
@@ -5378,6 +5388,7 @@ function summarizeAdminReport(report) {
     rideId: report.rideId || '',
     rideRoute: [report.rideOrigin, report.rideDestination].filter(Boolean).join(' -> '),
     rideDate: report.rideDate || '',
+    adminNote: report.adminNote || '',
     createdAt: report.createdAt || '',
     resolvedAt: report.resolvedAt || '',
   };
@@ -5401,6 +5412,7 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, adminDashboardRateLimi
       users: users.length,
       serviceApprovedUsers: users.filter((user) => user.serviceApproved === true).length,
       waitlistedUsers: users.filter((user) => user.serviceApproved !== true).length,
+      suspendedUsers: users.filter((user) => Boolean(user.suspendedAt)).length,
       rides: rides.length,
       rideRequests: rideRequests.length,
       openRideRequests: rideRequests.filter((request) => request.status === 'open').length,
@@ -5419,9 +5431,36 @@ app.patch('/api/admin/users/:userId', requireAuth, requireAdmin, adminDashboardR
   const db = loadDb();
   const user = (db.users || []).find((entry) => entry.id === String(req.params.userId || ''));
   if (!user) return res.status(404).json({ error: 'User not found' });
+  const isTargetAdmin = isAdminUser(user);
   if (req.body.serviceApproved !== undefined) {
     user.serviceApproved = req.body.serviceApproved === true;
     user.waitlistedAt = user.serviceApproved ? null : (user.waitlistedAt || new Date().toISOString());
+    user.manuallyWaitlistedAt = user.serviceApproved ? null : (user.manuallyWaitlistedAt || new Date().toISOString());
+  }
+  if (req.body.suspended !== undefined) {
+    const shouldSuspend = req.body.suspended === true;
+    if (shouldSuspend && user.id === req.adminUser.id) {
+      return res.status(400).json({ error: 'You cannot suspend your own admin account' });
+    }
+    if (shouldSuspend && isTargetAdmin) {
+      return res.status(400).json({ error: 'Admin accounts cannot be suspended here' });
+    }
+    user.suspendedAt = shouldSuspend ? (user.suspendedAt || new Date().toISOString()) : null;
+    user.suspendedByAdminId = shouldSuspend ? req.adminUser.id : null;
+    if (shouldSuspend) {
+      user.serviceApproved = false;
+      user.waitlistedAt = user.waitlistedAt || new Date().toISOString();
+      user.manuallyWaitlistedAt = user.manuallyWaitlistedAt || new Date().toISOString();
+    } else if (req.body.serviceApproved === undefined) {
+      user.serviceApproved = true;
+      user.waitlistedAt = null;
+      user.manuallyWaitlistedAt = null;
+    }
+  }
+  if (req.body.moderationNote !== undefined) {
+    const note = String(req.body.moderationNote || '').trim();
+    if (note.length > 1000) return res.status(400).json({ error: 'Moderation note must be 1000 characters or fewer' });
+    user.moderationNote = note;
   }
   user.updatedAt = new Date().toISOString();
   saveDb(db);
@@ -5437,10 +5476,44 @@ app.patch('/api/admin/reports/:reportId', requireAuth, requireAdmin, adminDashbo
     return res.status(400).json({ error: 'Choose a valid report status' });
   }
   report.status = status;
+  if (req.body.adminNote !== undefined) {
+    const adminNote = String(req.body.adminNote || '').trim();
+    if (adminNote.length > 1000) return res.status(400).json({ error: 'Admin note must be 1000 characters or fewer' });
+    report.adminNote = adminNote;
+  }
+  report.updatedByAdminId = req.adminUser.id;
   report.updatedAt = new Date().toISOString();
   if (status === 'resolved' || status === 'dismissed') report.resolvedAt = report.updatedAt;
   saveDb(db);
   res.json({ message: 'Report updated.', report: summarizeAdminReport(report) });
+});
+
+app.delete('/api/admin/rides/:rideId', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = loadDb();
+  const ride = (db.rides || []).find((entry) => entry.id === String(req.params.rideId || ''));
+  if (!ride) return res.status(404).json({ error: 'Ride not found' });
+  const note = String(req.body?.moderationNote || '').trim();
+  if (note.length > 1000) return res.status(400).json({ error: 'Moderation note must be 1000 characters or fewer' });
+  ride.status = 'removed';
+  ride.removedAt = new Date().toISOString();
+  ride.removedByAdminId = req.adminUser.id;
+  ride.moderationNote = note || ride.moderationNote || 'Removed by LinkUp moderation';
+  saveDb(db);
+  res.json({ message: 'Ride removed.', ride: summarizeAdminRide(ride) });
+});
+
+app.delete('/api/admin/ride-requests/:requestId', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = loadDb();
+  const request = (db.rideRequests || []).find((entry) => entry.id === String(req.params.requestId || ''));
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  const note = String(req.body?.moderationNote || '').trim();
+  if (note.length > 1000) return res.status(400).json({ error: 'Moderation note must be 1000 characters or fewer' });
+  request.status = 'removed';
+  request.removedAt = new Date().toISOString();
+  request.removedByAdminId = req.adminUser.id;
+  request.moderationNote = note || request.moderationNote || 'Removed by LinkUp moderation';
+  saveDb(db);
+  res.json({ message: 'Request removed.', request: summarizeAdminRequest(request) });
 });
 
 app.post('/api/admin/wallets/weekly-payouts', adminRateLimit, async (req, res) => {
