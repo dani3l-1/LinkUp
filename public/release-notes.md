@@ -18,6 +18,7 @@
 - **Budget label for moving requests.** When posting a moving service request, the price field is now labeled "Budget for move" instead of the generic rider label.
 
 ### Fixed
+- **Leaderboard excludes admin accounts.** Admin and operator accounts no longer appear as student schools or inflate leaderboard member totals.
 - **Trip completion form now appears for drivers.** After a rider pays and the trip departs, drivers can now see and submit the 6-digit completion code. This form was not appearing due to a missing payment status flag — earnings confirmation now works as intended.
 - **Signup button no longer freezes.** If you tried to sign up without checking the terms checkboxes, the Create Account button would get stuck in a loading state. It now resets correctly.
 - **Offer submit button no longer freezes on route errors.** If the route estimate failed during posting, the Post Ride button would get stuck. It now always resets regardless of what goes wrong.

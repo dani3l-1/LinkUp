@@ -3711,11 +3711,12 @@ app.post('/api/auth/clear-session', (req, res) => {
 app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
   const db = normalizeUserAccess(loadDb());
   const schoolCounts = new Map();
+  const leaderboardUsers = (db.users || []).filter((user) => !isAdminUser(user));
 
-  (db.users || []).forEach((user) => {
+  leaderboardUsers.forEach((user) => {
     const domain = user.universityDomain || getEmailDomain(user.email);
     const schoolInfo = getUniversityInfoFromDomain(domain);
-    const school = schoolInfo.name || user.university || 'Unknown University';
+    const school = user.university || schoolInfo.name || 'Unknown University';
     const key = domain || school;
 
     if (!schoolCounts.has(key)) {
@@ -3748,9 +3749,10 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
     if (!rideMiles) return;
 
     const driver = (db.users || []).find((user) => user.id === ride.driverId);
+    if (isAdminUser(driver)) return;
     const domain = driver?.universityDomain || getEmailDomain(driver?.email) || '';
     const schoolInfo = getUniversityInfoFromDomain(domain);
-    const school = schoolInfo.name || ride.university || driver?.university || 'Unknown University';
+    const school = ride.university || driver?.university || schoolInfo.name || 'Unknown University';
     const key = domain || school;
 
     if (!milesBySchool.has(key)) {
@@ -3782,7 +3784,7 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
     .filter(hasConfirmedRidePassenger)
     .reduce((sum, ride) => sum + getRideMilesSaved(ride), 0) * 10) / 10;
 
-  res.json({ schools, mileageSchools, totalUsers: (db.users || []).length, totalMilesSaved });
+  res.json({ schools, mileageSchools, totalUsers: leaderboardUsers.length, totalMilesSaved });
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting
