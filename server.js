@@ -62,6 +62,10 @@ const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15
 const STRIPE_FEE_RATE = 0.029;
 const STRIPE_FEE_FIXED_CENTS = 30;
 const ADMIN_PAYOUT_SECRET = process.env.ADMIN_PAYOUT_SECRET || '';
+const ADMIN_EMAILS = new Set(String(process.env.ADMIN_EMAILS || '')
+  .split(',')
+  .map((email) => normalizeEmail(email))
+  .filter(Boolean));
 const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
 // Email verification can be bypassed in local test mode via .env.local.
 const BYPASS_EMAIL_VERIFICATION = NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
@@ -73,6 +77,12 @@ const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || `mailto:${process.env.SMTP_USER || 'no-reply@linkup.local'}`;
 const DB_SCHEMA_VERSION = 2;
+const APP_VERSION = process.env.RENDER_GIT_COMMIT
+  || process.env.COMMIT_SHA
+  || process.env.SOURCE_VERSION
+  || process.env.HEROKU_SLUG_COMMIT
+  || process.env.npm_package_version
+  || 'local';
 // Stripe client — null when key is absent (payment endpoints return 503 gracefully)
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-02-25.clover' })
@@ -370,6 +380,7 @@ const forgotPasswordRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max:
 const sensitiveWriteRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 40, message: 'Too many sensitive updates. Please wait and try again.' });
 const trackingRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many tracking requests. Please slow down.' });
 const adminRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many admin requests. Please wait and try again.' });
+const adminDashboardRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many admin dashboard requests. Please wait and try again.' });
 
 class JsonSessionStore extends session.Store {
   constructor(filePath) {
@@ -1976,6 +1987,10 @@ function getUserMemberNumber(db, userId) {
   return index >= 0 ? index + 1 : null;
 }
 
+function isAdminUser(user) {
+  return Boolean(user?.isAdmin) || ADMIN_EMAILS.has(normalizeEmail(user?.email || ''));
+}
+
 function publicUser(user, db = null) {
   const fallbackName = user.name || user.email.split('@')[0];
   const missingRequiredSettings = getMissingRequiredSettings(user);
@@ -1999,6 +2014,7 @@ function publicUser(user, db = null) {
     emailVerified: user.emailVerified !== false,
     nameLastChangedAt: user.nameLastChangedAt || null,
     memberNumber: db ? getUserMemberNumber(db, user.id) : null,
+    isAdmin: isAdminUser(user),
     defaultPaymentMethod: user.defaultPaymentMethod || null,
     payoutInfo: user.payoutInfo || null,
     paymentProvider: getPaymentProviderName(),
@@ -2523,6 +2539,20 @@ function requireAuth(req, res, next) {
   if (!req.session.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (!isAdminUser(user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  req.adminUser = user;
+  req.adminDb = db;
   next();
 }
 
@@ -5246,6 +5276,154 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
     driverOffers: driverOffers.map((request) => publicRideRequest(request, studentId)),
     wallet: buildDriverWalletSummary(db, studentId),
   });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'LinkUp',
+    version: APP_VERSION,
+    environment: NODE_ENV,
+    database: USE_POSTGRES ? 'postgres' : 'json',
+    rideServicesPaused: RIDE_SERVICES_PAUSED,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/api/version', (req, res) => {
+  res.json({
+    version: APP_VERSION,
+    environment: NODE_ENV,
+    rideServicesPaused: RIDE_SERVICES_PAUSED,
+    requiredTermsVersion: REQUIRED_TERMS_VERSION,
+    requiredPrivacyVersion: REQUIRED_PRIVACY_VERSION,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+function summarizeAdminUser(user, db) {
+  return {
+    id: user.id,
+    memberNumber: getUserMemberNumber(db, user.id),
+    name: getUserDisplayName(user),
+    email: user.email || '',
+    university: getUserUniversityDisplay(user),
+    serviceApproved: user.serviceApproved === true,
+    emailVerified: user.emailVerified !== false,
+    isAdmin: isAdminUser(user),
+    joinedAt: user.createdAt || '',
+    lastUpdatedAt: user.updatedAt || '',
+  };
+}
+
+function summarizeAdminRide(ride) {
+  return {
+    id: ride.id,
+    driverId: ride.driverId || '',
+    driverName: [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver',
+    origin: ride.origin || '',
+    destination: ride.destination || '',
+    date: ride.date || '',
+    time: ride.time || '',
+    status: ride.status || 'listed',
+    seatsAvailable: ride.seatsAvailable ?? ride.seats ?? 0,
+    passengerCount: (ride.passengers || []).length,
+    createdAt: ride.createdAt || '',
+  };
+}
+
+function summarizeAdminRequest(request) {
+  return {
+    id: request.id,
+    riderId: request.riderId || '',
+    riderName: [request.riderFirstName, request.riderLastName].filter(Boolean).join(' ') || 'Rider',
+    origin: request.origin || '',
+    destination: request.destination || '',
+    date: request.date || '',
+    time: request.time || '',
+    status: request.status || 'open',
+    requestType: request.requestType || 'ride',
+    offerCount: (request.driverOffers || []).length,
+    createdAt: request.createdAt || '',
+  };
+}
+
+function summarizeAdminReport(report) {
+  return {
+    id: report.id,
+    status: report.status || 'open',
+    reason: report.reason || '',
+    details: report.details || '',
+    reporterName: report.reporterName || '',
+    reporterEmail: report.reporterEmail || '',
+    reportedUserName: report.reportedUserName || '',
+    reportedUserEmail: report.reportedUserEmail || '',
+    rideId: report.rideId || '',
+    rideRoute: [report.rideOrigin, report.rideDestination].filter(Boolean).join(' -> '),
+    rideDate: report.rideDate || '',
+    createdAt: report.createdAt || '',
+    resolvedAt: report.resolvedAt || '',
+  };
+}
+
+app.get('/api/admin/overview', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = expireUnclaimedRideRequests(req.adminDb || loadDb());
+  const users = Array.isArray(db.users) ? db.users : [];
+  const rides = Array.isArray(db.rides) ? db.rides : [];
+  const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
+  const reports = Array.isArray(db.userReports) ? db.userReports : [];
+  const payments = Array.isArray(db.payments) ? db.payments : [];
+  const walletTransactions = Array.isArray(db.walletTransactions) ? db.walletTransactions : [];
+
+  res.json({
+    version: APP_VERSION,
+    environment: NODE_ENV,
+    rideServicesPaused: RIDE_SERVICES_PAUSED,
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      users: users.length,
+      serviceApprovedUsers: users.filter((user) => user.serviceApproved === true).length,
+      waitlistedUsers: users.filter((user) => user.serviceApproved !== true).length,
+      rides: rides.length,
+      rideRequests: rideRequests.length,
+      openRideRequests: rideRequests.filter((request) => request.status === 'open').length,
+      openReports: reports.filter((report) => (report.status || 'open') === 'open').length,
+      payments: payments.length,
+      walletTransactions: walletTransactions.length,
+    },
+    users: users.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map((user) => summarizeAdminUser(user, db)),
+    rides: rides.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminRide),
+    rideRequests: rideRequests.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminRequest),
+    reports: reports.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminReport),
+  });
+});
+
+app.patch('/api/admin/users/:userId', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === String(req.params.userId || ''));
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (req.body.serviceApproved !== undefined) {
+    user.serviceApproved = req.body.serviceApproved === true;
+    user.waitlistedAt = user.serviceApproved ? null : (user.waitlistedAt || new Date().toISOString());
+  }
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json({ message: 'User updated.', user: summarizeAdminUser(user, db) });
+});
+
+app.patch('/api/admin/reports/:reportId', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = loadDb();
+  const report = (db.userReports || []).find((entry) => entry.id === String(req.params.reportId || ''));
+  if (!report) return res.status(404).json({ error: 'Report not found' });
+  const status = String(req.body.status || '').trim().toLowerCase();
+  if (!['open', 'reviewing', 'resolved', 'dismissed'].includes(status)) {
+    return res.status(400).json({ error: 'Choose a valid report status' });
+  }
+  report.status = status;
+  report.updatedAt = new Date().toISOString();
+  if (status === 'resolved' || status === 'dismissed') report.resolvedAt = report.updatedAt;
+  saveDb(db);
+  res.json({ message: 'Report updated.', report: summarizeAdminReport(report) });
 });
 
 app.post('/api/admin/wallets/weekly-payouts', adminRateLimit, async (req, res) => {

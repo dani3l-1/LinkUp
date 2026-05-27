@@ -3917,6 +3917,100 @@ article.card h3 {
   margin-top: 0;
 }
 
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.admin-metric {
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.025);
+}
+
+.admin-metric strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  font-family: var(--font-display);
+}
+
+.admin-metric span {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+}
+
+.admin-tab {
+  width: auto;
+  min-height: 36px;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.admin-tab.active {
+  border-color: rgba(62,207,207,0.45);
+  background: rgba(62,207,207,0.14);
+  color: var(--accent);
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.admin-table th {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.025);
+}
+
+.admin-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-table button,
+.admin-table select {
+  width: auto;
+  min-height: 34px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+}
+
 .block-user-button {
   border-color: rgba(255, 111, 111, 0.42);
   background: rgba(255, 111, 111, 0.08);

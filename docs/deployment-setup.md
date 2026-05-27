@@ -20,6 +20,7 @@ Set these on the host. Do not commit real values.
 NODE_ENV=production
 PORT=3000
 SESSION_SECRET=replace_with_a_64_byte_random_hex_string
+ADMIN_EMAILS=founder@university.edu,ops@university.edu
 
 DATABASE_URL=postgresql://user:password@host:5432/database
 DATABASE_SSL=true

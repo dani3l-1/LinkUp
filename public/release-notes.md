@@ -2,6 +2,17 @@
 
 ---
 
+## v2026.05.27 BETA
+
+### New
+- **Admin control room.** Admin accounts can now view launch metrics, recent users, rides, ride requests, and user reports from inside LinkUp.
+- **Production health and version checks.** LinkUp now exposes health/version endpoints so deployments can be verified before announcing a launch.
+
+### Improvements
+- **Campus launch operations.** Admins can update user access and move reports through open, reviewing, resolved, and dismissed states.
+
+---
+
 ## v2026.05.26 BETA
 
 ### New

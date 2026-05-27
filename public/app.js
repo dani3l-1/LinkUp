@@ -98,6 +98,15 @@ const yourRidesHistoryTab = document.getElementById('your-rides-history-tab');
 const yourRidesBackHomeButton = document.getElementById('your-rides-back-home');
 const profileButton = document.getElementById('profile-button');
 const leaderboardButton = document.getElementById('leaderboard-button');
+const adminButton = document.getElementById('admin-button');
+const adminPage = document.getElementById('admin-page');
+const adminBackHomeButton = document.getElementById('admin-back-home');
+const adminVersionSummary = document.getElementById('admin-version-summary');
+const adminMetrics = document.getElementById('admin-metrics');
+const adminTableWrap = document.getElementById('admin-table-wrap');
+const adminMessage = document.getElementById('admin-message');
+const adminError = document.getElementById('admin-error');
+const adminTabs = document.querySelectorAll('[data-admin-tab]');
 const leaderboardPage = document.getElementById('leaderboard-page');
 const leaderboardBackHomeButton = document.getElementById('leaderboard-back-home');
 const leaderboardSummary = document.getElementById('leaderboard-summary');
@@ -392,6 +401,8 @@ function publicProfileRoute(userId) {
 }
 let browseRole = null;
 let yourRidesView = 'current';
+let adminView = 'reports';
+let adminSnapshot = null;
 let selectedChatRideId = '';
 let browseRadiusMap = null;
 let browsePickupCircle = null;
@@ -424,9 +435,11 @@ document.addEventListener('click', async (event) => {
     'list-ride-button': () => showListRidePage(),
     'your-rides-button': () => showYourRidesPage(),
     'leaderboard-button': () => showLeaderboardPage(),
+    'admin-button': () => showAdminPage(),
     'profile-button': () => showProfilePage(),
     'cart-button': () => showCartPage(),
     'leaderboard-back-home': () => returnToBrowseRides(),
+    'admin-back-home': () => returnToBrowseRides(),
     'public-profile-back-home': () => returnToBrowseRides(),
     'profile-back-home': () => returnToBrowseRides(),
     'request-ride-back-home': () => returnToBrowseRides(),
@@ -1628,6 +1641,7 @@ function showDashboardShell(user = currentUser) {
   document.body.classList.add('dashboard-mode');
   headerLeftActions.classList.remove('hidden');
   headerActions.classList.remove('hidden');
+  adminButton?.classList.toggle('hidden', !user.isAdmin);
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
   updateUserHeader(user);
@@ -1725,6 +1739,7 @@ function hideDashboardPages() {
   chatPage.classList.add('hidden');
   paymentPage.classList.add('hidden');
   leaderboardPage.classList.add('hidden');
+  adminPage?.classList.add('hidden');
   publicProfilePage.classList.add('hidden');
   profilePage.classList.add('hidden');
 }
@@ -2405,6 +2420,138 @@ function showLeaderboardPage() {
   loadLeaderboard();
 }
 
+function clearAdminMessages() {
+  if (adminMessage) {
+    adminMessage.textContent = '';
+    adminMessage.classList.remove('show');
+  }
+  if (adminError) {
+    adminError.textContent = '';
+    adminError.classList.remove('show');
+  }
+}
+
+function showAdminMessage(message, type = 'success') {
+  const target = type === 'error' ? adminError : adminMessage;
+  if (!target) return;
+  target.textContent = message;
+  target.classList.add('show');
+}
+
+function renderAdminMetrics(data) {
+  if (!adminMetrics) return;
+  const metrics = data.metrics || {};
+  const items = [
+    ['Users', metrics.users],
+    ['Approved', metrics.serviceApprovedUsers],
+    ['Waitlist', metrics.waitlistedUsers],
+    ['Rides', metrics.rides],
+    ['Requests', metrics.rideRequests],
+    ['Open reports', metrics.openReports],
+  ];
+  adminMetrics.innerHTML = items.map(([label, value]) => `
+    <div class="admin-metric">
+      <strong>${esc(value ?? 0)}</strong>
+      <span>${esc(label)}</span>
+    </div>
+  `).join('');
+}
+
+function adminCell(value) {
+  const text = value === undefined || value === null || value === '' ? '-' : String(value);
+  return `<td>${esc(text)}</td>`;
+}
+
+function renderAdminTable() {
+  if (!adminTableWrap || !adminSnapshot) return;
+  adminTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.adminTab === adminView));
+  if (adminView === 'reports') {
+    const rows = (adminSnapshot.reports || []).map((report) => `
+      <tr>
+        ${adminCell(report.status)}
+        ${adminCell(report.reason)}
+        ${adminCell(report.reportedUserName)}
+        ${adminCell(report.reporterName)}
+        ${adminCell(report.rideRoute)}
+        ${adminCell(formatPublicProfileDate(report.createdAt))}
+        <td>
+          <select class="admin-report-status" data-report-id="${esc(report.id)}">
+            ${['open', 'reviewing', 'resolved', 'dismissed'].map((status) => `<option value="${status}" ${report.status === status ? 'selected' : ''}>${status}</option>`).join('')}
+          </select>
+        </td>
+      </tr>
+    `).join('');
+    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Status</th><th>Reason</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No reports yet.</td></tr>'}</tbody></table>`;
+    return;
+  }
+  if (adminView === 'users') {
+    const rows = (adminSnapshot.users || []).map((user) => `
+      <tr>
+        ${adminCell(user.memberNumber ? '#' + user.memberNumber : '')}
+        ${adminCell(user.name)}
+        ${adminCell(user.email)}
+        ${adminCell(user.university)}
+        ${adminCell(user.serviceApproved ? 'Approved' : 'Waitlist')}
+        ${adminCell(user.emailVerified ? 'Verified' : 'Unverified')}
+        <td><button type="button" class="admin-user-toggle" data-user-id="${esc(user.id)}" data-approved="${user.serviceApproved ? 'false' : 'true'}">${user.serviceApproved ? 'Move to waitlist' : 'Approve'}</button></td>
+      </tr>
+    `).join('');
+    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>#</th><th>Name</th><th>Email</th><th>University</th><th>Access</th><th>Email</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No users yet.</td></tr>'}</tbody></table>`;
+    return;
+  }
+  if (adminView === 'rides') {
+    const rows = (adminSnapshot.rides || []).map((ride) => `
+      <tr>
+        ${adminCell(ride.driverName)}
+        ${adminCell(ride.origin)}
+        ${adminCell(ride.destination)}
+        ${adminCell([ride.date, ride.time].filter(Boolean).join(' '))}
+        ${adminCell(ride.passengerCount + ' riders')}
+        ${adminCell(ride.status)}
+      </tr>
+    `).join('');
+    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Driver</th><th>Origin</th><th>Destination</th><th>When</th><th>Passengers</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No rides yet.</td></tr>'}</tbody></table>`;
+    return;
+  }
+  const rows = (adminSnapshot.rideRequests || []).map((request) => `
+    <tr>
+      ${adminCell(request.riderName)}
+      ${adminCell(request.origin)}
+      ${adminCell(request.destination)}
+      ${adminCell([request.date, request.time].filter(Boolean).join(' '))}
+      ${adminCell(request.requestType)}
+      ${adminCell(request.offerCount + ' offers')}
+      ${adminCell(request.status)}
+    </tr>
+  `).join('');
+  adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Rider</th><th>Origin</th><th>Destination</th><th>When</th><th>Type</th><th>Offers</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No requests yet.</td></tr>'}</tbody></table>`;
+}
+
+async function loadAdminOverview() {
+  if (!adminTableWrap) return;
+  clearAdminMessages();
+  adminTableWrap.textContent = 'Loading admin dashboard...';
+  try {
+    adminSnapshot = await fetchJson('/api/admin/overview');
+    if (adminVersionSummary) {
+      adminVersionSummary.textContent = 'Version ' + (adminSnapshot.version || 'unknown') + ' | ' + (adminSnapshot.environment || 'environment unknown') + (adminSnapshot.rideServicesPaused ? ' | ride services paused' : '');
+    }
+    renderAdminMetrics(adminSnapshot);
+    renderAdminTable();
+  } catch (err) {
+    adminTableWrap.textContent = '';
+    showAdminMessage(err.message || 'Unable to load admin dashboard.', 'error');
+  }
+}
+
+function showAdminPage() {
+  setAppRoute('admin');
+  clearCartMessages();
+  hideDashboardPages();
+  adminPage?.classList.remove('hidden');
+  loadAdminOverview();
+}
+
 function formatPublicProfileDate(value) {
   if (!value) return 'Recently joined';
   const date = new Date(value);
@@ -2968,6 +3115,7 @@ function restoreAppRoute() {
     else if (route === 'cart') showCartPage();
     else if (route === 'payment') showPaymentPage();
     else if (route === 'your-rides') showYourRidesPage();
+    else if (route === 'admin') showAdminPage();
     else if (route === 'chat') showChatPage();
     else if (route === 'request-ride') showRequestRidePage();
     else if (route === 'list-ride') showListRidePage();
@@ -6523,6 +6671,50 @@ profileSidebarButtons.forEach((button) => {
     clearAppearanceMessages();
     showProfileTab(button.dataset.profileTab);
   });
+});
+
+adminTabs.forEach((button) => {
+  button.addEventListener('click', () => {
+    adminView = button.dataset.adminTab || 'reports';
+    renderAdminTable();
+  });
+});
+
+adminTableWrap?.addEventListener('change', async (event) => {
+  const select = event.target.closest?.('.admin-report-status');
+  if (!select) return;
+  clearAdminMessages();
+  try {
+    await fetchJson('/api/admin/reports/' + encodeURIComponent(select.dataset.reportId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: select.value }),
+    });
+    showAdminMessage('Report status updated.');
+    await loadAdminOverview();
+  } catch (err) {
+    showAdminMessage(err.message || 'Unable to update report.', 'error');
+  }
+});
+
+adminTableWrap?.addEventListener('click', async (event) => {
+  const button = event.target.closest?.('.admin-user-toggle');
+  if (!button) return;
+  clearAdminMessages();
+  setButtonLoading(button, true);
+  try {
+    await fetchJson('/api/admin/users/' + encodeURIComponent(button.dataset.userId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serviceApproved: button.dataset.approved === 'true' }),
+    });
+    showAdminMessage('User access updated.');
+    await loadAdminOverview();
+  } catch (err) {
+    showAdminMessage(err.message || 'Unable to update user.', 'error');
+  } finally {
+    setButtonLoading(button, false);
+  }
 });
 
 themePreferenceInputs.forEach((input) => {

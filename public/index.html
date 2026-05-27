@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260526-checkbox-fix-2" />
+    <link rel="stylesheet" href="styles.css?v=20260527-admin" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -229,6 +229,7 @@
               <button id="list-ride-button" type="button">+ List ride</button>
               <button id="your-rides-button" type="button">Your rides</button>
               <button id="leaderboard-button" type="button">Leaderboard</button>
+              <button id="admin-button" class="hidden" type="button">Admin</button>
             </div>
           </div>
 
@@ -259,6 +260,27 @@
             <p id="miles-leaderboard-summary" class="leaderboard-summary">Loading miles...</p>
             <div id="miles-leaderboard-chart" class="leaderboard-chart"></div>
             <div id="leaderboard-error" class="error-message"></div>
+          </section>
+
+          <!-- Admin control room -->
+          <section id="admin-page" class="card hidden">
+            <div class="cart-header">
+              <div>
+                <h3>Admin Control Room</h3>
+                <p id="admin-version-summary">Loading production status...</p>
+              </div>
+              <button id="admin-back-home" type="button">← Home</button>
+            </div>
+            <div id="admin-message" class="success-message"></div>
+            <div id="admin-error" class="error-message"></div>
+            <div id="admin-metrics" class="admin-metrics"></div>
+            <div class="admin-tabs" role="tablist" aria-label="Admin data">
+              <button type="button" class="admin-tab active" data-admin-tab="reports">Reports</button>
+              <button type="button" class="admin-tab" data-admin-tab="users">Users</button>
+              <button type="button" class="admin-tab" data-admin-tab="rides">Rides</button>
+              <button type="button" class="admin-tab" data-admin-tab="requests">Requests</button>
+            </div>
+            <div id="admin-table-wrap" class="admin-table-wrap">Loading admin dashboard...</div>
           </section>
 
           <!-- Public profile page -->
@@ -1346,6 +1368,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260526-member-number"></script>
+    <script src="app.js?v=20260527-admin"></script>
   </body>
 </html>
