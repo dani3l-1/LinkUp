@@ -1790,8 +1790,8 @@ function fillProfileForm(user) {
   if (profileDisplayJoined && user.createdAt) {
     const joined = new Date(user.createdAt);
     if (!isNaN(joined)) {
-      const memberNumber = formatMemberNumber(user.memberNumber);
-      profileDisplayJoined.textContent = `Member since ${joined.toLocaleString('default', { month: 'long', year: 'numeric' })}${memberNumber ? ' · Member ' + memberNumber : ''}`;
+      const profileNumberLabel = formatProfileNumberLabel(user);
+      profileDisplayJoined.textContent = `Member since ${joined.toLocaleString('default', { month: 'long', year: 'numeric' })}${profileNumberLabel ? ' · ' + profileNumberLabel : ''}`;
     }
   }
 }
@@ -2487,7 +2487,7 @@ function renderAdminTable() {
   if (adminView === 'users') {
     const rows = (adminSnapshot.users || []).map((user) => `
       <tr>
-        ${adminCell(user.memberNumber ? '#' + user.memberNumber : '')}
+        ${adminCell(formatProfileNumberLabel(user))}
         ${adminCell(user.name)}
         ${adminCell(user.email)}
         ${adminCell(user.university)}
@@ -2564,6 +2564,13 @@ function formatMemberNumber(value) {
   return Number.isInteger(number) && number > 0 ? '#' + number.toLocaleString() : '';
 }
 
+function formatProfileNumberLabel(userOrProfile) {
+  const adminNumber = formatMemberNumber(userOrProfile?.adminNumber);
+  if (adminNumber) return 'Admin ' + adminNumber;
+  const memberNumber = formatMemberNumber(userOrProfile?.memberNumber);
+  return memberNumber ? 'Member ' + memberNumber : '';
+}
+
 function formatPublicRating(profile) {
   const average = profile?.stats?.driverRatingAverage;
   const count = profile?.stats?.driverRatingCount || 0;
@@ -2616,8 +2623,7 @@ function renderPublicProfile(profile) {
     ? `<img class="public-profile-avatar-image" src="${esc(profile.profilePictureDataUrl)}" alt="${esc(profile.name || 'Profile')} profile picture" />`
     : esc((profile.firstName || profile.name || 'U').charAt(0).toUpperCase());
   publicProfileTitle.textContent = profile.name || 'User profile';
-  const publicMemberNumber = formatMemberNumber(profile.memberNumber);
-  publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), publicMemberNumber ? 'Member ' + publicMemberNumber : ''].filter(Boolean).join(' - ');
+  publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), formatProfileNumberLabel(profile)].filter(Boolean).join(' - ');
   publicProfileContent.innerHTML = `
     <div class="public-profile-hero">
       <div class="public-profile-avatar">${avatarMarkup}</div>

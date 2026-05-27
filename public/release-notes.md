@@ -13,6 +13,7 @@
 - **Cleaner profile identity tag.** The name, university, and member details in the profile header are now better spaced and typographically distinct, with university displayed as a credential label above your academic info.
 - **Notes fields are now multi-line.** Both the ride offer and ride request forms now use a proper text box for notes, so you can write more without losing track of what you typed.
 - **Member number on profiles.** Profiles now show each student's LinkUp member number based on when they joined.
+- **Admin numbers are separate.** Admin accounts now show an admin number instead of taking a student member number.
 - **Moving service cards show "Mover" instead of "Driver".** Listings posted as a moving service now correctly label the provider as "Mover" to match the context.
 - **Budget label for moving requests.** When posting a moving service request, the price field is now labeled "Budget for move" instead of the generic rider label.
 

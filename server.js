@@ -1984,7 +1984,13 @@ function userNeedsRequiredSettings(user) {
 
 function getUserMemberNumber(db, userId) {
   const users = Array.isArray(db?.users) ? db.users : [];
-  const index = users.findIndex((entry) => entry.id === userId);
+  const index = users.filter((entry) => !isAdminUser(entry)).findIndex((entry) => entry.id === userId);
+  return index >= 0 ? index + 1 : null;
+}
+
+function getAdminNumber(db, userId) {
+  const users = Array.isArray(db?.users) ? db.users : [];
+  const index = users.filter((entry) => isAdminUser(entry)).findIndex((entry) => entry.id === userId);
   return index >= 0 ? index + 1 : null;
 }
 
@@ -2019,6 +2025,7 @@ function publicUser(user, db = null) {
     emailVerified: user.emailVerified !== false,
     nameLastChangedAt: user.nameLastChangedAt || null,
     memberNumber: db ? getUserMemberNumber(db, user.id) : null,
+    adminNumber: db ? getAdminNumber(db, user.id) : null,
     isAdmin: isAdminUser(user),
     defaultPaymentMethod: user.defaultPaymentMethod || null,
     payoutInfo: user.payoutInfo || null,
@@ -5239,6 +5246,7 @@ app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, r
     universityDomain: user.universityDomain || getEmailDomain(user.email),
     memberSince: user.createdAt || null,
     memberNumber: getUserMemberNumber(db, user.id),
+    adminNumber: getAdminNumber(db, user.id),
     serviceApproved: user.serviceApproved === true,
     isCurrentUser: user.id === req.session.userId,
     isBlockedByCurrentUser: isUserBlocked(db, req.session.userId, user.id),
@@ -5311,6 +5319,7 @@ function summarizeAdminUser(user, db) {
   return {
     id: user.id,
     memberNumber: getUserMemberNumber(db, user.id),
+    adminNumber: getAdminNumber(db, user.id),
     name: getUserDisplayName(user),
     email: user.email || '',
     university: getUserUniversityDisplay(user),
