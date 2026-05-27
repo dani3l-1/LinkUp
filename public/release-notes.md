@@ -9,6 +9,8 @@
 - **Social profile links.** You can now add optional Instagram, LinkedIn, and X links to your profile so verified students can link up beyond a ride when you choose to share them.
 
 ### Improvements
+- **Redesigned Personal Info layout.** Profile fields are now organized into labeled sections — Name, Academic, Social, and Account — so it's easier to find and edit what you need.
+- **Cleaner profile identity tag.** The name, university, and member details in the profile header are now better spaced and typographically distinct, with university displayed as a credential label above your academic info.
 - **Notes fields are now multi-line.** Both the ride offer and ride request forms now use a proper text box for notes, so you can write more without losing track of what you typed.
 - **Member number on profiles.** Profiles now show each student's LinkUp member number based on when they joined.
 - **Moving service cards show "Mover" instead of "Driver".** Listings posted as a moving service now correctly label the provider as "Mover" to match the context.
@@ -21,6 +23,7 @@
 - **Passenger data is no longer visible to other riders.** Email addresses and rating details stored on passenger records were included in API responses visible to other users on the same ride. Only the driver and each individual rider can now see their own details.
 - **Completion code no longer visible in profile data.** The 6-digit trip completion PIN was inadvertently included in profile responses for drivers. It is now correctly withheld from the driver — only the confirmed rider sees it after departure.
 - **Browse no longer fetches ride data twice on load.** Navigating to Browse Rides was triggering two simultaneous API calls. Only one fetch now runs.
+- **Pick-up and drop-off fields now align correctly in the request form.** The hide-destination toggle was placed inside the drop-off field, making it taller than the pick-up field and causing them to appear at different heights. The toggle now sits below both fields and the two location inputs align flush.
 
 ---
 

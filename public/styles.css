@@ -5925,7 +5925,15 @@ textarea:disabled,
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1.15rem 1.25rem;
-  align-items: end;
+  align-items: start;
+}
+
+.destination-privacy-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: -0.2rem;
 }
 
 #request-ride-form .request-location-picker {
@@ -9065,12 +9073,8 @@ html[data-theme="dark"] .moving-photo-required {
   border: 1px solid rgba(62,207,120,0.25);
 }
 
-.destination-privacy-toggle {
-  margin-top: 0.5rem;
-}
-
 .destination-privacy-hint {
-  margin: 0.2rem 0 0 1.45rem;
+  margin: 0 0 0 1.45rem;
   font-size: 0.72rem;
   color: var(--text-muted, #8888aa);
   line-height: 1.4;
