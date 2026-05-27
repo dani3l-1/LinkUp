@@ -16,6 +16,7 @@
 - **Admin numbers are separate.** Admin accounts now show an admin number instead of taking a student member number.
 - **Admin moderation tools.** Admins can now suspend or restore user access, save moderation notes, remove rides and requests from public views, and document report reviews.
 - **Admin activity and audit log.** The admin page now shows recent platform activity and a history of moderation actions so launch oversight is easier.
+- **Community safety rules.** LinkUp now has clearer rules for fake listings, harassment, scams, off-app pressure, reports, and moderation actions.
 - **Moving service cards show "Mover" instead of "Driver".** Listings posted as a moving service now correctly label the provider as "Mover" to match the context.
 - **Budget label for moving requests.** When posting a moving service request, the price field is now labeled "Budget for move" instead of the generic rider label.
 

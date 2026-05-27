@@ -1,7 +1,7 @@
 # Terms and Conditions
 
 **Effective Date:** May 15, 2026
-**Last Updated:** May 15, 2026
+**Last Updated:** May 27, 2026
 
 By accessing or using LinkUp ("the Service," "the App"), you agree to be bound by these Terms and Conditions ("Terms"). If you do not agree, you may not access or use the Service. Please read them carefully.
 
@@ -136,7 +136,21 @@ By posting ride listings, requests, notes, messages, or other content on LinkUp,
 
 ## 11. Blocking, Reporting, and Moderation
 
-LinkUp provides tools to block and report other users. LinkUp reserves the right — but has no obligation — to review reported content or conduct, take action on reported users, or remove content that violates these Terms. LinkUp's decisions on moderation are final.
+LinkUp provides tools to block and report other users. LinkUp reserves the right — but has no obligation — to review reported content or conduct, take action on reported users, restrict access, suspend or terminate accounts, and remove ride listings, ride requests, profile content, messages, or other content that violates these Terms or creates risk for the community. LinkUp's decisions on moderation are final.
+
+Users must not:
+
+- Post fake rides, fake ride requests, misleading trip details, or listings they do not intend to honor
+- Harass, threaten, intimidate, stalk, discriminate against, or exploit another user
+- Pressure another user to share private information, exact locations, payment details, social media, or contact information outside the app
+- Use LinkUp for illegal activity, unsafe transportation, commercial spam, scams, or impersonation
+- Share another person's private information without permission
+- Circumvent a suspension, waitlist restriction, block, report process, or other moderation decision
+- Abuse reports, ratings, messages, or profile links
+
+If you experience unsafe behavior, harassment, fraud, or a serious ride issue, use the in-app report tools where available and contact LinkUp at ridewlinkup@gmail.com. In an emergency or immediate safety situation, contact local emergency services first.
+
+Reports may be reviewed with related account, ride, request, payment, and message context as needed to operate the Service, enforce these Terms, and protect users. Admins may document moderation notes and audit actions internally.
 
 ---
 

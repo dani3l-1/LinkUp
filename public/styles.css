@@ -4450,11 +4450,23 @@ article.card h3 {
 }
 
 .about-linkup-grid section,
-.about-linkup-note {
+.about-linkup-note,
+.community-safety-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: rgba(255,255,255,0.035);
   padding: 1rem;
+}
+
+.community-safety-panel ul {
+  margin: 0.7rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.community-safety-panel li + li {
+  margin-top: 0.4rem;
 }
 
 .about-linkup-note {
@@ -8636,6 +8648,7 @@ html[data-theme="light"] .profile-avatar-camera-badge {
 html[data-theme="light"] body.dashboard-mode .profile-picture-editor,
 html[data-theme="light"] body.dashboard-mode .wallet-panel,
 html[data-theme="light"] body.dashboard-mode .about-linkup-panel,
+html[data-theme="light"] body.dashboard-mode .community-safety-panel,
 html[data-theme="light"] body.dashboard-mode .theme-choice-card,
 html[data-theme="light"] body.dashboard-mode .leaderboard-saved-miles,
 html[data-theme="light"] body.dashboard-mode .policy-version-card,
