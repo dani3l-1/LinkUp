@@ -239,6 +239,8 @@ const policyTermsButton = document.getElementById('policy-terms-button');
 const policyPrivacyButton = document.getElementById('policy-privacy-button');
 const policyCollapseButton = document.getElementById('policy-collapse-button');
 const policyReleaseCard = document.querySelector('.policy-release-card');
+const policyTermsFull = document.querySelector('.policy-terms-full');
+const policyPrivacyFull = document.querySelector('.policy-privacy-full');
 const appearanceForm = document.getElementById('appearance-form');
 const appearanceMessage = document.getElementById('appearance-message');
 const appearanceError = document.getElementById('appearance-error');
@@ -1936,6 +1938,14 @@ function updatePolicyAgreeButtonState() {
     : 'Scroll to the bottom to unlock the agreement button.';
 }
 
+async function loadPolicyFullDocument(mode) {
+  const target = mode === 'terms' ? policyTermsFull : mode === 'privacy' ? policyPrivacyFull : null;
+  if (!target || target.dataset.loaded === 'true') return;
+  target.innerHTML = '<p class="legal-loading">Loading document...</p>';
+  await loadMarkdownDocument(mode === 'privacy' ? 'privacy-notice.md' : 'terms-and-conditions.md', target);
+  target.dataset.loaded = 'true';
+}
+
 function setPolicyFullView(mode = '') {
   const expanded = mode === 'terms' || mode === 'privacy';
   policyReleaseCard?.classList.toggle('policy-full-view', expanded);
@@ -1945,6 +1955,9 @@ function setPolicyFullView(mode = '') {
   policyPrivacyButton?.classList.toggle('hidden', expanded);
   policyCollapseButton?.classList.toggle('hidden', !expanded);
   if (expanded && policyScrollbox) policyScrollbox.scrollTop = 0;
+  if (expanded) {
+    loadPolicyFullDocument(mode).catch((error) => console.error('Policy document load error:', error));
+  }
   updatePolicyAgreeButtonState();
 }
 

@@ -9247,3 +9247,48 @@ html[data-theme="dark"] .destination-fuzzy-badge {
   color: #aaaadd;
   border-color: rgba(160,160,220,0.25);
 }
+
+/* Final policy reader guardrails: keep expanded Terms/Privacy reliable. */
+.policy-release-card.policy-full-view {
+  position: fixed !important;
+  inset: 0.5rem !important;
+  z-index: 10000 !important;
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+  gap: 0.75rem !important;
+  width: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  padding: 1.25rem !important;
+  overflow: hidden !important;
+  background: #081113 !important;
+  border: 1px solid var(--border-hover) !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+.policy-release-card.policy-full-view .policy-scrollbox {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 1.5rem !important;
+}
+
+.policy-release-card.policy-full-view .policy-scrollbox > section {
+  display: none !important;
+}
+
+.policy-release-card.policy-full-view.policy-terms-view .policy-scrollbox > .policy-terms-full,
+.policy-release-card.policy-full-view.policy-privacy-view .policy-scrollbox > .policy-privacy-full {
+  display: block !important;
+}
+
+.policy-release-card.policy-full-view .policy-release-actions {
+  min-height: 3rem !important;
+  padding-bottom: 0.75rem !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.policy-release-card.policy-full-view #policy-collapse-button {
+  display: inline-flex !important;
+}
