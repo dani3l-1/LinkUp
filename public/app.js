@@ -7340,8 +7340,14 @@ defaultPaymentConfirmButton?.addEventListener('click', async () => {
   }
 });
 policyScrollbox?.addEventListener('scroll', updatePolicyAgreeButtonState);
-policyTermsButton?.addEventListener('click', () => setPolicyFullView('terms'));
-policyPrivacyButton?.addEventListener('click', () => setPolicyFullView('privacy'));
+policyTermsButton?.addEventListener('click', (event) => {
+  event.preventDefault();
+  openLegalModal('terms');
+});
+policyPrivacyButton?.addEventListener('click', (event) => {
+  event.preventDefault();
+  openLegalModal('privacy');
+});
 policyCollapseButton?.addEventListener('click', () => setPolicyFullView(''));
 document.getElementById('profile-terms-agree')?.addEventListener('change', updatePolicyAgreeButtonState);
 document.getElementById('profile-privacy-agree')?.addEventListener('change', updatePolicyAgreeButtonState);
