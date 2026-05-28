@@ -1577,6 +1577,15 @@ function closeLegalModal() {
   document.body.classList.remove('modal-open');
 }
 
+document.addEventListener('click', (event) => {
+  const policyLegalButton = event.target.closest?.('#policy-terms-button, #policy-privacy-button');
+  if (!policyLegalButton) return;
+  event.preventDefault();
+  event.stopPropagation();
+  setPolicyFullView('');
+  openLegalModal(policyLegalButton.dataset.legalModal || (policyLegalButton.id === 'policy-privacy-button' ? 'privacy' : 'terms'));
+}, true);
+
 async function checkAuth() {
   const authCheckVersion = ++authFlowVersion;
   try {
