@@ -310,6 +310,7 @@
             <div class="profile-layout">
               <aside class="profile-sidebar" aria-label="Profile sections">
                 <button class="profile-sidebar-button active" type="button" data-profile-tab="info">Personal info</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="school-transfer">Transfer school</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payment">Payment method</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payouts">Driver payouts</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="security">Security</button>
@@ -480,6 +481,39 @@
                     </fieldset>
                     <div id="appearance-message" class="success-message"></div>
                     <div id="appearance-error" class="error-message"></div>
+                  </form>
+                </div>
+                <div id="profile-school-transfer-panel" class="profile-panel hidden" data-profile-panel="school-transfer">
+                  <form id="school-transfer-form" class="profile-form payout-guide">
+                    <div class="transfer-school-card">
+                      <div>
+                        <span class="about-linkup-eyebrow">School transfer</span>
+                        <h4>Move your LinkUp account to a new college.</h4>
+                        <p id="school-transfer-current">Your current school is loaded from your profile.</p>
+                      </div>
+                      <div class="payout-note">
+                        Your ride history, wallet, profile, ratings, and member number stay with you. Your school network, email, leaderboard school, and same-school matching update after you verify the new email.
+                      </div>
+                      <label>New college
+                        <input type="text" id="school-transfer-college" maxlength="120" placeholder="New college or university" />
+                      </label>
+                      <label>New college email
+                        <input type="email" id="school-transfer-email" placeholder="you@newschool.edu" autocomplete="email" />
+                      </label>
+                      <button type="submit">Send verification code</button>
+                    </div>
+                    <div id="school-transfer-verify-card" class="transfer-school-card hidden">
+                      <div>
+                        <h4>Verify your new school email</h4>
+                        <p id="school-transfer-pending">Enter the 6-digit code we sent to your new college email.</p>
+                      </div>
+                      <label>6-digit code
+                        <input type="text" id="school-transfer-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" />
+                      </label>
+                      <button type="button" id="school-transfer-verify-button">Verify transfer</button>
+                    </div>
+                    <div id="school-transfer-message" class="success-message"></div>
+                    <div id="school-transfer-error" class="error-message"></div>
                   </form>
                 </div>
                 <div id="profile-payment-panel" class="profile-panel hidden" data-profile-panel="payment">

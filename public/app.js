@@ -138,6 +138,16 @@ const profileDisplayName = document.getElementById('profile-display-name');
 const profileDisplayUniversity = document.getElementById('profile-display-university');
 const profileDisplayDetails = document.getElementById('profile-display-details');
 const profileDisplayJoined = document.getElementById('profile-display-joined');
+const schoolTransferForm = document.getElementById('school-transfer-form');
+const schoolTransferCurrent = document.getElementById('school-transfer-current');
+const schoolTransferCollege = document.getElementById('school-transfer-college');
+const schoolTransferEmail = document.getElementById('school-transfer-email');
+const schoolTransferVerifyCard = document.getElementById('school-transfer-verify-card');
+const schoolTransferPending = document.getElementById('school-transfer-pending');
+const schoolTransferCode = document.getElementById('school-transfer-code');
+const schoolTransferVerifyButton = document.getElementById('school-transfer-verify-button');
+const schoolTransferMessage = document.getElementById('school-transfer-message');
+const schoolTransferError = document.getElementById('school-transfer-error');
 const driverPayoutForm = document.getElementById('driver-payout-form');
 const payoutMessage = document.getElementById('payout-message');
 const payoutError = document.getElementById('payout-error');
@@ -1796,6 +1806,32 @@ function fillProfileForm(user) {
   }
 }
 
+function clearSchoolTransferMessages() {
+  if (schoolTransferMessage) {
+    schoolTransferMessage.textContent = '';
+    schoolTransferMessage.classList.remove('show');
+  }
+  if (schoolTransferError) {
+    schoolTransferError.textContent = '';
+    schoolTransferError.classList.remove('show');
+  }
+}
+
+function fillSchoolTransferForm(user = currentUser || {}) {
+  if (schoolTransferCurrent) {
+    schoolTransferCurrent.textContent = 'Current school: ' + (user.university || user.universityDomain || 'Unknown') + ' · ' + (user.email || '');
+  }
+  if (schoolTransferEmail && !schoolTransferEmail.value) schoolTransferEmail.value = '';
+  if (schoolTransferCollege && !schoolTransferCollege.value) schoolTransferCollege.value = '';
+  const pending = user.pendingSchoolTransfer;
+  schoolTransferVerifyCard?.classList.toggle('hidden', !pending);
+  if (schoolTransferPending) {
+    schoolTransferPending.textContent = pending
+      ? 'Enter the 6-digit code sent to ' + pending.email + ' for ' + (pending.university || 'your new school') + '.'
+      : 'Enter the 6-digit code we sent to your new college email.';
+  }
+}
+
 function clearAppearanceMessages() {
   appearanceMessage.textContent = '';
   appearanceMessage.classList.remove('show');
@@ -1941,6 +1977,7 @@ function showProfileTab(tabName) {
   if (tabName === 'payment') fillDefaultPaymentForm(currentUser || {});
   if (tabName === 'payouts') fillDriverPayoutForm(currentUser || {});
   if (tabName === 'policies') fillPolicyConsentForm(currentUser || {});
+  if (tabName === 'school-transfer') fillSchoolTransferForm(currentUser || {});
   if (tabName === 'appearance') applyThemePreference(currentUser?.themePreference || getStoredThemePreference() || 'dark');
   if (tabName === 'security') render2FAPanel(currentUser);
   if (tabName === 'release-notes') loadReleaseNotes();
@@ -3176,6 +3213,7 @@ function restoreAppRoute() {
     else if (route === 'leaderboard') showLeaderboardPage();
     else if (route.startsWith('user-profile-')) showPublicProfilePage(route.replace(/^user-profile-/, ''));
     else if (route === 'profile-payment') showProfilePage('payment');
+    else if (route === 'profile-school-transfer') showProfilePage('school-transfer');
     else if (route === 'profile-payouts') showProfilePage('payouts');
     else if (route === 'profile-security') showProfilePage('security');
     else if (route === 'profile-policies') showProfilePage('policies');
@@ -7384,6 +7422,62 @@ stripePayoutRefreshButton?.addEventListener('click', async () => {
     payoutError.classList.add('show');
   } finally {
     setButtonLoading(stripePayoutRefreshButton, false);
+  }
+});
+schoolTransferForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearSchoolTransferMessages();
+  const submitButton = schoolTransferForm.querySelector('button[type="submit"]');
+  setButtonLoading(submitButton, true);
+  try {
+    const response = await fetchJson('/api/profile/school-transfer/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        university: schoolTransferCollege?.value.trim() || '',
+        email: schoolTransferEmail?.value.trim() || '',
+      }),
+    });
+    currentUser = {
+      ...currentUser,
+      pendingSchoolTransfer: response.pendingSchoolTransfer || currentUser?.pendingSchoolTransfer || null,
+    };
+    fillSchoolTransferForm(currentUser);
+    if (schoolTransferCollege) schoolTransferCollege.value = currentUser.pendingSchoolTransfer?.university || schoolTransferCollege.value;
+    schoolTransferMessage.textContent = response.message || 'Verification code sent.';
+    schoolTransferMessage.classList.add('show');
+  } catch (err) {
+    schoolTransferError.textContent = err.message || 'Unable to start school transfer.';
+    schoolTransferError.classList.add('show');
+  } finally {
+    setButtonLoading(submitButton, false);
+  }
+});
+
+schoolTransferVerifyButton?.addEventListener('click', async () => {
+  clearSchoolTransferMessages();
+  setButtonLoading(schoolTransferVerifyButton, true);
+  try {
+    const response = await fetchJson('/api/profile/school-transfer/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: schoolTransferCode?.value.trim() || '' }),
+    });
+    currentUser = response.user || currentUser;
+    updateUserHeader(currentUser);
+    fillProfileForm(currentUser);
+    fillSchoolTransferForm(currentUser);
+    if (schoolTransferCollege) schoolTransferCollege.value = '';
+    if (schoolTransferEmail) schoolTransferEmail.value = '';
+    if (schoolTransferCode) schoolTransferCode.value = '';
+    schoolTransferMessage.textContent = response.message || 'School transfer verified.';
+    schoolTransferMessage.classList.add('show');
+    loadLeaderboard();
+  } catch (err) {
+    schoolTransferError.textContent = err.message || 'Unable to verify school transfer.';
+    schoolTransferError.classList.add('show');
+  } finally {
+    setButtonLoading(schoolTransferVerifyButton, false);
   }
 });
 browseRidesButton.addEventListener('click', () => showBrowsePage());

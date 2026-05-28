@@ -71,6 +71,8 @@ Notes:
 ```text
 GET  /api/profile
 PUT  /api/profile
+POST /api/profile/school-transfer/request
+POST /api/profile/school-transfer/verify
 PUT  /api/profile/preferences
 PUT  /api/profile/policies
 GET  /api/users/:userId/profile
@@ -85,6 +87,7 @@ Profile supports:
 - Academic details
 - Instagram, LinkedIn, and X profile links
 - Member number or admin number
+- School transfer by verifying a new university email
 - Public profile stats
 - Report/block workflows
 
@@ -221,6 +224,7 @@ RideChatView             -> /api/rides/:rideId/messages
 CartView                 -> /api/cart
 CheckoutView             -> /api/cart/create-embedded-checkout
 ProfileView              -> /api/profile
+SchoolTransferView       -> /api/profile/school-transfer/request, /api/profile/school-transfer/verify
 PublicProfileView        -> /api/users/:userId/profile
 LeaderboardView          -> /api/leaderboard/schools
 AdminView                -> /api/admin/overview

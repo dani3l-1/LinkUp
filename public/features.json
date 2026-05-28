@@ -193,6 +193,7 @@
         "Profile photo management",
         "Name and academic details",
         "Social links for Instagram, LinkedIn, and X",
+        "Verified school transfer to a new university email",
         "Member number or admin number",
         "Payment method setup",
         "Driver payout onboarding",
@@ -205,6 +206,8 @@
       "apiRoutes": [
         "GET /api/profile",
         "PUT /api/profile",
+        "POST /api/profile/school-transfer/request",
+        "POST /api/profile/school-transfer/verify",
         "PUT /api/profile/preferences",
         "PUT /api/profile/policies",
         "POST /api/profile/payment-method/setup-session",

@@ -193,6 +193,13 @@ Account management hub with a sidebar navigation.
 - **Account section:** birthday (locked after set), gender (locked after set), university email (locked)
 - Save profile button
 
+### Transfer School
+- Enter a new college email when transferring schools
+- Sends a 6-digit verification code to the new college email
+- Updates account email, university, school network, same-school matching, and leaderboard school after verification
+- Keeps ride history, profile, wallet, ratings, and member number on the same account
+- Stores previous email/school history for audit context
+
 ### Payment Method
 - View saved default card (brand, last 4, expiry)
 - Add or update card via Stripe (card details never stored by LinkUp)
@@ -309,6 +316,7 @@ Shown to users whose university hasn't launched yet.
 
 - All ride-related pages (Browse, Request, List, Cart, Checkout, Your Rides) require a verified email, completed required profile fields (name, birthday, gender), and acceptance of the latest policies.
 - Suspended users are blocked from ride services until restored by an admin.
+- School transfers require verification from the new university email before account affiliation changes.
 - Admin accounts are numbered separately from student members and are not counted in student leaderboard totals.
 - The shared tracking page (`/track/:token`) is the only page accessible without signing in.
 - Legal pages can be opened as modals (inline) or as full pages depending on context.

@@ -4319,6 +4319,32 @@ article.card h3 {
   line-height: 1.65;
 }
 
+.transfer-school-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.035);
+}
+
+.transfer-school-card label {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.transfer-school-card input {
+  margin-top: 0.45rem;
+}
+
+.transfer-school-card button {
+  width: min(240px, 100%);
+}
+
 /* ─── Payout flow indicator ───────────────────────────────────── */
 .payout-flow {
   display: flex;

@@ -17,6 +17,7 @@
 - **Admin moderation tools.** Admins can now suspend or restore user access, save moderation notes, remove rides and requests from public views, and document report reviews.
 - **Admin activity and audit log.** The admin page now shows recent platform activity and a history of moderation actions so launch oversight is easier.
 - **Community safety rules.** LinkUp now has clearer rules for fake listings, harassment, scams, off-app pressure, reports, and moderation actions.
+- **School transfer verification.** Students can now move their LinkUp account to a new college by verifying a code sent to their new university email.
 - **Moving service cards show "Mover" instead of "Driver".** Listings posted as a moving service now correctly label the provider as "Mover" to match the context.
 - **Budget label for moving requests.** When posting a moving service request, the price field is now labeled "Budget for move" instead of the generic rider label.
 

@@ -1634,6 +1634,55 @@ function sendVerificationCode(user, code) {
   );
 }
 
+function sendSchoolTransferVerificationCode(user, newEmail, code, newUniversity) {
+  const firstName = user.firstName || 'there';
+  const textBody = [
+    `Hi ${firstName},`,
+    '',
+    `Use this code to verify your new LinkUp school email for ${newUniversity}:`,
+    '',
+    code,
+    '',
+    'This code expires in 10 minutes. If you did not request a school transfer, you can ignore this email and your account will stay unchanged.',
+    '',
+    '- LinkUp',
+  ].join('\n');
+  const codeDigits = code.split('').map((d) =>
+    `<td style="padding:0 4px;"><div style="width:44px;height:56px;line-height:56px;text-align:center;background:#f0fafa;border:2px solid #3ecfcf;border-radius:12px;font-size:28px;font-weight:900;color:#082023;font-family:monospace,monospace;">${d}</div></td>`
+  ).join('');
+  const htmlBody = `
+    <!doctype html>
+    <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#071719;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:40px 16px;">
+          <tr><td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;">
+              <tr><td style="background:linear-gradient(135deg,#082a2f 0%,#0a3840 100%);padding:32px 36px;border-radius:20px 20px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
+                <div style="font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
+                <div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">School transfer</div>
+              </td></tr>
+              <tr><td style="background:#ffffff;padding:36px 36px 28px;border:1px solid #d7fbfb;border-top:none;border-bottom:none;">
+                <h1 style="margin:0 0 10px;font-size:26px;line-height:1.25;font-weight:800;color:#082023;">Verify your new school</h1>
+                <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#54636a;">Hi ${escapeHtml(firstName)}, enter this code in LinkUp to move your account to ${escapeHtml(newUniversity)}.</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;"><tr>${codeDigits}</tr></table>
+                <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:700;">School transfer code</p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:10px;padding:14px 18px;">
+                  <p style="margin:0;font-size:13px;line-height:1.6;color:#7a6520;"><strong>Expires in 10 minutes.</strong> If you did not request this, ignore this email.</p>
+                </td></tr></table>
+              </td></tr>
+              <tr><td style="background:#f7fdfd;padding:20px 36px 24px;border-radius:0 0 20px 20px;border:1px solid #d7fbfb;border-top:1px solid #e8f8f8;">
+                <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">LinkUp keeps your ride history, wallet, and profile while updating your school network.</p>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+    </html>
+  `;
+  sendAuthEmail(newEmail, 'Verify your new LinkUp school email', textBody, htmlBody);
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -2042,6 +2091,12 @@ function publicUser(user, db = null) {
     requiredTermsVersion: REQUIRED_TERMS_VERSION,
     requiredPrivacyVersion: REQUIRED_PRIVACY_VERSION,
     requiresPolicyConsent: userNeedsPolicyConsent(user),
+    pendingSchoolTransfer: user.pendingSchoolTransfer ? {
+      email: maskEmail(user.pendingSchoolTransfer.email || ''),
+      university: user.pendingSchoolTransfer.university || '',
+      requestedAt: user.pendingSchoolTransfer.requestedAt || '',
+      expiresAt: user.pendingSchoolTransfer.expiresAt || null,
+    } : null,
     missingRequiredSettings,
     requiresRequiredSettings: missingRequiredSettings.length > 0,
     createdAt: user.createdAt || null,
@@ -3465,6 +3520,135 @@ app.put('/api/profile/policies', requireAuth, (req, res) => {
 
   saveDb(db);
   res.json(publicUser(user, db));
+});
+
+app.post('/api/profile/school-transfer/request', requireAuth, (req, res) => {
+  const newEmail = normalizeEmail(req.body.email);
+  if (!newEmail) {
+    return res.status(400).json({ error: 'Enter your new university email address' });
+  }
+  if (!isUniversityEmail(newEmail)) {
+    return res.status(400).json({ error: 'Please use a valid university email address for your new school' });
+  }
+
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (isAdminUser(user)) {
+    return res.status(400).json({ error: 'Admin accounts do not use school transfer requests' });
+  }
+  if (newEmail === user.email) {
+    return res.status(400).json({ error: 'That is already your current account email' });
+  }
+  if ((db.users || []).some((entry) => entry.id !== user.id && normalizeEmail(entry.email) === newEmail)) {
+    return res.status(400).json({ error: 'That email is already associated with another LinkUp account' });
+  }
+
+  const domain = getEmailDomain(newEmail);
+  const requestedUniversity = String(req.body.university || '').trim();
+  if (requestedUniversity.length > 120) {
+    return res.status(400).json({ error: 'College name must be 120 characters or fewer' });
+  }
+  const university = extractUniversityFromEmail(newEmail) || requestedUniversity || getUniversityInfoFromDomain(domain).name;
+  const code = generateVerificationCode();
+  user.pendingSchoolTransfer = {
+    email: newEmail,
+    universityDomain: domain,
+    university,
+    codeHash: hashToken(code),
+    expiresAt: Date.now() + 1000 * 60 * 10,
+    attempts: 0,
+    requestedAt: new Date().toISOString(),
+  };
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  sendSchoolTransferVerificationCode(user, newEmail, code, university);
+  res.json({
+    message: 'We sent a 6-digit transfer code to your new school email.',
+    pendingSchoolTransfer: publicUser(user, db).pendingSchoolTransfer,
+  });
+});
+
+app.post('/api/profile/school-transfer/verify', requireAuth, (req, res) => {
+  const code = String(req.body.code || '').trim();
+  if (!code) return res.status(400).json({ error: 'Enter the 6-digit transfer code' });
+
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const pending = user.pendingSchoolTransfer;
+  if (!pending?.email || !pending.codeHash) {
+    return res.status(400).json({ error: 'No school transfer is pending' });
+  }
+  if (pending.expiresAt <= Date.now()) {
+    delete user.pendingSchoolTransfer;
+    saveDb(db);
+    return res.status(400).json({ error: 'Transfer code expired. Request a new code.' });
+  }
+  if ((pending.attempts || 0) >= 5) {
+    delete user.pendingSchoolTransfer;
+    saveDb(db);
+    return res.status(429).json({ error: 'Too many transfer attempts. Request a new code.' });
+  }
+  if (hashToken(code) !== pending.codeHash) {
+    pending.attempts = (pending.attempts || 0) + 1;
+    saveDb(db);
+    return res.status(400).json({ error: 'Invalid transfer code' });
+  }
+  if ((db.users || []).some((entry) => entry.id !== user.id && normalizeEmail(entry.email) === pending.email)) {
+    return res.status(400).json({ error: 'That email is already associated with another LinkUp account' });
+  }
+
+  const previousEmail = user.email;
+  const previousUniversity = getUserUniversityDisplay(user);
+  const now = new Date().toISOString();
+  user.emailHistory = Array.isArray(user.emailHistory) ? user.emailHistory : [];
+  user.emailHistory.push({
+    email: previousEmail,
+    university: previousUniversity,
+    universityDomain: user.universityDomain || getEmailDomain(previousEmail),
+    changedAt: now,
+    reason: 'school_transfer',
+  });
+  user.email = pending.email;
+  user.universityDomain = pending.universityDomain || getEmailDomain(pending.email);
+  user.university = pending.university || getUniversityInfoFromDomain(user.universityDomain).name;
+  user.emailVerified = true;
+  user.serviceApproved = Boolean(SUPPORTED_UNIVERSITY_DOMAINS[user.universityDomain]);
+  user.waitlistedAt = user.serviceApproved ? null : (user.waitlistedAt || now);
+  user.manuallyWaitlistedAt = null;
+  user.schoolTransferredAt = now;
+  delete user.pendingSchoolTransfer;
+  user.updatedAt = now;
+
+  (db.rides || []).forEach((ride) => {
+    if (ride.driverId === user.id) {
+      ride.university = user.university;
+    }
+    (ride.passengers || []).forEach((passenger) => {
+      if (passenger.studentId === user.id) passenger.email = user.email;
+    });
+  });
+  (db.rideRequests || []).forEach((request) => {
+    if (request.riderId === user.id) {
+      request.riderEmail = user.email;
+      request.university = user.university;
+    }
+    (request.driverOffers || []).forEach((offer) => {
+      if (offer.driverId === user.id) offer.email = user.email;
+    });
+  });
+  addAdminAuditEntry(db, null, 'completed_school_transfer', 'user', user, {
+    targetLabel: user.email,
+    previousEmail,
+    previousUniversity,
+    newUniversity: user.university,
+  });
+  saveDb(db);
+  res.json({
+    message: 'School transfer verified. Your LinkUp account has been updated.',
+    user: publicUser(user, db),
+  });
 });
 
 app.post('/api/profile/payment-method/setup-session', requireAuth, async (req, res) => {
