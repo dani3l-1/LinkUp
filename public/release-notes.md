@@ -6,19 +6,15 @@
 
 ### New
 - **School transfer verification.** Students can now move their LinkUp account to a new college by entering their new school and verifying a 6-digit code sent to their new university email.
-- **Admin control room.** Admin accounts now have a dedicated dashboard for launch metrics, reports, users, rides, requests, recent activity, and moderation oversight.
 - **iOS feature manifest and API guide.** LinkUp now publishes a shared `features.json` manifest and API guide so the iOS app can stay aligned with website features.
 
 ### Improvements
-- **Member and admin numbers.** Student profiles show member numbers based on join order, while admin accounts show separate admin numbers and do not take student member slots.
-- **Admin moderation tools.** Admins can approve or waitlist users, suspend or restore accounts, save moderation notes, remove rides and requests from public views, and document report reviews.
-- **Admin activity and audit log.** Admin actions and recent platform activity are now visible from the admin dashboard for better launch oversight.
+- **Member numbers.** Student profiles show member numbers based on join order.
 - **Community safety rules.** LinkUp now has clearer rules for fake listings, harassment, scams, off-app pressure, reports, emergency guidance, and moderation actions.
 - **Consistent auth styling.** Sign-in and create-account forms now share the same input and button styling.
 
 ### Fixed
 - **Policy document buttons open correctly.** The Policy Agreement page now opens expanded Terms and Conditions or Privacy Notice views and loads the full markdown documents.
-- **Leaderboard excludes admin accounts.** Admin and operator accounts no longer appear as student schools or inflate leaderboard member totals.
 
 ---
 
@@ -78,7 +74,6 @@
 - **Light and dark mode.** Profile now has an Appearance section where users can switch LinkUp between dark mode and light mode.
 - **Security hardening.** API writes now reject untrusted origins, sensitive API responses avoid browser/CDN storage, and profile photo uploads verify real image data.
 - **Safer Stripe payout onboarding.** Stripe onboarding now starts from a protected action and opens in a separate tab instead of using a state-changing link.
-- **Safer admin payouts.** Weekly payout admin access now has tighter request limits and safer secret checks.
 
 ---
 
