@@ -462,6 +462,17 @@ strong { font-weight: 600; color: var(--text-primary); }
   margin-top: 0;
 }
 
+#auth-section .tab-content .form-field input,
+#auth-section .tab-content .form-field select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
 .form-row-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -624,8 +635,10 @@ button:disabled::before { display: none; }
 /* ── Primary accent button ── */
 .btn-primary,
 #signin-form > button[type="submit"],
+#signup-form > button[type="submit"],
 #verification-form > button[type="submit"],
-#reset-password-form > button[type="submit"] {
+#reset-password-form > button[type="submit"],
+#recovery-form > #send-password-reset {
   display: block;
   width: 100%;
   margin-top: 1.4rem;
@@ -642,31 +655,9 @@ button:disabled::before { display: none; }
 
 .btn-primary:hover,
 #signin-form > button[type="submit"]:hover,
-#verification-form > button[type="submit"]:hover,
-#reset-password-form > button[type="submit"]:hover {
-  background: linear-gradient(135deg, #5cdede 0%, #3ecfcf 100%);
-  box-shadow: 0 6px 28px rgba(62,207,207,0.45);
-  animation: none;
-  color: #041414;
-}
-
-#signup-form > button[type="submit"],
-#recovery-form > #send-password-reset {
-  display: block;
-  width: 100%;
-  margin-top: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  font-size: 0.88rem;
-  border: none;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--accent) 0%, #2fb8b8 100%);
-  color: #041414;
-  box-shadow: 0 4px 20px rgba(62,207,207,0.3);
-  animation: pulse-glow 4s ease-in-out infinite;
-}
-
 #signup-form > button[type="submit"]:hover,
+#verification-form > button[type="submit"]:hover,
+#reset-password-form > button[type="submit"]:hover,
 #recovery-form > #send-password-reset:hover {
   background: linear-gradient(135deg, #5cdede 0%, #3ecfcf 100%);
   box-shadow: 0 6px 28px rgba(62,207,207,0.45);
@@ -8013,13 +8004,6 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
 /* ── Tighter auth card on large screens ──────────────────────── */
 #auth-section {
   margin-top: 1.5rem;
-}
-
-/* ── Sign-up CTA matches primary signin style on hover ───────── */
-#signup-form > button[type="submit"]:hover {
-  background: rgba(62,207,207,0.1);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 /* ── Browse role card — cleaner, less label-heavy ────────────── */

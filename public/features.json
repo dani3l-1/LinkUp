@@ -1,0 +1,311 @@
+{
+  "app": "LinkUp",
+  "version": "v2026.05.27",
+  "updatedAt": "2026-05-27",
+  "source": "features.md",
+  "intendedClients": ["web", "ios"],
+  "notes": [
+    "Use this manifest as the shared feature map for web and iOS.",
+    "Feature ids match web page ids where a direct web screen exists.",
+    "Ride-service features require an authenticated, verified, approved, policy-current user."
+  ],
+  "sections": [
+    {
+      "id": "auth-section",
+      "title": "Auth",
+      "clientPriority": "required",
+      "features": [
+        "Sign in with university email and password",
+        "Create account with required identity fields",
+        "Admin email exception for configured ADMIN_EMAILS",
+        "Email verification with 6-digit code",
+        "Password reset by email",
+        "Two-factor authentication challenge",
+        "Latest Terms and Privacy Notice acceptance"
+      ],
+      "apiRoutes": [
+        "POST /api/auth/signup",
+        "POST /api/auth/verify-email",
+        "POST /api/auth/resend-verification",
+        "POST /api/auth/signin",
+        "POST /api/auth/2fa/verify",
+        "POST /api/auth/forgot-password",
+        "POST /api/auth/reset-password",
+        "GET /api/auth/me",
+        "POST /api/auth/signout"
+      ]
+    },
+    {
+      "id": "home-section",
+      "title": "Home / Dashboard",
+      "clientPriority": "required",
+      "features": [
+        "Quick actions for Browse, Request, List, Your Rides, Leaderboard",
+        "Admin button for admin users",
+        "Ride stats summary",
+        "Recent rides panel",
+        "Track My Trip controls"
+      ],
+      "apiRoutes": [
+        "GET /api/auth/me",
+        "GET /api/rides",
+        "GET /api/ride-requests",
+        "POST /api/trips/track/start"
+      ]
+    },
+    {
+      "id": "browse-page",
+      "title": "Browse Rides",
+      "clientPriority": "required",
+      "features": [
+        "Browse available rides",
+        "Browse open ride requests in driver mode",
+        "Filter by destination, pickup/dropoff radius, date, seats, and price",
+        "Same-school and same-gender filters",
+        "Live map with matching ride pins",
+        "View public driver profile",
+        "Make an offer on a request",
+        "Post a shared ride from a request"
+      ],
+      "apiRoutes": [
+        "GET /api/rides",
+        "GET /api/ride-requests",
+        "POST /api/ride-requests/:requestId/offer",
+        "POST /api/ride-requests/:requestId/post-shared-ride",
+        "GET /api/users/:userId/profile"
+      ]
+    },
+    {
+      "id": "request-ride-page",
+      "title": "Request a Ride",
+      "clientPriority": "required",
+      "features": [
+        "Post ride requests",
+        "Post moving requests with required item photo",
+        "Hide exact drop-off from public view by default",
+        "Pickup and dropoff radius preferences",
+        "Route preview",
+        "Same-gender and same-school preferences"
+      ],
+      "apiRoutes": [
+        "POST /api/ride-requests",
+        "GET /api/config/google-maps-key"
+      ]
+    },
+    {
+      "id": "list-ride-page",
+      "title": "List a Ride",
+      "clientPriority": "required",
+      "features": [
+        "Post personal car rides",
+        "Post rideshare-service rides",
+        "Post moving-service listings",
+        "Interactive seat layout for personal car rides",
+        "Driver notes and terms agreement",
+        "Current and past driver activity panel"
+      ],
+      "apiRoutes": [
+        "POST /api/rides",
+        "GET /api/rides",
+        "GET /api/config/google-maps-key"
+      ]
+    },
+    {
+      "id": "your-rides-page",
+      "title": "Your Rides",
+      "clientPriority": "required",
+      "features": [
+        "Current reservations",
+        "Active driver rides",
+        "Passenger manifest for drivers",
+        "Completion code entry",
+        "Rating after trip completion",
+        "Requested rides and incoming offers",
+        "Ride history"
+      ],
+      "apiRoutes": [
+        "GET /api/profile",
+        "POST /api/rides/:rideId/complete",
+        "POST /api/rides/:rideId/rating",
+        "POST /api/ride-requests/:requestId/offer"
+      ]
+    },
+    {
+      "id": "chat-page",
+      "title": "Chat",
+      "clientPriority": "required",
+      "features": [
+        "Confirmed ride message threads",
+        "Send and receive ride messages",
+        "Typing/realtime support in web client",
+        "Push notification opt-in"
+      ],
+      "apiRoutes": [
+        "GET /api/rides/:rideId/messages",
+        "POST /api/rides/:rideId/messages",
+        "GET /api/push/config",
+        "POST /api/push/subscribe",
+        "POST /api/push/unsubscribe",
+        "POST /api/device-token"
+      ]
+    },
+    {
+      "id": "cart-page",
+      "title": "Cart",
+      "clientPriority": "required",
+      "features": [
+        "Multi-trip cart",
+        "Seat and pickup/dropoff details per cart item",
+        "Select/deselect trips",
+        "Subtotal and service fee",
+        "Wallet credit application",
+        "Ride terms agreement"
+      ],
+      "apiRoutes": [
+        "GET /api/cart",
+        "POST /api/cart/:rideId",
+        "DELETE /api/cart/:rideId"
+      ]
+    },
+    {
+      "id": "payment-page",
+      "title": "Payment / Checkout",
+      "clientPriority": "required",
+      "features": [
+        "Stripe Embedded Checkout",
+        "Apple Pay, Google Pay, Link, and card support where available",
+        "Wallet credit display",
+        "Checkout completion handling",
+        "Payment details not stored by LinkUp"
+      ],
+      "apiRoutes": [
+        "GET /api/payments/config",
+        "GET /api/stripe/config",
+        "POST /api/cart/create-embedded-checkout",
+        "POST /api/cart/checkout/complete"
+      ]
+    },
+    {
+      "id": "profile-page",
+      "title": "Profile",
+      "clientPriority": "required",
+      "features": [
+        "Profile photo management",
+        "Name and academic details",
+        "Social links for Instagram, LinkedIn, and X",
+        "Member number or admin number",
+        "Payment method setup",
+        "Driver payout onboarding",
+        "Two-factor authentication setup",
+        "Policy agreement",
+        "Appearance preferences",
+        "Release notes",
+        "About LinkUp and community rules"
+      ],
+      "apiRoutes": [
+        "GET /api/profile",
+        "PUT /api/profile",
+        "PUT /api/profile/preferences",
+        "PUT /api/profile/policies",
+        "POST /api/profile/payment-method/setup-session",
+        "POST /api/profile/payment-method/complete-setup",
+        "PUT /api/profile/payout",
+        "POST /api/profile/payout/stripe-onboarding",
+        "POST /api/profile/payout/stripe-status",
+        "POST /api/auth/2fa/setup",
+        "POST /api/auth/2fa/enable",
+        "POST /api/auth/2fa/disable"
+      ]
+    },
+    {
+      "id": "public-profile-page",
+      "title": "Public Profile",
+      "clientPriority": "required",
+      "features": [
+        "View public user profile",
+        "Show member/admin number",
+        "Show social links when provided",
+        "Ride stats",
+        "Report user",
+        "Block/unblock user"
+      ],
+      "apiRoutes": [
+        "GET /api/users/:userId/profile",
+        "POST /api/reports",
+        "POST /api/users/:userId/block",
+        "DELETE /api/users/:userId/block"
+      ]
+    },
+    {
+      "id": "leaderboard-page",
+      "title": "Leaderboard",
+      "clientPriority": "nice_to_have",
+      "features": [
+        "University user counts",
+        "Total miles saved",
+        "Current user's school highlight",
+        "Admin/operator accounts excluded"
+      ],
+      "apiRoutes": [
+        "GET /api/leaderboard/schools"
+      ]
+    },
+    {
+      "id": "admin-page",
+      "title": "Admin Control Room",
+      "clientPriority": "admin_only",
+      "features": [
+        "Deployment version and environment",
+        "Launch metrics",
+        "Reports workflow with admin notes",
+        "Approve/waitlist users",
+        "Suspend/restore users",
+        "Remove rides and ride requests from public views",
+        "Recent activity",
+        "Audit log"
+      ],
+      "apiRoutes": [
+        "GET /api/admin/overview",
+        "PATCH /api/admin/users/:userId",
+        "PATCH /api/admin/reports/:reportId",
+        "DELETE /api/admin/rides/:rideId",
+        "DELETE /api/admin/ride-requests/:requestId"
+      ]
+    },
+    {
+      "id": "shared-track-page",
+      "title": "Track My Trip",
+      "clientPriority": "nice_to_have",
+      "features": [
+        "Start/stop live tracking",
+        "Trusted person email invite",
+        "Public tracking link",
+        "Live location updates",
+        "Viewer token access without sign-in"
+      ],
+      "apiRoutes": [
+        "POST /api/trips/track/start",
+        "PUT /api/trips/track/:tripId/trusted-email",
+        "POST /api/trips/track/:tripId/location",
+        "POST /api/trips/track/:tripId/stop",
+        "GET /api/track/:viewerToken"
+      ]
+    },
+    {
+      "id": "legal-pages",
+      "title": "Legal Pages",
+      "clientPriority": "required",
+      "features": [
+        "Privacy Notice rendered from markdown",
+        "Terms and Conditions rendered from markdown",
+        "Community safety and moderation rules",
+        "Inline legal modal or full-page view"
+      ],
+      "staticAssets": [
+        "/privacy-notice.md",
+        "/terms-and-conditions.md",
+        "/release-notes.md"
+      ]
+    }
+  ]
+}

@@ -11,10 +11,12 @@ Entry point for all unauthenticated users.
 
 - Sign in with university email and password
 - Create account (first name, last name, middle name, birthday, gender, university email, password)
+- Admin email exceptions can create accounts without a `.edu` address when listed in `ADMIN_EMAILS`
 - Password strength requirements (8+ chars, uppercase, lowercase, number, special character)
 - Forgot password / reset via email code
 - Email verification (6-digit code, resend option)
 - Terms and Conditions + Privacy Notice agreement at signup
+- Updated Terms acceptance required after community safety policy changes
 - 2FA challenge step after sign-in when 2FA is enabled
 
 ---
@@ -25,6 +27,7 @@ Entry point for all unauthenticated users.
 Landing page after sign-in.
 
 - Quick-action buttons: Browse Rides, Request a Ride, List a Ride, Your Rides, Leaderboard
+- Admin button appears for admin accounts
 - Stats summary: rides taken, rides driven, total savings vs Uber
 - Recent rides panel (last few confirmed rides)
 - Trip tracking controls: start/stop live location sharing, trusted person email input, copy/send tracking link, live map preview
@@ -208,6 +211,7 @@ Account management hub with a sidebar navigation.
 
 ### Policy Agreement
 - Scrollable policy summary (Terms and Privacy Notice)
+- Community safety and moderation rules included in current Terms
 - View full Terms and Conditions
 - View full Privacy Notice
 - Accept latest policies to re-enable ride services
@@ -221,6 +225,7 @@ Account management hub with a sidebar navigation.
 
 ### About LinkUp
 - Mission summary and feature overview (For Riders, For Drivers, For Schools, Safety)
+- Community rules covering real listings, harassment, scams, reporting, and moderation actions
 
 ---
 
@@ -230,7 +235,7 @@ Account management hub with a sidebar navigation.
 Read-only profile view shown when tapping a user's name anywhere in the app.
 
 - Avatar, display name, university
-- Major, class year, member since, member number
+- Major, class year, member since, member number or admin number
 - Social links (Instagram, LinkedIn, X) if the user has set them
 - Ride stats (rides as driver, rides as rider, miles shared)
 - Report user button
@@ -246,6 +251,7 @@ School-wide ride sharing rankings.
 - Table of all universities with user count and total miles saved
 - Total miles saved across the network
 - Highlighted row for the current user's school
+- Admin/operator accounts excluded from school counts and leaderboard totals
 
 ---
 
@@ -255,10 +261,14 @@ School-wide ride sharing rankings.
 Restricted dashboard for accounts listed in `ADMIN_EMAILS`.
 
 - Deployment version and environment summary
-- Launch metrics: users, approved users, waitlist users, rides, requests, open reports
-- Recent users with service access toggle
-- Recent rides and ride requests for operational review
-- User reports table with status workflow: open, reviewing, resolved, dismissed
+- Launch metrics: users, approved users, waitlist users, suspended users, rides, requests, open reports
+- Reports tab with report details, admin notes, and status workflow: open, reviewing, resolved, dismissed
+- Users tab with member/admin number, approval/waitlist toggle, suspend/restore action, and moderation notes
+- Rides tab with recent rides, status, moderation notes, and remove action
+- Requests tab with recent ride requests, status, moderation notes, and remove action
+- Activity tab showing recent users, rides, requests, reports, and payments
+- Audit Log tab showing admin moderation actions, targets, admins, details, and timestamps
+- Admin actions are recorded in an internal audit log
 
 ---
 
@@ -281,6 +291,7 @@ Accessible from auth, profile, cart, and inline legal links anywhere.
 
 - Full document rendered from markdown
 - Effective date displayed
+- Terms include community safety rules, reporting, moderation, suspension, fake listing, harassment, scam, and emergency guidance
 
 ---
 
@@ -297,5 +308,7 @@ Shown to users whose university hasn't launched yet.
 ## Notes
 
 - All ride-related pages (Browse, Request, List, Cart, Checkout, Your Rides) require a verified email, completed required profile fields (name, birthday, gender), and acceptance of the latest policies.
+- Suspended users are blocked from ride services until restored by an admin.
+- Admin accounts are numbered separately from student members and are not counted in student leaderboard totals.
 - The shared tracking page (`/track/:token`) is the only page accessible without signing in.
 - Legal pages can be opened as modals (inline) or as full pages depending on context.
