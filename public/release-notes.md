@@ -2,6 +2,26 @@
 
 ---
 
+## v2026.05.27 BETA
+
+### New
+- **School transfer verification.** Students can now move their LinkUp account to a new college by entering their new school and verifying a 6-digit code sent to their new university email.
+- **Admin control room.** Admin accounts now have a dedicated dashboard for launch metrics, reports, users, rides, requests, recent activity, and moderation oversight.
+- **iOS feature manifest and API guide.** LinkUp now publishes a shared `features.json` manifest and API guide so the iOS app can stay aligned with website features.
+
+### Improvements
+- **Member and admin numbers.** Student profiles show member numbers based on join order, while admin accounts show separate admin numbers and do not take student member slots.
+- **Admin moderation tools.** Admins can approve or waitlist users, suspend or restore accounts, save moderation notes, remove rides and requests from public views, and document report reviews.
+- **Admin activity and audit log.** Admin actions and recent platform activity are now visible from the admin dashboard for better launch oversight.
+- **Community safety rules.** LinkUp now has clearer rules for fake listings, harassment, scams, off-app pressure, reports, emergency guidance, and moderation actions.
+- **Consistent auth styling.** Sign-in and create-account forms now share the same input and button styling.
+
+### Fixed
+- **Policy document buttons open correctly.** The Policy Agreement page now opens expanded Terms and Conditions or Privacy Notice views and loads the full markdown documents.
+- **Leaderboard excludes admin accounts.** Admin and operator accounts no longer appear as student schools or inflate leaderboard member totals.
+
+---
+
 ## v2026.05.26 BETA
 
 ### New
@@ -12,17 +32,10 @@
 - **Redesigned Personal Info layout.** Profile fields are now organized into labeled sections — Name, Academic, Social, and Account — so it's easier to find and edit what you need.
 - **Cleaner profile identity tag.** The name, university, and member details in the profile header are now better spaced and typographically distinct, with university displayed as a credential label above your academic info.
 - **Notes fields are now multi-line.** Both the ride offer and ride request forms now use a proper text box for notes, so you can write more without losing track of what you typed.
-- **Member number on profiles.** Profiles now show each student's LinkUp member number based on when they joined.
-- **Admin numbers are separate.** Admin accounts now show an admin number instead of taking a student member number.
-- **Admin moderation tools.** Admins can now suspend or restore user access, save moderation notes, remove rides and requests from public views, and document report reviews.
-- **Admin activity and audit log.** The admin page now shows recent platform activity and a history of moderation actions so launch oversight is easier.
-- **Community safety rules.** LinkUp now has clearer rules for fake listings, harassment, scams, off-app pressure, reports, and moderation actions.
-- **School transfer verification.** Students can now move their LinkUp account to a new college by verifying a code sent to their new university email.
 - **Moving service cards show "Mover" instead of "Driver".** Listings posted as a moving service now correctly label the provider as "Mover" to match the context.
 - **Budget label for moving requests.** When posting a moving service request, the price field is now labeled "Budget for move" instead of the generic rider label.
 
 ### Fixed
-- **Leaderboard excludes admin accounts.** Admin and operator accounts no longer appear as student schools or inflate leaderboard member totals.
 - **Trip completion form now appears for drivers.** After a rider pays and the trip departs, drivers can now see and submit the 6-digit completion code. This form was not appearing due to a missing payment status flag — earnings confirmation now works as intended.
 - **Signup button no longer freezes.** If you tried to sign up without checking the terms checkboxes, the Create Account button would get stuck in a loading state. It now resets correctly.
 - **Offer submit button no longer freezes on route errors.** If the route estimate failed during posting, the Post Ride button would get stuck. It now always resets regardless of what goes wrong.
