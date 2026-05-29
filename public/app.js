@@ -2706,6 +2706,12 @@ function normalizeSocialUrl(platform, raw) {
   return val;
 }
 
+const SOCIAL_ICONS = {
+  Instagram: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17.2" cy="6.8" r="1"/></svg>`,
+  LinkedIn: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.9 8.9H3.6V20h3.3V8.9zM5.2 7.4c1.1 0 1.9-.8 1.9-1.8S6.3 3.8 5.2 3.8 3.3 4.6 3.3 5.6s.8 1.8 1.9 1.8zM20.7 20v-6.1c0-3.3-1.8-5.2-4.4-5.2-2 0-2.9 1.1-3.4 1.9V8.9H9.6V20h3.3v-5.5c0-1.5.3-2.9 2.1-2.9s1.8 1.7 1.8 3V20h3.9z"/></svg>`,
+  X: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.7 10.6 22.1 2h-1.8l-6.4 7.5L8.8 2H2.9l7.8 11.3L2.9 22h1.8l6.8-7.9 5.5 7.9h5.9l-8.2-11.4zm-2.4 2.8-.8-1.1L5.2 3.3h2.7l5.1 7.3.8 1.1 6.6 9.4h-2.7l-5.4-7.7z"/></svg>`,
+};
+
 function renderPublicSocialLinks(profile) {
   const links = profile?.socialLinks || {};
   const items = [
@@ -2716,7 +2722,7 @@ function renderPublicSocialLinks(profile) {
   if (!items.length) return '';
   return `
     <div class="public-profile-social-links" aria-label="Social links">
-      ${items.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join('')}
+      ${items.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${SOCIAL_ICONS[label] || ''}${esc(label)}</a>`).join('')}
     </div>
   `;
 }
@@ -2742,44 +2748,90 @@ async function toggleUserBlock(profile) {
   }
 }
 
+function renderRatingStars(average) {
+  if (!average || average <= 0) return '';
+  const val = Math.min(5, Math.max(0, Number(average)));
+  return Array.from({ length: 5 }, (_, i) => {
+    const filled = val >= i + 1;
+    const half = !filled && val >= i + 0.5;
+    return `<span class="profile-star${filled ? ' profile-star--filled' : half ? ' profile-star--half' : ''}" aria-hidden="true">${filled || half ? '★' : '☆'}</span>`;
+  }).join('');
+}
+
 function renderPublicProfile(profile) {
   const stats = profile.stats || {};
-  const profileDetails = [
-    profile.major ? 'Major: ' + profile.major : '',
+  const ratingAvg = profile?.stats?.driverRatingAverage;
+  const ratingCount = profile?.stats?.driverRatingCount || 0;
+  const hasRating = ratingAvg && ratingCount > 0;
+  const academicParts = [
+    profile.major,
     profile.classYear ? 'Class of ' + profile.classYear : '',
   ].filter(Boolean);
   const avatarMarkup = profile.profilePictureDataUrl
     ? `<img class="public-profile-avatar-image" src="${esc(profile.profilePictureDataUrl)}" alt="${esc(profile.name || 'Profile')} profile picture" />`
     : esc((profile.firstName || profile.name || 'U').charAt(0).toUpperCase());
+  const verifiedBadge = profile.serviceApproved
+    ? `<span class="public-profile-verified" aria-label="Verified university network">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+        Verified
+       </span>`
+    : '';
+  const memberLabel = formatProfileNumberLabel(profile);
+
   publicProfileTitle.textContent = profile.name || 'User profile';
-  publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), formatProfileNumberLabel(profile)].filter(Boolean).join(' - ');
+  publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), memberLabel].filter(Boolean).join(' · ');
   publicProfileContent.innerHTML = `
     <div class="public-profile-hero">
       <div class="public-profile-avatar">${avatarMarkup}</div>
-      <div>
-        <h4>${esc(profile.name || 'LinkUp user')}</h4>
-        <p>${esc(profile.university || profile.universityDomain || 'University rider')}</p>
-        ${profileDetails.length ? `<p class="public-profile-academic">${esc(profileDetails.join(' | '))}</p>` : ''}
+      <div class="public-profile-hero-info">
+        <div class="public-profile-name-row">
+          <h4>${esc(profile.name || 'LinkUp user')}</h4>
+          ${verifiedBadge}
+        </div>
+        <p class="public-profile-university">${esc(profile.university || profile.universityDomain || '')}</p>
+        ${academicParts.length ? `<p class="public-profile-academic">${esc(academicParts.join(' · '))}</p>` : ''}
+        ${memberLabel ? `<p class="public-profile-member-label">${esc(memberLabel)}</p>` : ''}
         ${renderPublicSocialLinks(profile)}
-        <span class="public-profile-status">${profile.serviceApproved ? 'Verified university network' : 'Waitlist account'}</span>
       </div>
     </div>
+
     <div class="public-profile-stats">
-      <div><strong>${esc(stats.ridesOffered || 0)}</strong><span>Rides offered</span></div>
-      <div><strong>${esc(stats.ridesDrivenCompleted || 0)}</strong><span>Completed as driver</span></div>
-      <div><strong>${esc(stats.ridesJoined || 0)}</strong><span>Rides joined</span></div>
-      <div><strong>${esc(stats.openRideRequests || 0)}</strong><span>Open ride requests</span></div>
+      <div class="public-profile-stat">
+        <strong>${esc(String(stats.ridesOffered || 0))}</strong>
+        <span>Rides offered</span>
+      </div>
+      <div class="public-profile-stat">
+        <strong>${esc(String(stats.ridesDrivenCompleted || 0))}</strong>
+        <span>Completed as driver</span>
+      </div>
+      <div class="public-profile-stat">
+        <strong>${esc(String(stats.ridesJoined || 0))}</strong>
+        <span>Rides joined</span>
+      </div>
+      <div class="public-profile-stat">
+        <strong>${esc(String(stats.openRideRequests || 0))}</strong>
+        <span>Open requests</span>
+      </div>
     </div>
-    <div class="public-profile-rating">
-      <strong>Driver rating</strong>
-      <span>${esc(formatPublicRating(profile))}</span>
-    </div>
+
+    ${hasRating ? `
+    <div class="public-profile-rating-card">
+      <div class="rating-card-left">
+        <span class="rating-card-label">Driver rating</span>
+        <div class="rating-card-stars">${renderRatingStars(ratingAvg)}</div>
+      </div>
+      <div class="rating-card-right">
+        <strong class="rating-card-score">${esc(Number(ratingAvg).toFixed(1))}</strong>
+        <span class="rating-card-count">${esc(String(ratingCount))} rating${ratingCount === 1 ? '' : 's'}</span>
+      </div>
+    </div>` : ''}
+
     ${profile.isCurrentUser ? '' : `
       <div class="public-profile-actions">
         <button id="public-profile-block-button" type="button" class="${profile.isBlockedByCurrentUser ? 'secondary-action-button' : 'block-user-button'}">
           ${profile.isBlockedByCurrentUser ? 'Unblock user' : 'Block user'}
         </button>
-        <p>${profile.isBlockedByCurrentUser ? 'You blocked this user. Your listings and requests are hidden from each other.' : 'Blocking hides your listings and requests from each other.'}</p>
+        <p>${profile.isBlockedByCurrentUser ? 'You blocked this user. Listings and requests are hidden from each other.' : 'Blocking hides your listings and requests from each other.'}</p>
       </div>
     `}
   `;
