@@ -6225,6 +6225,32 @@ function render2FAPanel(user) {
         `}
       </div>
 
+      <!-- Change password -->
+      <div class="twofa-section security-change-password">
+        <div class="twofa-header">
+          <div>
+            <h4 class="twofa-title">Change password</h4>
+            <p class="twofa-desc">Update your account password. You'll need your current password to confirm.</p>
+          </div>
+        </div>
+        <div class="change-password-form">
+          <label class="change-password-label">
+            Current password
+            <input type="password" id="change-password-current" placeholder="••••••••" autocomplete="current-password" />
+          </label>
+          <label class="change-password-label">
+            New password
+            <input type="password" id="change-password-new" placeholder="New password (8+ chars, upper, lower, number, special)" autocomplete="new-password" />
+          </label>
+          <label class="change-password-label">
+            Confirm new password
+            <input type="password" id="change-password-confirm" placeholder="••••••••" autocomplete="new-password" />
+          </label>
+          <button type="button" id="change-password-btn" class="twofa-setup-btn">Update password</button>
+          <div id="change-password-msg" class="twofa-msg hidden"></div>
+        </div>
+      </div>
+
     </div>`;
 
   // Authenticator app handlers
@@ -6334,6 +6360,48 @@ function render2FAPanel(user) {
       msg.className = 'twofa-msg twofa-error show';
       btn.disabled = false;
       btn.textContent = 'Turn off email verification';
+    }
+  });
+
+  // Change password handler
+  document.getElementById('change-password-btn')?.addEventListener('click', async () => {
+    const currentPw = document.getElementById('change-password-current')?.value || '';
+    const newPw = document.getElementById('change-password-new')?.value || '';
+    const confirmPw = document.getElementById('change-password-confirm')?.value || '';
+    const msg = document.getElementById('change-password-msg');
+    const btn = document.getElementById('change-password-btn');
+    msg.className = 'twofa-msg hidden';
+
+    if (!currentPw || !newPw || !confirmPw) {
+      msg.textContent = 'Please fill in all three fields.';
+      msg.className = 'twofa-msg twofa-error show';
+      return;
+    }
+    if (newPw !== confirmPw) {
+      msg.textContent = 'New passwords do not match.';
+      msg.className = 'twofa-msg twofa-error show';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Updating…';
+    try {
+      const data = await fetchJson('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
+      });
+      msg.textContent = data.message;
+      msg.className = 'twofa-msg twofa-success show';
+      document.getElementById('change-password-current').value = '';
+      document.getElementById('change-password-new').value = '';
+      document.getElementById('change-password-confirm').value = '';
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = 'twofa-msg twofa-error show';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Update password';
     }
   });
 }

@@ -3474,6 +3474,33 @@ app.post('/api/auth/forgot-password', (req, res) => {
   res.json({ message: 'If an account exists for that email, we sent password reset instructions.' });
 });
 
+app.post('/api/auth/change-password', requireAuth, sensitiveWriteRateLimit, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  const validation = validatePassword(newPassword);
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
+  }
+
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+
+  const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!matches) return res.status(400).json({ error: 'Current password is incorrect' });
+
+  if (await bcrypt.compare(newPassword, user.passwordHash)) {
+    return res.status(400).json({ error: 'New password must be different from your current password' });
+  }
+
+  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  saveDb(db);
+  res.json({ message: 'Password updated successfully' });
+});
+
 app.post('/api/auth/reset-password', async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) {
