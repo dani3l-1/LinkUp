@@ -7755,9 +7755,26 @@ driverPayoutForm.addEventListener('submit', async (event) => {
     payoutError.classList.add('show');
   }
 });
-stripePayoutConnectButton?.addEventListener('click', () => {
+stripePayoutConnectButton?.addEventListener('click', async () => {
   clearPayoutMessages();
-  mountStripeConnectComponent('account-onboarding');
+  const btn = stripePayoutConnectButton;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Opening Stripe…';
+  try {
+    const data = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
+    if (data.url) {
+      window.open(data.url, '_blank', 'noopener');
+      payoutMessage.textContent = 'Stripe opened in a new tab. Come back here and click Refresh status when you're done.';
+      payoutMessage.classList.add('show');
+    }
+  } catch (err) {
+    payoutError.textContent = err.message || 'Unable to open Stripe onboarding. Please try again.';
+    payoutError.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 });
 
 stripePayoutHistoryButton?.addEventListener('click', () => {
