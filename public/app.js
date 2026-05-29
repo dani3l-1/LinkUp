@@ -2684,12 +2684,34 @@ function formatPublicRating(profile) {
   return average ? average.toFixed(1) + ' / 5 from ' + count + ' rating' + (count === 1 ? '' : 's') : 'No driver ratings yet';
 }
 
+function normalizeSocialUrl(platform, raw) {
+  const val = String(raw || '').trim();
+  if (!val) return '';
+  if (/^https?:\/\//i.test(val)) return val.replace(/^http:/i, 'https:');
+  const handle = val.replace(/^[@/]+/, '').trim();
+  if (!handle) return '';
+  if (platform === 'instagram') {
+    const username = handle.replace(/^(?:www\.)?instagram\.com\//i, '').split(/[/?#]/)[0];
+    return 'https://instagram.com/' + username;
+  }
+  if (platform === 'x') {
+    const username = handle.replace(/^(?:www\.)?(?:x|twitter)\.com\//i, '').split(/[/?#]/)[0];
+    return 'https://x.com/' + username;
+  }
+  if (platform === 'linkedin') {
+    if (/linkedin\.com/i.test(handle)) return 'https://' + handle.replace(/^www\./i, '');
+    if (/^in\//i.test(handle)) return 'https://linkedin.com/' + handle;
+    return 'https://linkedin.com/in/' + handle;
+  }
+  return val;
+}
+
 function renderPublicSocialLinks(profile) {
   const links = profile?.socialLinks || {};
   const items = [
-    ['Instagram', links.instagram],
-    ['LinkedIn', links.linkedin],
-    ['X', links.x],
+    ['Instagram', normalizeSocialUrl('instagram', links.instagram)],
+    ['LinkedIn', normalizeSocialUrl('linkedin', links.linkedin)],
+    ['X', normalizeSocialUrl('x', links.x)],
   ].filter(([, url]) => url);
   if (!items.length) return '';
   return `
@@ -7635,9 +7657,9 @@ profileForm.addEventListener('submit', async (event) => {
     classYear: document.getElementById('profile-class-year').value.trim(),
     major: document.getElementById('profile-major').value.trim(),
     socialLinks: {
-      instagram: document.getElementById('profile-instagram').value.trim(),
-      linkedin: document.getElementById('profile-linkedin').value.trim(),
-      x: document.getElementById('profile-x').value.trim(),
+      instagram: normalizeSocialUrl('instagram', document.getElementById('profile-instagram').value),
+      linkedin: normalizeSocialUrl('linkedin', document.getElementById('profile-linkedin').value),
+      x: normalizeSocialUrl('x', document.getElementById('profile-x').value),
     },
     birthday: document.getElementById('profile-birthday').value,
     gender: document.getElementById('profile-gender').value,
