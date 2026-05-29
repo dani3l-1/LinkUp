@@ -224,15 +224,13 @@
     const submitButton = event.target.querySelector('button[type="submit"]');
     if (submitButton) submitButton.disabled = true;
     try {
+      // sign-in verifies and saves the session server-side before returning 200.
+      // Reload immediately — don't make a second /api/auth/me call here because
+      // a Postgres read replica can lag behind the write and return a false 401.
       await postJson('/api/auth/signin', {
         email: document.getElementById('signin-email')?.value.trim(),
         password: document.getElementById('signin-password')?.value,
       });
-      const sessionResponse = await fetch('/api/auth/me', { credentials: 'same-origin' });
-      if (!sessionResponse.ok) {
-        const sessionData = await sessionResponse.json().catch(() => ({}));
-        throw new Error(sessionData.error || 'Session could not be established. Please try again.');
-      }
       window.location.replace(window.location.pathname);
     } catch (error) {
       showMessage('signin-error', error.message || 'Unable to sign in.');

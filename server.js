@@ -460,7 +460,15 @@ class PostgresSessionStore extends session.Store {
 
   get(sid, callback) {
     this.pool.query('SELECT sess FROM linkup_sessions WHERE sid = $1 AND expires > NOW()', [sid])
-      .then((result) => callback(null, result.rows[0]?.sess || null))
+      .then((result) => {
+        if (result.rows[0]?.sess) return callback(null, result.rows[0].sess);
+        // Retry once after 120 ms to handle Supabase read-replica lag.
+        setTimeout(() => {
+          this.pool.query('SELECT sess FROM linkup_sessions WHERE sid = $1 AND expires > NOW()', [sid])
+            .then((r2) => callback(null, r2.rows[0]?.sess || null))
+            .catch((err) => { console.error('[session:get-retry] Postgres error:', err.message); callback(err); });
+        }, 120);
+      })
       .catch((err) => {
         console.error('[session:get] Postgres error:', err.message);
         callback(err);
