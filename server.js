@@ -3496,9 +3496,85 @@ app.post('/api/auth/change-password', requireAuth, sensitiveWriteRateLimit, asyn
     return res.status(400).json({ error: 'New password must be different from your current password' });
   }
 
-  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  user.pendingPasswordHash = await bcrypt.hash(newPassword, 10);
+  user.passwordChangeCodeHash = hashToken(code);
+  user.passwordChangeCodeExpiresAt = Date.now() + 1000 * 60 * 10;
+  delete user.passwordChangeCodeAttempts;
   saveDb(db);
-  res.json({ message: 'Password updated successfully' });
+
+  const firstName = user.firstName || 'there';
+  const textBody = [
+    `Hi ${firstName},`,
+    '',
+    'Use this code to confirm your LinkUp password change:',
+    '',
+    code,
+    '',
+    'This code expires in 10 minutes. If you did not request a password change, you can ignore this email.',
+    '',
+    '— LinkUp',
+  ].join('\n');
+
+  const htmlBody = `<!doctype html><html><body style="margin:0;padding:0;background:#071719;font-family:Arial,sans-serif;">
+    <table width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:32px 14px;"><tr><td align="center">
+    <table width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border-radius:18px;overflow:hidden;">
+      <tr><td style="background:#082023;padding:24px 28px;">
+        <div style="font-size:22px;font-weight:900;color:#ffffff;">LinkUp</div>
+        <div style="margin-top:6px;font-size:13px;color:#61e0e0;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Password change</div>
+      </td></tr>
+      <tr><td style="padding:28px 28px 24px;">
+        <p style="margin:0 0 16px;font-size:16px;color:#102326;">Hi ${escapeHtml(firstName)}, enter this code to confirm your password change:</p>
+        <table cellspacing="0" cellpadding="0"><tr>${code.split('').map(d => `<td style="padding:0 3px;"><div style="width:36px;height:44px;line-height:44px;text-align:center;border-radius:10px;background:#eafafa;color:#102326;font-size:22px;font-weight:900;">${escapeHtml(d)}</div></td>`).join('')}</tr></table>
+        <p style="margin:20px 0 0;font-size:13px;color:#54636a;">Expires in 10 minutes. Didn't request this? Ignore this email — your password has not changed.</p>
+      </td></tr>
+    </table></td></tr></table>
+  </body></html>`;
+
+  try {
+    const transporter = getMailTransporter();
+    if (transporter) {
+      await transporter.sendMail({
+        from: EMAIL_FROM,
+        to: user.email,
+        subject: 'Confirm your LinkUp password change',
+        text: textBody,
+        html: htmlBody,
+      });
+    }
+  } catch (_) {}
+
+  res.json({ message: `We sent a 6-digit code to ${user.email}. Enter it below to confirm.` });
+});
+
+app.post('/api/auth/change-password/confirm', requireAuth, sensitiveWriteRateLimit, async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'Verification code is required' });
+
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+
+  if (!user.passwordChangeCodeHash || !user.pendingPasswordHash || user.passwordChangeCodeExpiresAt <= Date.now()) {
+    return res.status(400).json({ error: 'Verification code expired. Please start over.' });
+  }
+  const MAX_ATTEMPTS = 5;
+  if ((user.passwordChangeCodeAttempts || 0) >= MAX_ATTEMPTS) {
+    return res.status(429).json({ error: 'Too many attempts. Please start over.' });
+  }
+  if (hashToken(String(code).trim()) !== user.passwordChangeCodeHash) {
+    user.passwordChangeCodeAttempts = (user.passwordChangeCodeAttempts || 0) + 1;
+    saveDb(db);
+    return res.status(400).json({ error: 'Invalid code' });
+  }
+
+  user.passwordHash = user.pendingPasswordHash;
+  delete user.pendingPasswordHash;
+  delete user.passwordChangeCodeHash;
+  delete user.passwordChangeCodeExpiresAt;
+  delete user.passwordChangeCodeAttempts;
+  saveDb(db);
+  res.json({ message: 'Password updated successfully.' });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {

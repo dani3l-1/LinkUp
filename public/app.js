@@ -6230,23 +6230,35 @@ function render2FAPanel(user) {
         <div class="twofa-header">
           <div>
             <h4 class="twofa-title">Change password</h4>
-            <p class="twofa-desc">Update your account password. You'll need your current password to confirm.</p>
+            <p class="twofa-desc">Update your account password. We'll send a 6-digit code to your university email to confirm.</p>
           </div>
         </div>
         <div class="change-password-form">
-          <label class="change-password-label">
-            Current password
-            <input type="password" id="change-password-current" placeholder="••••••••" autocomplete="current-password" />
-          </label>
-          <label class="change-password-label">
-            New password
-            <input type="password" id="change-password-new" placeholder="New password (8+ chars, upper, lower, number, special)" autocomplete="new-password" />
-          </label>
-          <label class="change-password-label">
-            Confirm new password
-            <input type="password" id="change-password-confirm" placeholder="••••••••" autocomplete="new-password" />
-          </label>
-          <button type="button" id="change-password-btn" class="twofa-setup-btn">Update password</button>
+          <div id="change-password-form-fields">
+            <label class="change-password-label">
+              Current password
+              <input type="password" id="change-password-current" placeholder="••••••••" autocomplete="current-password" />
+            </label>
+            <label class="change-password-label">
+              New password
+              <input type="password" id="change-password-new" placeholder="New password (8+ chars, upper, lower, number, special)" autocomplete="new-password" />
+            </label>
+            <label class="change-password-label">
+              Confirm new password
+              <input type="password" id="change-password-confirm" placeholder="••••••••" autocomplete="new-password" />
+            </label>
+            <button type="button" id="change-password-btn" class="twofa-setup-btn">Send verification code</button>
+          </div>
+          <div id="change-password-code-step" class="hidden">
+            <label class="change-password-label">
+              6-digit code from your email
+              <input type="text" id="change-password-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" />
+            </label>
+            <div class="change-password-code-actions">
+              <button type="button" id="change-password-confirm-btn" class="twofa-setup-btn">Confirm</button>
+              <button type="button" id="change-password-restart" class="twofa-text-link">Start over</button>
+            </div>
+          </div>
           <div id="change-password-msg" class="twofa-msg hidden"></div>
         </div>
       </div>
@@ -6363,7 +6375,7 @@ function render2FAPanel(user) {
     }
   });
 
-  // Change password handler
+  // Change password — step 1: validate + send code
   document.getElementById('change-password-btn')?.addEventListener('click', async () => {
     const currentPw = document.getElementById('change-password-current')?.value || '';
     const newPw = document.getElementById('change-password-new')?.value || '';
@@ -6384,25 +6396,72 @@ function render2FAPanel(user) {
     }
 
     btn.disabled = true;
-    btn.textContent = 'Updating…';
+    btn.textContent = 'Sending code…';
     try {
       const data = await fetchJson('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
       });
+      // Show code entry step
+      const form = document.getElementById('change-password-form-fields');
+      const codeStep = document.getElementById('change-password-code-step');
+      if (form) form.classList.add('hidden');
+      if (codeStep) codeStep.classList.remove('hidden');
       msg.textContent = data.message;
       msg.className = 'twofa-msg twofa-success show';
-      document.getElementById('change-password-current').value = '';
-      document.getElementById('change-password-new').value = '';
-      document.getElementById('change-password-confirm').value = '';
     } catch (err) {
       msg.textContent = err.message;
       msg.className = 'twofa-msg twofa-error show';
-    } finally {
       btn.disabled = false;
-      btn.textContent = 'Update password';
+      btn.textContent = 'Send verification code';
     }
+  });
+
+  // Change password — step 2: confirm with code
+  document.getElementById('change-password-confirm-btn')?.addEventListener('click', async () => {
+    const code = document.getElementById('change-password-code')?.value.trim() || '';
+    const msg = document.getElementById('change-password-msg');
+    const btn = document.getElementById('change-password-confirm-btn');
+    msg.className = 'twofa-msg hidden';
+
+    if (!/^\d{6}$/.test(code)) {
+      msg.textContent = 'Enter the 6-digit code from your email.';
+      msg.className = 'twofa-msg twofa-error show';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Confirming…';
+    try {
+      const data = await fetchJson('/api/auth/change-password/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      msg.textContent = data.message;
+      msg.className = 'twofa-msg twofa-success show';
+      // Reset the whole form
+      render2FAPanel(currentUser);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = 'twofa-msg twofa-error show';
+      btn.disabled = false;
+      btn.textContent = 'Confirm';
+    }
+  });
+
+  // Start over link
+  document.getElementById('change-password-restart')?.addEventListener('click', () => {
+    const form = document.getElementById('change-password-form-fields');
+    const codeStep = document.getElementById('change-password-code-step');
+    if (form) form.classList.remove('hidden');
+    if (codeStep) codeStep.classList.add('hidden');
+    const msg = document.getElementById('change-password-msg');
+    msg.className = 'twofa-msg hidden';
+    const btn = document.getElementById('change-password-btn');
+    btn.disabled = false;
+    btn.textContent = 'Send verification code';
   });
 }
 
