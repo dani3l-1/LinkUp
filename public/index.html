@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260528-policy-docs" />
+    <link rel="stylesheet" href="styles.css?v=20260528-checklist" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -680,6 +680,7 @@
                     </div>
                     <div class="about-linkup-note">
                       LinkUp coordinates ride sharing. Drivers are independent users responsible for their vehicle, license, insurance, and safe driving.
+                      For support, email <a href="mailto:ridewlinkup@gmail.com">ridewlinkup@gmail.com</a>.
                     </div>
                   </div>
                 </div>
@@ -748,6 +749,7 @@
             <div class="dashboard-next-ride">
               <h3 class="dashboard-section-label">Your next ride</h3>
               <div id="dashboard-ride-card"></div>
+              <div id="upcoming-ride-checklist" class="hidden"></div>
             </div>
 
             <div class="dashboard-quick-actions">
@@ -783,7 +785,7 @@
 
             <div class="dashboard-tracking-section">
               <h3 class="dashboard-section-label">Trip tracking</h3>
-              <p class="dashboard-tracking-subtitle">Share your live location with someone you trust during a ride.</p>
+              <p class="dashboard-tracking-subtitle">Optional: share your live location with someone you trust during a ride.</p>
               <div class="tracking-layout">
                 <div>
                   <div class="tracking-status" id="tracking-status">Location sharing is off.</div>
@@ -1207,10 +1209,8 @@
                   <input type="checkbox" id="cart-terms-checkbox" />
                   I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> for the selected rides.
                 </label>
-                <div class="checkout-no-refund-notice">
-                  All ride reservations are final. LinkUp ride payments cannot be refunded after checkout is complete.
-                </div>
-                <button id="checkout-cart" type="button">Proceed to checkout</button>
+                <button id="checkout-cart" type="button">Reserve your seat →</button>
+                <p class="cart-summary-note cart-summary-note--refund">Reservations are final — no refunds after checkout.</p>
                 <p class="cart-summary-note">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   Payments are encrypted and secure
@@ -1248,30 +1248,28 @@
               </div>
             </div>
 
-            <!-- Two-column: payment form left, order summary right -->
+            <!-- Two-column: payment details left, ride review and payment choice right -->
             <div class="cart-two-col">
 
               <!-- Left: payment form -->
               <div class="cart-items-col">
                 <p id="payment-summary" class="payment-summary-label">Review your order and enter payment details.</p>
-                <div id="linkup-wallet-checkout" class="linkup-wallet-checkout hidden"></div>
-                <div class="checkout-no-refund-notice payment-no-refund-notice">
-                  All ride reservations are final. LinkUp ride payments cannot be refunded after checkout is complete.
-                </div>
-                <button type="button" id="pay-cart">Check Out</button>
-                <p class="payment-security-note">Your payment details are encrypted and never stored by LinkUp</p>
                 <div id="stripe-embedded-checkout-container" class="hidden"></div>
                 <div id="payment-message" class="success-message"></div>
                 <div id="payment-error" class="error-message"></div>
               </div>
 
-              <!-- Right: sticky order summary -->
+              <!-- Right: sticky ride details and payment choice -->
               <aside class="cart-summary-panel">
-                <h4 class="cart-summary-title">Order Summary</h4>
+                <h4 class="cart-summary-title">Ride Details</h4>
                 <div id="payment-order-summary" class="payment-order-summary hidden"></div>
+                <h4 class="cart-summary-title payment-method-title">Payment Method</h4>
+                <div id="linkup-wallet-checkout" class="linkup-wallet-checkout hidden"></div>
+                <button type="button" id="pay-cart">Check Out</button>
+                <p class="cart-summary-note cart-summary-note--refund">Reservations are final — no refunds after checkout.</p>
                 <p class="cart-summary-note">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  Payments are encrypted and secure
+                  Your payment details are encrypted and never stored by LinkUp
                 </p>
               </aside>
 
@@ -1413,6 +1411,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260528-policy-docs"></script>
+    <script src="app.js?v=20260528-checklist"></script>
   </body>
 </html>

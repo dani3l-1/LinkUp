@@ -2,6 +2,21 @@
 
 ---
 
+## v2026.05.28 BETA
+
+### New
+- **Interactive ride checklist.** When you have an upcoming ride as a passenger, a step-by-step checklist now appears directly on your dashboard below the ride card. Tap each step to mark it done — your progress is saved per ride and persists across sessions. Steps cover reserving your seat, verifying the driver, sharing live tracking, giving your arrival code, and rating the driver after arrival.
+- **Ride confirmation email upgrade.** Reservation emails now include polished ride details, the driver's vehicle and plate when available, a 6-digit arrival code for offline use, support contact info, and a link back to the ride checklist.
+- **App flowchart.** A new app flowchart document maps the main LinkUp user, checkout, tracking, admin, and backend flows for easier product planning.
+
+### Improvements
+- **Wallet credit applied by default.** LinkUp Wallet credit is now selected automatically on the payment page when available. Riders can still choose "Use card instead" before checkout.
+- **Payment page review panel.** Ride details and payment method selection now live together on the right side of the payment page, keeping payment entry separate from trip review.
+- **Cleaner checkout flow.** The no-refund notice in the cart and payment panels is now a subtle footnote rather than a prominent warning box. The checkout button now reads "Reserve your seat →" to better reflect what's happening.
+- **Ride checklist removed as a separate page.** The standalone checklist page is gone — the checklist is now embedded in the dashboard where it's actually useful.
+
+---
+
 ## v2026.05.27 BETA
 
 ### New

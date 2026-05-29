@@ -53,6 +53,7 @@ if (!SESSION_SECRET) {
   console.error(`FATAL: SESSION_SECRET is not set. Add it to your ${envFile} file and restart.`);
   process.exit(1);
 }
+const SUPPORT_EMAIL = 'ridewlinkup@gmail.com';
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
@@ -1615,7 +1616,7 @@ function sendVerificationCode(user, code) {
                 <!-- Footer -->
                 <tr>
                   <td style="background:#f7fdfd;padding:20px 36px 24px;border-radius:0 0 20px 20px;border:1px solid #d7fbfb;border-top:1px solid #e8f8f8;">
-                    <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">LinkUp connects university students for safer, more affordable shared rides.<br>Questions? Reply to this email.</p>
+                    <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">LinkUp connects university students for safer, more affordable shared rides.<br>Questions? Email ${escapeHtml(SUPPORT_EMAIL)}.</p>
                   </td>
                 </tr>
 
@@ -1696,6 +1697,10 @@ function formatEmailCurrency(cents) {
   return '$' + (Math.max(0, Number(cents || 0)) / 100).toFixed(2);
 }
 
+function getEmailFirstName(user) {
+  return String(user?.firstName || '').trim().split(/\s+/).filter(Boolean)[0] || 'there';
+}
+
 function formatEmailDateTime(ride) {
   const date = String(ride?.date || '').trim();
   const time = String(ride?.time || '').trim();
@@ -1722,8 +1727,12 @@ function buildReservationEmailRideDetails(db, reservation) {
     const driverLastInitial = driver?.lastName ? driver.lastName.charAt(0) + '.' : '';
     return {
       route: (ride.origin || 'Pickup') + ' to ' + (ride.destination || 'Destination'),
+      destination: ride.destination || 'your destination',
       when: formatEmailDateTime(ride),
       driverName: driver ? [driver.firstName, driverLastInitial].filter(Boolean).join(' ') : (ride.driverName || 'Your driver'),
+      vehicle: [ride.carColor, ride.carMaker, ride.carModel].filter(Boolean).join(' ') || (ride.rideshareService ? ride.rideshareService + ' ride' : ''),
+      licensePlate: ride.licensePlate || '',
+      arrivalCode: ride.completionPin || '',
       seat: getEmailSeatLabel(ride, seatId),
       pickup: actualPickup || ride.origin || 'Pickup location',
       dropoff: actualDropoff || ride.destination || 'Drop-off location',
@@ -1732,22 +1741,59 @@ function buildReservationEmailRideDetails(db, reservation) {
   });
 }
 
+function buildReservationEmailSubject(rideDetails) {
+  if (rideDetails.length === 1) {
+    return 'Your LinkUp ride to ' + rideDetails[0].destination + ' is confirmed';
+  }
+  return 'Your ' + rideDetails.length + ' LinkUp rides are confirmed';
+}
+
+function getSuccessfulRideSteps() {
+  return [
+    {
+      title: 'Find your ride',
+      helper: 'Browse open rides and reserve a seat.',
+    },
+    {
+      title: 'Verify the driver',
+      helper: 'Confirm name, license plate, and car match.',
+    },
+    {
+      title: 'Share live tracking (optional)',
+      helper: 'Send your live trip to a trusted contact if you want extra peace of mind.',
+    },
+    {
+      title: 'Give the arrival code',
+      helper: 'Read the 6-digit code so your driver can complete the ride.',
+    },
+    {
+      title: 'Rate the driver',
+      helper: 'Help the community by rating your driver.',
+    },
+  ];
+}
+
 function sendReservationConfirmationEmail(db, student, reservation, checkoutSession) {
   const rideDetails = buildReservationEmailRideDetails(db, reservation);
   if (!student?.email || !rideDetails.length) return;
 
-  const firstName = student.firstName || 'there';
-  const totalCents = Number(checkoutSession.stripeAmountTotal || checkoutSession.expectedAmountCents || 0);
+  const firstName = getEmailFirstName(student);
+  const totalCents = Number(checkoutSession.expectedAmountCents || checkoutSession.stripeAmountTotal || 0);
   const tripWord = rideDetails.length === 1 ? 'trip' : 'trips';
+  const successSteps = getSuccessfulRideSteps();
+  const logoUrl = APP_BASE_URL.replace(/\/$/, '') + '/assets/images/LinkUp-wordmark.png';
   const textRideDetails = rideDetails.map((detail, index) => [
     `${index + 1}. ${detail.route}`,
     `When: ${detail.when}`,
     `Driver: ${detail.driverName}`,
+    detail.vehicle ? `Vehicle: ${detail.vehicle}` : '',
+    detail.licensePlate ? `License plate: ${detail.licensePlate}` : '',
+    detail.arrivalCode ? `Arrival code: ${detail.arrivalCode}` : '',
     `Seat: ${detail.seat}`,
     `Pickup: ${detail.pickup}`,
     `Drop-off: ${detail.dropoff}`,
     `Price: ${detail.price}`,
-  ].join('\n')).join('\n\n');
+  ].filter(Boolean).join('\n')).join('\n\n');
   const textBody = [
     `Hi ${firstName},`,
     '',
@@ -1757,58 +1803,157 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
     '',
     `Total paid: ${formatEmailCurrency(totalCents)}`,
     '',
+    '5 steps to a successful ride:',
+    '',
+    successSteps.map((step, index) => `${index + 1}. ${step.title}\n${step.helper}`).join('\n\n'),
+    '',
     'You can view your ride details, chat with your driver, and manage trip safety tools in LinkUp.',
+    `Need help? Email ${SUPPORT_EMAIL}.`,
     '',
     '- LinkUp',
   ].join('\n');
 
-  const htmlRows = rideDetails.map((detail) => `
+  const htmlRows = rideDetails.map((detail, index) => {
+    const detailRows = [
+      ['When', detail.when],
+      ['Driver', detail.driverName],
+      detail.vehicle ? ['Vehicle', detail.vehicle] : null,
+      detail.licensePlate ? ['Plate', detail.licensePlate] : null,
+      detail.arrivalCode ? ['Arrival code', detail.arrivalCode] : null,
+      ['Seat', detail.seat],
+      ['Price', detail.price],
+    ].filter(Boolean);
+    const arrivalCodeDigits = String(detail.arrivalCode || '').split('').map((digit) => `
+      <td style="padding:0 3px;">
+        <div style="width:32px;height:40px;line-height:40px;text-align:center;border-radius:10px;background:#102326;color:#ffffff;font-size:20px;font-weight:900;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">${escapeHtml(digit)}</div>
+      </td>
+    `).join('');
+    return `
     <tr>
-      <td style="padding:18px 0;border-top:1px solid #edf4f4;">
-        <h2 style="margin:0 0 10px;font-size:20px;line-height:1.3;color:#102326;">${escapeHtml(detail.route)}</h2>
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-          ${[
-            ['When', detail.when],
-            ['Driver', detail.driverName],
-            ['Seat', detail.seat],
-            ['Pickup', detail.pickup],
-            ['Drop-off', detail.dropoff],
-            ['Price', detail.price],
-          ].map(([label, value]) => `
-            <tr>
-              <td style="width:96px;padding:5px 0;font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#37777d;">${escapeHtml(label)}</td>
-              <td style="padding:5px 0;font-size:15px;line-height:1.5;color:#33474d;">${escapeHtml(value)}</td>
-            </tr>
-          `).join('')}
+      <td style="padding:${index === 0 ? '0' : '16px 0 0'};">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #d9eeee;border-radius:18px;background:#ffffff;overflow:hidden;">
+          <tr>
+            <td style="padding:18px 20px 14px;background:#f7fdfd;border-bottom:1px solid #e5f6f6;">
+              <div style="font-size:11px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;color:#0c747a;">Reservation ${index + 1}</div>
+              <h2 style="margin:6px 0 0;font-size:21px;line-height:1.3;color:#102326;">${escapeHtml(detail.route)}</h2>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 20px 8px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="padding:0 0 14px;">
+                    <div style="font-size:11px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#6c858a;">Pickup</div>
+                    <div style="margin-top:4px;font-size:15px;line-height:1.45;color:#102326;">${escapeHtml(detail.pickup)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0 0 16px;">
+                    <div style="font-size:11px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#6c858a;">Drop-off</div>
+                    <div style="margin-top:4px;font-size:15px;line-height:1.45;color:#102326;">${escapeHtml(detail.dropoff)}</div>
+                  </td>
+                </tr>
+              </table>
+              ${detail.arrivalCode ? `
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 16px;background:#eafafa;border:1px solid #b7eeee;border-radius:14px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <div style="font-size:11px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#0c747a;">Arrival code</div>
+                      <p style="margin:5px 0 12px;font-size:13px;line-height:1.45;color:#54636a;">Save this code. Give it to your driver at arrival so they can complete the ride, even if you do not have Wi-Fi.</p>
+                      <table role="presentation" cellspacing="0" cellpadding="0"><tr>${arrivalCodeDigits}</tr></table>
+                    </td>
+                  </tr>
+                </table>
+              ` : ''}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top:1px solid #edf4f4;padding-top:8px;">
+                ${detailRows.map(([label, value]) => `
+                  <tr>
+                    <td style="width:112px;padding:7px 0;font-size:12px;font-weight:900;letter-spacing:1px;text-transform:uppercase;color:#37777d;">${escapeHtml(label)}</td>
+                    <td style="padding:7px 0;font-size:15px;line-height:1.5;color:#33474d;">${escapeHtml(value)}</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </td>
+          </tr>
         </table>
+      </td>
+    </tr>
+  `;
+  }).join('');
+  const htmlSteps = successSteps.map((step, index) => `
+    <tr>
+      <td style="width:42px;padding:13px 0;vertical-align:top;">
+        <div style="width:28px;height:28px;border-radius:50%;background:#102326;color:#ffffff;text-align:center;line-height:28px;font-size:13px;font-weight:900;">${index + 1}</div>
+      </td>
+      <td style="padding:13px 0;vertical-align:top;border-bottom:${index === successSteps.length - 1 ? 'none' : '1px solid #dceeee'};">
+        <div style="font-size:15px;font-weight:900;color:#102326;">${escapeHtml(step.title)}</div>
+        <div style="margin-top:4px;font-size:14px;line-height:1.5;color:#54636a;">${escapeHtml(step.helper)}</div>
       </td>
     </tr>
   `).join('');
 
   const htmlBody = `
     <!doctype html>
-    <html>
-      <body style="margin:0;padding:0;background:#071719;font-family:Inter,Arial,sans-serif;color:#102326;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:32px 14px;">
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Your LinkUp ride is confirmed</title>
+      </head>
+      <body style="margin:0;padding:0;background:#071719;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:24px 14px;">
           <tr>
             <td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d7fbfb;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #d7fbfb;">
                 <tr>
-                  <td style="background:#082023;padding:28px 32px;text-align:center;">
-                    <div style="font-size:30px;line-height:1;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">LinkUp</div>
-                    <div style="margin-top:8px;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#61e0e0;">Seat reserved</div>
+                  <td style="background:#082023;padding:22px 28px 24px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="vertical-align:middle;">
+                          <img src="${escapeHtml(logoUrl)}" width="104" alt="LinkUp" style="display:block;width:104px;max-width:46%;height:auto;border:0;outline:none;text-decoration:none;" />
+                        </td>
+                        <td align="right" style="vertical-align:middle;">
+                          <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#0c747a;color:#ffffff;font-size:11px;font-weight:900;letter-spacing:1.3px;text-transform:uppercase;">Ride confirmed</span>
+                        </td>
+                      </tr>
+                    </table>
+                    <h1 style="margin:24px 0 0;font-size:28px;line-height:1.18;color:#ffffff;">Your ride is confirmed</h1>
+                    <p style="margin:10px 0 0;max-width:500px;font-size:15px;line-height:1.6;color:#c3e7ea;">Hi ${escapeHtml(firstName)}, your LinkUp ${escapeHtml(tripWord)} ${rideDetails.length === 1 ? 'is' : 'are'} booked. Your trip details and arrival code are below.</p>
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding:34px 32px 24px;">
-                    <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;color:#102326;">Thanks for riding with LinkUp</h1>
-                    <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#54636a;">Hi ${escapeHtml(firstName)}, your ${escapeHtml(tripWord)} ${rideDetails.length === 1 ? 'is' : 'are'} confirmed. Here are your reservation details.</p>
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${htmlRows}</table>
-                    <div style="margin-top:20px;padding:18px;border-radius:16px;background:#eafafa;border:1px solid #b7eeee;">
-                      <div style="font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#37777d;">Total paid</div>
-                      <div style="margin-top:6px;font-size:26px;font-weight:900;color:#102326;">${escapeHtml(formatEmailCurrency(totalCents))}</div>
+                  <td style="padding:28px 28px 28px;">
+                    <div style="margin:0 0 18px;padding:16px 18px;border-radius:16px;background:#eafafa;border:1px solid #b7eeee;">
+                      <div style="font-size:12px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;color:#37777d;">Reservation confirmed</div>
+                      <div style="margin-top:6px;font-size:15px;line-height:1.55;color:#33474d;">Your seat is booked. Open LinkUp when you are ready to chat with your driver, share tracking, or view your ride history.</div>
                     </div>
-                    <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#6b747a;">Open LinkUp to view trip details, chat with your driver, and use safety tools before your ride.</p>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${htmlRows}</table>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;">
+                      <tr>
+                        <td style="padding:18px 20px;border-radius:16px;background:#102326;">
+                          <div style="font-size:12px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#61e0e0;">Total paid</div>
+                          <div style="margin-top:6px;font-size:30px;font-weight:900;color:#ffffff;">${escapeHtml(formatEmailCurrency(totalCents))}</div>
+                        </td>
+                      </tr>
+                    </table>
+                    <div style="margin-top:22px;padding:22px;border-radius:18px;background:#f7fdfd;border:1px solid #d7fbfb;">
+                      <h2 style="margin:0 0 6px;font-size:22px;line-height:1.3;color:#102326;">5 steps to a successful ride</h2>
+                      <p style="margin:0 0 8px;font-size:14px;line-height:1.55;color:#54636a;">A quick checklist for pickup, safety, and closing out the trip.</p>
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${htmlSteps}</table>
+                    </div>
+                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:24px auto 0;">
+                      <tr>
+                        <td style="border-radius:999px;background:#0c747a;text-align:center;">
+                        <a href="${escapeHtml(APP_BASE_URL)}#ride-checklist" style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:900;color:#ffffff;text-decoration:none;border-radius:999px;">Open ride checklist</a>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="margin:22px 0 0;font-size:13px;line-height:1.65;color:#6b747a;text-align:center;">Need help? Email <a href="mailto:${escapeHtml(SUPPORT_EMAIL)}" style="color:#0c747a;font-weight:900;">${escapeHtml(SUPPORT_EMAIL)}</a>.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#f2fbfb;padding:18px 28px;text-align:center;border-top:1px solid #d7fbfb;">
+                    <p style="margin:0;font-size:12px;line-height:1.6;color:#8aa1a5;">LinkUp coordinates student ride sharing. Always confirm your driver's name, vehicle, and plate before getting in.</p>
                   </td>
                 </tr>
               </table>
@@ -1821,7 +1966,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
 
   sendAuthEmail(
     student.email,
-    'Your LinkUp seat is reserved',
+    buildReservationEmailSubject(rideDetails),
     textBody,
     htmlBody
   );
@@ -4614,6 +4759,12 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
     actualDropoff,
   });
   ride.seatsAvailable = getAvailableOpenSeatIds(ride).length;
+  sendReservationConfirmationEmail(db, student, {
+    ridesToReserve: [{ ride, seatId, actualPickup, actualDropoff }],
+  }, {
+    expectedAmountCents: ride.priceCents || 0,
+    stripeAmountTotal: ride.priceCents || 0,
+  });
   saveDb(db);
   res.json(rideForUser(ride, req.session.userId, db));
 });

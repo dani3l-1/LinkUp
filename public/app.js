@@ -2855,8 +2855,10 @@ function loadDashboardHome() {
 
 async function loadDashboardUpcomingRide() {
   const container = document.getElementById('dashboard-ride-card');
+  const checklistContainer = document.getElementById('upcoming-ride-checklist');
   if (!container) return;
   container.textContent = 'Loading...';
+  if (checklistContainer) checklistContainer.classList.add('hidden');
   try {
     const data = await fetchJson('/api/profile');
     const allRides = [
@@ -2882,9 +2884,112 @@ async function loadDashboardUpcomingRide() {
     const next = upcoming[0];
     const card = next._dashRole === 'driver' ? buildDriverRideSummary(next) : buildRideSummary(next);
     container.appendChild(card);
+    if (next._dashRole === 'rider' && checklistContainer) {
+      checklistContainer.innerHTML = '';
+      checklistContainer.appendChild(buildDashboardChecklist(next));
+      checklistContainer.classList.remove('hidden');
+    }
   } catch {
     container.textContent = 'Unable to load your next ride.';
   }
+}
+
+function buildDashboardChecklist(ride) {
+  const STEPS = [
+    { title: 'Seat reserved', desc: "You've got a confirmed spot on this ride.", optional: false },
+    { title: 'Verify the driver', desc: 'At pickup, confirm the name, car, and plate match your booking.', optional: false },
+    { title: 'Share live tracking', desc: 'Optional — send your trip link to someone you trust for extra safety.', optional: true },
+    { title: 'Give your arrival code', desc: 'Share your 6-digit code with the driver so they can confirm the trip.', optional: false },
+    { title: 'Rate the driver', desc: 'After arrival, leave a quick rating to help the community.', optional: false },
+  ];
+
+  const storageKey = `lup_checklist_${ride.id}`;
+  let checked;
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    checked = Array.isArray(saved) && saved.length === STEPS.length
+      ? saved
+      : STEPS.map((_, i) => i === 0);
+  } catch {
+    checked = STEPS.map((_, i) => i === 0);
+  }
+  checked[0] = true;
+
+  function saveChecked() {
+    try { localStorage.setItem(storageKey, JSON.stringify(checked)); } catch {}
+  }
+
+  const widget = document.createElement('div');
+  widget.className = 'dashboard-checklist-widget';
+
+  const header = document.createElement('div');
+  header.className = 'checklist-widget-header';
+  header.innerHTML = `
+    <div class="checklist-widget-title">
+      <span class="checklist-widget-eyebrow">Rider checklist</span>
+      <span class="checklist-widget-progress" id="checklist-progress-text"></span>
+    </div>
+    <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="checklist-progress-fill"></div></div>
+  `;
+  widget.appendChild(header);
+
+  const list = document.createElement('ol');
+  list.className = 'checklist-steps';
+
+  function updateProgress() {
+    const done = checked.filter(Boolean).length;
+    const total = STEPS.length;
+    const pct = Math.round((done / total) * 100);
+    const progressText = widget.querySelector('#checklist-progress-text');
+    const progressFill = widget.querySelector('#checklist-progress-fill');
+    if (progressText) progressText.textContent = done === total ? 'All done!' : `${done} / ${total}`;
+    if (progressFill) progressFill.style.width = pct + '%';
+    if (done === total) {
+      widget.classList.add('checklist-all-done');
+    } else {
+      widget.classList.remove('checklist-all-done');
+    }
+  }
+
+  STEPS.forEach((step, i) => {
+    const li = document.createElement('li');
+    li.className = 'checklist-step' + (checked[i] ? ' checklist-step--done' : '');
+    li.dataset.step = String(i);
+
+    const label = document.createElement('label');
+    label.className = 'checklist-step-label';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'checklist-step-checkbox';
+    cb.checked = checked[i];
+    cb.disabled = i === 0;
+
+    const checkCircle = document.createElement('span');
+    checkCircle.className = 'checklist-step-circle';
+    checkCircle.setAttribute('aria-hidden', 'true');
+    checkCircle.textContent = checked[i] ? '✓' : String(i + 1);
+
+    cb.addEventListener('change', () => {
+      checked[i] = cb.checked;
+      saveChecked();
+      li.classList.toggle('checklist-step--done', cb.checked);
+      checkCircle.textContent = cb.checked ? '✓' : String(i + 1);
+      updateProgress();
+    });
+
+    const body = document.createElement('div');
+    body.className = 'checklist-step-body';
+    body.innerHTML = `<span class="checklist-step-title">${esc(step.title)}${step.optional ? ' <span class="checklist-step-optional">optional</span>' : ''}</span><span class="checklist-step-desc">${esc(step.desc)}</span>`;
+
+    label.append(cb, checkCircle, body);
+    li.appendChild(label);
+    list.appendChild(li);
+  });
+
+  widget.appendChild(list);
+  updateProgress();
+  return widget;
 }
 
 function populateDashboardStats(data) {
@@ -3101,7 +3206,6 @@ function showPaymentPage(preselectedRideIds = null) {
   if (paymentSummary) paymentSummary.textContent = `${selectedRideIds.length} trip${selectedRideIds.length === 1 ? '' : 's'} ready for payment`;
   document.getElementById('pay-cart')?.classList.remove('hidden');
   destroyEmbeddedCheckout();
-  walletCreditApplied = false;
 
   // Populate right-panel order summary from selected cart cards
   const orderSummaryEl = document.getElementById('payment-order-summary');
@@ -3114,6 +3218,7 @@ function showPaymentPage(preselectedRideIds = null) {
     renderPaymentOrderSummary(orderSummaryEl, selectedCards, totalCents, 0);
     orderSummaryEl.classList.remove('hidden');
   }
+  walletCreditApplied = Math.max(0, Number(currentUser?.wallet?.availableCents || 0)) > 0 && totalCents > 0;
   renderLinkUpWalletCheckout(totalCents);
 }
 
@@ -3155,6 +3260,7 @@ function renderLinkUpWalletCheckout(totalCents) {
   const availableCents = Math.max(0, Number(currentUser?.wallet?.availableCents || 0));
 
   if (availableCents <= 0) {
+    walletCreditApplied = false;
     linkupWalletCheckout.classList.add('hidden');
     return;
   }
@@ -3186,11 +3292,11 @@ function renderLinkUpWalletCheckout(totalCents) {
       <div class="wallet-checkout-copy">
         <span>LinkUp Wallet</span>
         <strong>${formatCents(availableCents)}</strong>
-        <small>Available — apply it to reduce your card charge.</small>
+        <small>Available — use it to reduce your card charge.</small>
       </div>
       <div class="wallet-checkout-apply">
         <button type="button" class="wallet-apply-btn" id="wallet-apply-btn">
-          Apply ${formatCents(Math.min(availableCents, totalCents || 0))} credit
+          Use ${formatCents(Math.min(availableCents, totalCents || 0))} wallet credit
         </button>
       </div>
     `;
@@ -3201,9 +3307,9 @@ function renderLinkUpWalletCheckout(totalCents) {
   } else {
     linkupWalletCheckout.innerHTML = `
       <div class="wallet-checkout-copy">
-        <span>LinkUp Wallet <span class="wallet-applied-badge">Applied</span></span>
+        <span>LinkUp Wallet <span class="wallet-applied-badge">Applied by default</span></span>
         <strong>${formatCents(availableCents)}</strong>
-        <small><button type="button" class="wallet-remove-link" id="wallet-remove-btn">Remove</button></small>
+        <small><button type="button" class="wallet-remove-link" id="wallet-remove-btn">Use card instead</button></small>
       </div>
       <div class="wallet-checkout-breakdown">
         <div><span>Trip total</span><strong>${formatCents(totalCents || 0)}</strong></div>
