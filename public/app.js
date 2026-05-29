@@ -2045,7 +2045,8 @@ async function getStripeConnectInstance() {
   if (stripeConnectInst) return stripeConnectInst;
   await awaitStripeConnect();
   const config = await fetchJson('/api/stripe/config');
-  stripeConnectInst = StripeConnect.init({
+  if (!config.publishableKey) throw new Error('Stripe is not configured. Contact support.');
+  const inst = StripeConnect.init({
     publishableKey: config.publishableKey,
     fetchClientSecret: async () => {
       const r = await fetch('/api/stripe/account-session', {
@@ -2066,16 +2067,44 @@ async function getStripeConnectInstance() {
       },
     },
   });
+  stripeConnectInst = inst;
   return stripeConnectInst;
 }
 
 async function mountStripeConnectComponent(componentName) {
   if (!stripeConnectContainer) return;
-  stripeConnectContainer.innerHTML = '';
   stripeConnectContainer.classList.remove('hidden');
+  stripeConnectContainer.innerHTML = '<p class="stripe-connect-loading">Loading Stripe…</p>';
+  if (payoutError) { payoutError.textContent = ''; payoutError.classList.remove('show'); }
+
+  let inst;
   try {
-    const inst = await getStripeConnectInstance();
+    inst = await getStripeConnectInstance();
+  } catch (err) {
+    stripeConnectInst = null;
+    stripeConnectContainer.classList.add('hidden');
+    stripeConnectContainer.innerHTML = '';
+    if (payoutError) {
+      payoutError.textContent = err.message || 'Failed to load Stripe. Please try again.';
+      payoutError.classList.add('show');
+    }
+    return;
+  }
+
+  try {
+    stripeConnectContainer.innerHTML = '';
     const component = inst.create(componentName);
+    if (typeof component.setOnLoadError === 'function') {
+      component.setOnLoadError((e) => {
+        stripeConnectInst = null;
+        stripeConnectContainer.classList.add('hidden');
+        stripeConnectContainer.innerHTML = '';
+        if (payoutError) {
+          payoutError.textContent = (e && e.error && e.error.message) || 'Stripe failed to load. Please try again.';
+          payoutError.classList.add('show');
+        }
+      });
+    }
     if (componentName === 'account-onboarding') {
       component.setOnExit(async () => {
         stripeConnectContainer.classList.add('hidden');
@@ -2088,6 +2117,7 @@ async function mountStripeConnectComponent(componentName) {
     }
     stripeConnectContainer.appendChild(component);
   } catch (err) {
+    stripeConnectInst = null;
     stripeConnectContainer.classList.add('hidden');
     stripeConnectContainer.innerHTML = '';
     if (payoutError) {

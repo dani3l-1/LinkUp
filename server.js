@@ -338,7 +338,7 @@ function securityHeaders(req, res, next) {
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com https://connect-js.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://connect-js.stripe.com; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://b.stripecdn.com; font-src 'self' https://fonts.gstatic.com https://b.stripecdn.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com https://*.stripe.com https://b.stripecdn.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com https://connect-js.stripe.com https://b.stripecdn.com https://files.stripe.com https://m.stripe.com https://r.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://connect-js.stripe.com https://*.stripe.com; frame-ancestors 'none';"
   );
   if (NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
