@@ -2996,27 +2996,9 @@ function populateDashboardStats(data) {
   const ridesTaken = (data.joinedRides || []).length;
   const ridesOffered = (data.createdRides || []).length;
 
-  const UBER_RATE_PER_MILE = 2.0;
-  let savingsCents = 0;
-  (data.joinedRides || []).forEach((ride) => {
-    const miles = Number(ride.distanceMiles || ride.totalDistanceMiles || 0);
-    const priceCents = Number(ride.priceCents || 0);
-    if (miles > 0) {
-      const uberEstimate = miles * UBER_RATE_PER_MILE * 100;
-      savingsCents += Math.max(0, uberEstimate - priceCents);
-    }
-  });
-
   const el = (id) => document.getElementById(id);
   if (el('stat-rides-taken')) el('stat-rides-taken').textContent = ridesTaken;
   if (el('stat-rides-driven')) el('stat-rides-driven').textContent = ridesOffered;
-  if (el('stat-savings')) {
-    el('stat-savings').textContent = savingsCents >= 100
-      ? '$' + (savingsCents / 100).toFixed(0)
-      : savingsCents > 0
-        ? '<$1'
-        : '$0';
-  }
 }
 
 function populateDashboardRecentRides(pastRides) {
