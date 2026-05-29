@@ -2707,9 +2707,9 @@ function normalizeSocialUrl(platform, raw) {
 }
 
 const SOCIAL_ICONS = {
-  Instagram: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17.2" cy="6.8" r="1"/></svg>`,
-  LinkedIn: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.9 8.9H3.6V20h3.3V8.9zM5.2 7.4c1.1 0 1.9-.8 1.9-1.8S6.3 3.8 5.2 3.8 3.3 4.6 3.3 5.6s.8 1.8 1.9 1.8zM20.7 20v-6.1c0-3.3-1.8-5.2-4.4-5.2-2 0-2.9 1.1-3.4 1.9V8.9H9.6V20h3.3v-5.5c0-1.5.3-2.9 2.1-2.9s1.8 1.7 1.8 3V20h3.9z"/></svg>`,
-  X: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.7 10.6 22.1 2h-1.8l-6.4 7.5L8.8 2H2.9l7.8 11.3L2.9 22h1.8l6.8-7.9 5.5 7.9h5.9l-8.2-11.4zm-2.4 2.8-.8-1.1L5.2 3.3h2.7l5.1 7.3.8 1.1 6.6 9.4h-2.7l-5.4-7.7z"/></svg>`,
+  Instagram: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17.2" cy="6.8" r="1"/></svg>`,
+  LinkedIn: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.9 8.9H3.6V20h3.3V8.9zM5.2 7.4c1.1 0 1.9-.8 1.9-1.8S6.3 3.8 5.2 3.8 3.3 4.6 3.3 5.6s.8 1.8 1.9 1.8zM20.7 20v-6.1c0-3.3-1.8-5.2-4.4-5.2-2 0-2.9 1.1-3.4 1.9V8.9H9.6V20h3.3v-5.5c0-1.5.3-2.9 2.1-2.9s1.8 1.7 1.8 3V20h3.9z"/></svg>`,
+  X: `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.7 10.6 22.1 2h-1.8l-6.4 7.5L8.8 2H2.9l7.8 11.3L2.9 22h1.8l6.8-7.9 5.5 7.9h5.9l-8.2-11.4zm-2.4 2.8-.8-1.1L5.2 3.3h2.7l5.1 7.3.8 1.1 6.6 9.4h-2.7l-5.4-7.7z"/></svg>`,
 };
 
 function renderPublicSocialLinks(profile) {
@@ -2722,7 +2722,10 @@ function renderPublicSocialLinks(profile) {
   if (!items.length) return '';
   return `
     <div class="public-profile-social-links" aria-label="Social links">
-      ${items.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${SOCIAL_ICONS[label] || ''}${esc(label)}</a>`).join('')}
+      ${items.map(([label, url]) => {
+        const platformClass = label.toLowerCase();
+        return `<a class="public-profile-social-link public-profile-social-link--${esc(platformClass)}" href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">${SOCIAL_ICONS[label] || ''}<span class="public-profile-social-label">${esc(label)}</span></a>`;
+      }).join('')}
     </div>
   `;
 }
@@ -2758,11 +2761,19 @@ function renderRatingStars(average) {
   }).join('');
 }
 
+function getDriverRatingTone(average) {
+  const val = Number(average) || 0;
+  if (val >= 4.5) return 'green';
+  if (val >= 3.5) return 'yellow';
+  return 'red';
+}
+
 function renderPublicProfile(profile) {
   const stats = profile.stats || {};
   const ratingAvg = profile?.stats?.driverRatingAverage;
   const ratingCount = profile?.stats?.driverRatingCount || 0;
   const hasRating = ratingAvg && ratingCount > 0;
+  const ratingTone = getDriverRatingTone(ratingAvg);
   const academicParts = [
     profile.major,
     profile.classYear ? 'Class of ' + profile.classYear : '',
@@ -2778,7 +2789,7 @@ function renderPublicProfile(profile) {
     : '';
   const memberLabel = formatProfileNumberLabel(profile);
 
-  publicProfileTitle.textContent = profile.name || 'User profile';
+  publicProfileTitle.textContent = 'Public profile';
   publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), memberLabel].filter(Boolean).join(' · ');
   publicProfileContent.innerHTML = `
     <div class="public-profile-hero">
@@ -2815,10 +2826,10 @@ function renderPublicProfile(profile) {
     </div>
 
     ${hasRating ? `
-    <div class="public-profile-rating-card">
+    <div class="public-profile-rating-card public-profile-rating-card--${ratingTone}">
       <div class="rating-card-left">
         <span class="rating-card-label">Driver rating</span>
-        <div class="rating-card-stars">${renderRatingStars(ratingAvg)}</div>
+        <div class="rating-card-stars" aria-label="${esc(Number(ratingAvg).toFixed(1))} out of 5 stars">${renderRatingStars(ratingAvg)}</div>
       </div>
       <div class="rating-card-right">
         <strong class="rating-card-score">${esc(Number(ratingAvg).toFixed(1))}</strong>
