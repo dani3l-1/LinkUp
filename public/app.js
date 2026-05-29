@@ -7802,7 +7802,7 @@ stripePayoutConnectButton?.addEventListener('click', async () => {
     const data = await fetchJson('/api/profile/payout/onboarding', { method: 'POST' });
     if (data.url) {
       window.open(data.url, '_blank', 'noopener');
-      payoutMessage.textContent = 'Stripe opened in a new tab. Come back here and click Refresh status when you're done.';
+      payoutMessage.textContent = "Stripe opened in a new tab. Come back here and click Refresh status when you're done.";
       payoutMessage.classList.add('show');
     }
   } catch (err) {
