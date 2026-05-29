@@ -461,7 +461,10 @@ class PostgresSessionStore extends session.Store {
   get(sid, callback) {
     this.pool.query('SELECT sess FROM linkup_sessions WHERE sid = $1 AND expires > NOW()', [sid])
       .then((result) => callback(null, result.rows[0]?.sess || null))
-      .catch((err) => callback(err));
+      .catch((err) => {
+        console.error('[session:get] Postgres error:', err.message);
+        callback(err);
+      });
   }
 
   set(sid, sess, callback = () => {}) {
@@ -471,13 +474,19 @@ class PostgresSessionStore extends session.Store {
        VALUES ($1, $2, $3)
        ON CONFLICT (sid) DO UPDATE SET sess = EXCLUDED.sess, expires = EXCLUDED.expires`,
       [sid, sess, expires]
-    ).then(() => callback(null)).catch((err) => callback(err));
+    ).then(() => callback(null)).catch((err) => {
+      console.error('[session:set] Postgres error:', err.message);
+      callback(err);
+    });
   }
 
   destroy(sid, callback = () => {}) {
     this.pool.query('DELETE FROM linkup_sessions WHERE sid = $1', [sid])
       .then(() => callback(null))
-      .catch((err) => callback(err));
+      .catch((err) => {
+        console.error('[session:destroy] Postgres error:', err.message);
+        callback(err);
+      });
   }
 
   touch(sid, sess, callback = () => {}) {
@@ -2776,16 +2785,24 @@ function saveSessionAndJson(req, res, payload, newUserId = null) {
   const doSave = () => {
     req.session.save((err) => {
       if (err) {
-        console.error('Session save error:', err);
+        console.error('Session save error:', err.message || err);
         return res.status(500).json({ error: 'Could not save your login session. Please try again.' });
       }
-      res.json(payload);
+      // Verify the session is readable from the store before telling the client it succeeded.
+      // Catches silent Postgres read-after-write failures that would immediately break /api/auth/me.
+      req.sessionStore.get(req.session.id, (getErr, storedSess) => {
+        if (getErr || !storedSess) {
+          console.error('Session verify failed after save:', getErr?.message || 'session not found');
+          return res.status(500).json({ error: 'Login succeeded but session could not be verified. Please try again.' });
+        }
+        res.json(payload);
+      });
     });
   };
   if (newUserId) {
     req.session.regenerate((err) => {
       if (err) {
-        console.error('Session regeneration error:', err);
+        console.error('Session regeneration error:', err.message || err);
         return res.status(500).json({ error: 'Could not save your login session. Please try again.' });
       }
       req.session.userId = newUserId;

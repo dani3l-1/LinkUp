@@ -229,7 +229,10 @@
         password: document.getElementById('signin-password')?.value,
       });
       const sessionResponse = await fetch('/api/auth/me', { credentials: 'same-origin' });
-      if (!sessionResponse.ok) throw new Error('Sign-in worked, but the browser did not keep the login session.');
+      if (!sessionResponse.ok) {
+        const sessionData = await sessionResponse.json().catch(() => ({}));
+        throw new Error(sessionData.error || 'Session could not be established. Please try again.');
+      }
       window.location.replace(window.location.pathname);
     } catch (error) {
       showMessage('signin-error', error.message || 'Unable to sign in.');
