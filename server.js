@@ -5330,6 +5330,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
       customer: customerId,
       payment_method_types: ['card'],
       receipt_email: student.email,
+      statement_descriptor: 'LINKUP RIDE',
       metadata: {
         linkupStudentId: student.id,
         linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
@@ -5428,6 +5429,10 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
       line_items: lineItems,
       customer_email: student.email,
       return_url: APP_BASE_URL + '/?checkout=success&session_id={CHECKOUT_SESSION_ID}',
+      payment_intent_data: {
+        statement_descriptor: 'LINKUP RIDE',
+        description: 'LinkUp ride reservation',
+      },
       metadata: {
         linkupStudentId: student.id,
         linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
