@@ -702,8 +702,9 @@ async function loadGoogleMapsAPI() {
       script.src = `https://maps.googleapis.com/maps/api/js?key=${config.apiKey}&libraries=places`;
       document.head.appendChild(script);
       await new Promise((resolve, reject) => {
-        script.onload = resolve;
-        script.onerror = () => reject(new Error('Google Maps script failed to load'));
+        const timeout = setTimeout(() => reject(new Error('Google Maps script timed out')), 10000);
+        script.onload = () => { clearTimeout(timeout); resolve(); };
+        script.onerror = () => { clearTimeout(timeout); reject(new Error('Google Maps script failed to load')); };
       });
     } catch (error) {
       _googleMapsPromise = null;
@@ -2957,7 +2958,7 @@ function showDashboardHome() {
     if (lastTrackingLocation) {
       updateTrackingMap(lastTrackingLocation, lastTrackingLocations, lastTrackingRideRoute);
     }
-  });
+  }).catch(() => {});
 }
 
 function loadDashboardHome() {
@@ -3236,7 +3237,7 @@ function showRequestRidePage() {
   clearRequestRideMessages();
   hideDashboardPages();
   requestRidePage.classList.remove('hidden');
-  loadGoogleMapsAPI().then(() => initializeRequestAutocomplete());
+  loadGoogleMapsAPI().then(() => initializeRequestAutocomplete()).catch(() => {});
 }
 
 function showListRidePage() {
@@ -3251,7 +3252,7 @@ function showListRidePage() {
       if (!originMap) initializeOriginMap();
       if (!destinationAutocomplete) initializeDestinationMap();
     }, 100);
-  });
+  }).catch(() => {});
 }
 
 function showTrackTripPage() {
@@ -3864,7 +3865,7 @@ function updateTrackingMap(location, pathLocations = [], rideRoute = null) {
         if (window.google?.maps && lastTrackingLocation) {
           updateTrackingMap(lastTrackingLocation, lastTrackingLocations, lastTrackingRideRoute);
         }
-      });
+      }).catch(() => { trackingMapLoadPending = false; });
     }
     return;
   }
@@ -3949,10 +3950,15 @@ async function startTripTracking() {
       ? (data.message || 'Invite sent. Keep this page open while riding.')
       : 'Tracking started, but no active reserved ride route was found to draw yet.';
     trackingMessage.classList.add('show');
+    let _trackingErrShownAt = 0;
     trackingWatchId = navigator.geolocation.watchPosition(
       (position) => sendTrackingLocation(position).catch((err) => {
-        trackingError.textContent = err.message;
-        trackingError.classList.add('show');
+        const now = Date.now();
+        if (now - _trackingErrShownAt > 20000) {
+          _trackingErrShownAt = now;
+          trackingError.textContent = err.message;
+          trackingError.classList.add('show');
+        }
       }),
       (error) => {
         trackingError.textContent = error.message || 'Unable to access your location.';
@@ -4840,17 +4846,24 @@ function renderRideCard(ride) {
         cardError.classList.add('show');
         return;
       }
+      const prevText = cartActionButton.textContent;
+      cartActionButton.disabled = true;
+      cartActionButton.textContent = 'Adding…';
       try {
         const seatId = ride.seatingChartUnavailable ? '' : selectedSeatByRide.get(ride.id);
         const riderStops = getRiderStopPayload(ride);
         if (rideNeedsRiderPickup(ride) && !riderStops.actualPickup) {
           cardError.textContent = 'Enter your actual pickup spot for this ride.';
           cardError.classList.add('show');
+          cartActionButton.disabled = false;
+          cartActionButton.textContent = prevText;
           return;
         }
         if (rideNeedsRiderDropoff(ride) && !riderStops.actualDropoff) {
           cardError.textContent = 'Enter your actual drop-off spot for this ride.';
           cardError.classList.add('show');
+          cartActionButton.disabled = false;
+          cartActionButton.textContent = prevText;
           return;
         }
         await fetchJson(`/api/cart/${ride.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seatId, ...riderStops, termsAccepted: true }) });
@@ -4859,6 +4872,8 @@ function renderRideCard(ride) {
       } catch (err) {
         cardError.textContent = err.message;
         cardError.classList.add('show');
+        cartActionButton.disabled = false;
+        cartActionButton.textContent = prevText;
       }
     };
     card.appendChild(cartActionButton);
@@ -5041,6 +5056,9 @@ function createRideChat(ride, options = {}) {
     event.preventDefault();
     const text = input.value.trim();
     if (!text) return;
+    sendButton.disabled = true;
+    input.disabled = true;
+    error.classList.remove('show');
     try {
       await fetchJson('/api/rides/' + ride.id + '/messages', {
         method: 'POST',
@@ -5052,6 +5070,10 @@ function createRideChat(ride, options = {}) {
     } catch (err) {
       error.textContent = err.message;
       error.classList.add('show');
+    } finally {
+      sendButton.disabled = false;
+      input.disabled = false;
+      input.focus();
     }
   });
 
@@ -5269,15 +5291,18 @@ function buildRequestBrowseCard(request) {
   offerButton.addEventListener('click', async () => {
     cardError.textContent = '';
     cardError.classList.remove('show');
+    offerButton.disabled = true;
+    offerButton.textContent = 'Sending…';
     try {
       await fetchJson('/api/ride-requests/' + request.id + '/offer', { method: 'POST' });
       offerButton.textContent = 'Offer sent';
-      offerButton.disabled = true;
       loadRideRequests();
       loadProfile();
     } catch (err) {
       cardError.textContent = err.message;
       cardError.classList.add('show');
+      offerButton.disabled = false;
+      offerButton.textContent = 'Offer to drive';
     }
   });
   card.appendChild(offerButton);
@@ -5315,6 +5340,10 @@ function buildRequestBrowseCard(request) {
     postSharedButton.addEventListener('click', async () => {
       cardError.textContent = '';
       cardError.classList.remove('show');
+      postSharedButton.disabled = true;
+      postSharedButton.textContent = 'Posting…';
+      seatsInput.disabled = true;
+      priceInput.disabled = true;
       try {
         await fetchJson('/api/ride-requests/' + request.id + '/post-shared-ride', {
           method: 'POST',
@@ -5322,14 +5351,15 @@ function buildRequestBrowseCard(request) {
           body: JSON.stringify({ seatsAvailable: Number(seatsInput.value), price: Number(priceInput.value) }),
         });
         postSharedButton.textContent = 'Shared ride posted';
-        postSharedButton.disabled = true;
-        seatsInput.disabled = true;
-        priceInput.disabled = true;
         loadRides();
         loadProfile();
       } catch (err) {
         cardError.textContent = err.message;
         cardError.classList.add('show');
+        postSharedButton.disabled = false;
+        postSharedButton.textContent = 'Post shared ride';
+        seatsInput.disabled = false;
+        priceInput.disabled = false;
       }
     });
 
@@ -5563,6 +5593,8 @@ function renderCartItem(ride) {
   const removeButton = document.createElement('button');
   removeButton.textContent = 'Remove';
   removeButton.onclick = async () => {
+    removeButton.disabled = true;
+    removeButton.textContent = 'Removing…';
     try {
       await fetchJson(`/api/cart/${ride.id}`, { method: 'DELETE' });
       await loadCart();
@@ -5570,6 +5602,8 @@ function renderCartItem(ride) {
     } catch (err) {
       cartError.textContent = err.message;
       cartError.classList.add('show');
+      removeButton.disabled = false;
+      removeButton.textContent = 'Remove';
     }
   };
   item.appendChild(removeButton);
@@ -6063,6 +6097,7 @@ function buildDriverRatingForm(ride) {
       error.classList.add('show');
       return;
     }
+    setButtonLoading(button, true);
     try {
       await fetchJson('/api/rides/' + ride.id + '/rating', {
         method: 'POST',
@@ -6075,6 +6110,7 @@ function buildDriverRatingForm(ride) {
     } catch (err) {
       error.textContent = err.message;
       error.classList.add('show');
+      setButtonLoading(button, false);
     }
   });
   return wrapper;
@@ -6161,7 +6197,8 @@ async function loadYourRides() {
       return item;
     });
   } catch (err) {
-    yourRidesList.textContent = 'Unable to load your rides.';
+    yourRidesList.textContent = '';
+    yourRidesList.innerHTML = '<p class="error-message show">' + (err.message || 'Unable to load your rides.') + '</p>';
   }
 }
 
