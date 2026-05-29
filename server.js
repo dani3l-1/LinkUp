@@ -6118,6 +6118,28 @@ app.post('/api/admin/wallets/weekly-payouts', adminRateLimit, async (req, res) =
   }
 });
 
+app.post('/api/admin/db/restore', adminRateLimit, async (req, res) => {
+  if (!ADMIN_PAYOUT_SECRET || !timingSafeEqualText(req.get('x-admin-secret'), ADMIN_PAYOUT_SECRET)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  if (!USE_POSTGRES) return res.status(400).json({ error: 'Only supported in Postgres mode' });
+  try {
+    const incoming = req.body;
+    if (!incoming || !Array.isArray(incoming.users)) return res.status(400).json({ error: 'Invalid backup payload' });
+    const normalized = normalizeDbShape(incoming);
+    await pgPool.query(
+      `INSERT INTO linkup_state (state_key, data, updated_at) VALUES ('main', $1, NOW())
+       ON CONFLICT (state_key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+      [normalized]
+    );
+    dbCache = normalized;
+    res.json({ message: 'Database restored', users: normalized.users.length, rides: normalized.rides.length });
+  } catch (err) {
+    console.error('DB restore error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
