@@ -6840,6 +6840,10 @@ textarea:disabled,
   color: var(--text-muted);
 }
 
+body.dashboard-mode .app-footer {
+  margin-top: clamp(2.75rem, 6vh, 5rem);
+}
+
 
 /* Newest-first release note feed */
 .release-note-feed {
