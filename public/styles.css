@@ -2864,6 +2864,7 @@ button:disabled::before { display: none; }
   margin-top: 1.5rem;
   padding-top: 1.35rem;
   border-top: 1px solid var(--border);
+  gap: 0.85rem;
 }
 
 .profile-invite-copy {
@@ -2897,13 +2898,12 @@ button:disabled::before { display: none; }
 }
 
 .profile-invite-form {
-  margin-top: 0.95rem;
+  margin-top: 0.15rem;
 }
 
-.profile-invite-form label {
+.profile-invite-controls label {
   display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
+  align-items: center;
   min-width: 0;
   color: var(--text-secondary);
   font-family: var(--font-display);
@@ -2915,22 +2915,25 @@ button:disabled::before { display: none; }
 
 .profile-invite-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(130px, auto);
+  grid-template-columns: auto minmax(260px, 420px) auto;
   gap: 0.6rem;
-  align-items: stretch;
-  max-width: 620px;
+  align-items: center;
+  justify-content: start;
 }
 
 .profile-invite-controls input {
   min-height: 44px;
+  width: 100%;
 }
 
 .profile-invite-controls button {
+  align-self: stretch;
   width: auto;
   min-height: 44px;
   margin: 0;
-  padding: 0 1rem;
+  padding: 0 1.05rem;
   border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 .profile-invite-form .success-message,
@@ -4417,6 +4420,11 @@ article.card h3 {
 
   .profile-invite-controls {
     grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .profile-invite-controls label {
+    align-items: flex-start;
   }
 
   .profile-invite-controls button {
