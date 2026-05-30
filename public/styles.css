@@ -198,6 +198,10 @@ body:not(.dashboard-mode) #main-content {
   padding-bottom: clamp(2.75rem, 6vh, 5rem);
 }
 
+body.dashboard-mode #main-content {
+  padding-bottom: clamp(4rem, 8vh, 7rem);
+}
+
 /* ─── Header ────────────────────────────────────────────────── */
 header {
   text-align: center;
@@ -6839,11 +6843,6 @@ textarea:disabled,
   font-size: 0.88rem;
   color: var(--text-muted);
 }
-
-body.dashboard-mode .app-footer {
-  margin-top: clamp(2.75rem, 6vh, 5rem);
-}
-
 
 /* Newest-first release note feed */
 .release-note-feed {
