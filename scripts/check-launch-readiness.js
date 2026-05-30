@@ -166,6 +166,25 @@ async function checkAuthSmoke() {
     if (me.status !== 200 || me.data?.email !== 'launch.smoke@uci.edu') {
       fail(`Session smoke test failed with ${me.status}: ${me.text || JSON.stringify(me.data)}`);
     }
+    const invite = await requestJson({
+      port,
+      method: 'POST',
+      pathname: '/api/profile/invite-friend',
+      cookie,
+      body: { email: 'friend.launch.smoke@example.com' },
+    });
+    if (invite.status !== 200) {
+      fail(`Friend invite smoke test failed with ${invite.status}: ${invite.text || JSON.stringify(invite.data)}`);
+    }
+    if (invite.data?.inviteCount !== 1) {
+      fail(`Friend invite smoke test returned unexpected inviteCount: ${JSON.stringify(invite.data)}`);
+    }
+    const outboxPath = path.join(dataDir, 'email-outbox.json');
+    const outbox = JSON.parse(fs.readFileSync(outboxPath, 'utf8'));
+    const inviteEmail = outbox.find((email) => email.to === 'friend.launch.smoke@example.com');
+    if (!inviteEmail || !/invited you to LinkUp/.test(inviteEmail.subject || '')) {
+      fail('Friend invite smoke test did not write the expected invite email.');
+    }
     log('Auth smoke test passed.');
   } finally {
     child.kill('SIGTERM');

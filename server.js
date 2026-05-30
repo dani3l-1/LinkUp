@@ -835,6 +835,17 @@ function normalizePushSubscriptions(subscriptions) {
     .filter((subscription) => subscription.endpoint && subscription.keys.p256dh && subscription.keys.auth);
 }
 
+function normalizeFriendInvites(invites) {
+  return asArray(invites)
+    .filter(isPlainObject)
+    .map((invite) => ({
+      id: String(invite.id || uuidv4()),
+      email: normalizeEmail(invite.email).slice(0, 180),
+      invitedAt: String(invite.invitedAt || invite.createdAt || new Date().toISOString()),
+    }))
+    .filter((invite) => invite.email);
+}
+
 function normalizeCheckoutSessions(sessions) {
   return uniqueById(sessions).map((session) => ({
     ...session,
@@ -865,6 +876,7 @@ function normalizeDbShape(db) {
   normalized.users = normalized.users.map((user) => ({
     ...user,
     pushSubscriptions: normalizePushSubscriptions(user.pushSubscriptions),
+    friendInvites: normalizeFriendInvites(user.friendInvites),
   }));
   normalized.carts = normalizeCartMap(normalized.carts);
   normalized.checkoutSessions = normalizeCheckoutSessions(normalized.checkoutSessions);
@@ -2265,6 +2277,7 @@ function publicUser(user, db = null) {
     rideServicesPaused: RIDE_SERVICES_PAUSED,
     twoFactorEnabled: Boolean(user.totpEnabled),
     emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
+    friendInviteCount: normalizeFriendInvites(user.friendInvites).length,
     wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
 }
@@ -2296,6 +2309,50 @@ async function sendTwoFactorEmail(to, code) {
       </div>
     </div>`;
   await sendAuthEmail(to, 'Your LinkUp sign-in code', `Your LinkUp sign-in code is: ${code}\n\nThis code expires in 10 minutes.`, html);
+}
+
+function sendFriendInviteEmail(inviter, friendEmail) {
+  const inviterName = getUserDisplayName(inviter);
+  const inviteUrl = APP_BASE_URL;
+  const subject = `${inviterName} invited you to LinkUp`;
+  const textBody = `${inviterName} has invited you to something creative: LinkUp.\n\nLinkUp helps verified students find, reserve, and share rides with people in their university network.\n\nJoin here:\n${inviteUrl}\n\n- LinkUp`;
+  const htmlBody = `
+    <!doctype html>
+    <html>
+      <body style="margin:0;padding:0;background:#f4fbfb;font-family:Arial,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4fbfb;padding:28px 12px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d7eeee;border-radius:18px;overflow:hidden;">
+                <tr>
+                  <td style="background:#082426;padding:30px 28px;text-align:center;">
+                    <img src="${escapeHtml(APP_BASE_URL)}/assets/images/LinkUp-wordmark.png" alt="LinkUp" style="width:150px;max-width:70%;height:auto;display:block;margin:0 auto 18px;" />
+                    <p style="margin:0;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#68eeee;font-weight:900;">Friend invite</p>
+                    <h1 style="margin:14px 0 0;font-size:28px;line-height:1.22;color:#ffffff;">${escapeHtml(inviterName)} invited you to LinkUp</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:30px 28px;">
+                    <p style="margin:0 0 14px;font-size:16px;line-height:1.65;color:#21363a;">${escapeHtml(inviterName)} has invited you to something creative: a student ride network built around trust.</p>
+                    <p style="margin:0;font-size:15px;line-height:1.65;color:#54636a;">With LinkUp, verified students can find rides, reserve seats, share trip tracking, and keep ride details organized in one place.</p>
+                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:26px auto 0;">
+                      <tr>
+                        <td style="border-radius:999px;background:#0c747a;text-align:center;">
+                          <a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:14px 24px;font-size:15px;font-weight:900;color:#ffffff;text-decoration:none;border-radius:999px;">Open LinkUp</a>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#7b8d91;text-align:center;">Questions? Email <a href="mailto:${escapeHtml(SUPPORT_EMAIL)}" style="color:#0c747a;font-weight:900;">${escapeHtml(SUPPORT_EMAIL)}</a>.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+  sendAuthEmail(friendEmail, subject, textBody, htmlBody);
 }
 
 async function ensureStripeCustomer(db, user) {
@@ -3758,6 +3815,39 @@ app.put('/api/profile', requireAuth, (req, res) => {
 
   saveDb(db);
   res.json(publicUser(user, db));
+});
+
+app.post('/api/profile/invite-friend', requireAuth, sensitiveWriteRateLimit, (req, res) => {
+  const friendEmail = normalizeEmail(req.body.email);
+  if (!friendEmail) {
+    return res.status(400).json({ error: 'Enter your friend\'s email address.' });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(friendEmail)) {
+    return res.status(400).json({ error: 'Enter a valid friend email address.' });
+  }
+
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  if (friendEmail === normalizeEmail(user.email)) {
+    return res.status(400).json({ error: 'Enter a friend\'s email instead of your own.' });
+  }
+
+  user.friendInvites = normalizeFriendInvites(user.friendInvites);
+  user.friendInvites.push({
+    id: uuidv4(),
+    email: friendEmail,
+    invitedAt: new Date().toISOString(),
+  });
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  sendFriendInviteEmail(user, friendEmail);
+  res.json({
+    message: 'Invite sent to ' + friendEmail + '.',
+    inviteCount: user.friendInvites.length,
+  });
 });
 
 app.put('/api/profile/preferences', requireAuth, (req, res) => {

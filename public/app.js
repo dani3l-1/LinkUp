@@ -126,6 +126,12 @@ const profileForm = document.getElementById('profile-form');
 const profileBackHomeButton = document.getElementById('profile-back-home');
 const profileMessage = document.getElementById('profile-message');
 const profileError = document.getElementById('profile-error');
+const friendInviteForm = document.getElementById('friend-invite-form');
+const friendInviteEmail = document.getElementById('friend-invite-email');
+const friendInviteSubmit = document.getElementById('friend-invite-submit');
+const friendInviteMessage = document.getElementById('friend-invite-message');
+const friendInviteError = document.getElementById('friend-invite-error');
+const friendInviteCount = document.getElementById('friend-invite-count');
 const profileSidebarButtons = document.querySelectorAll('.profile-sidebar-button');
 const profilePanels = document.querySelectorAll('[data-profile-panel]');
 const profilePictureInput = document.getElementById('profile-picture-input');
@@ -1781,6 +1787,17 @@ function clearProfileMessages() {
   profileError.classList.remove('show');
 }
 
+function clearFriendInviteMessages() {
+  if (friendInviteMessage) {
+    friendInviteMessage.textContent = '';
+    friendInviteMessage.classList.remove('show');
+  }
+  if (friendInviteError) {
+    friendInviteError.textContent = '';
+    friendInviteError.classList.remove('show');
+  }
+}
+
 function fillProfileForm(user) {
   const birthdayInput = document.getElementById('profile-birthday');
   const genderInput = document.getElementById('profile-gender');
@@ -1815,6 +1832,9 @@ function fillProfileForm(user) {
       const profileNumberLabel = formatProfileNumberLabel(user);
       profileDisplayJoined.textContent = `Member since ${joined.toLocaleString('default', { month: 'long', year: 'numeric' })}${profileNumberLabel ? ' · ' + profileNumberLabel : ''}`;
     }
+  }
+  if (friendInviteCount) {
+    friendInviteCount.textContent = String(user.friendInviteCount || 0);
   }
 }
 
@@ -7958,6 +7978,36 @@ profileForm.addEventListener('submit', async (event) => {
   } catch (err) {
     profileError.textContent = err.message;
     profileError.classList.add('show');
+  }
+});
+
+friendInviteForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearFriendInviteMessages();
+  const email = friendInviteEmail?.value.trim() || '';
+  setButtonLoading(friendInviteSubmit, true);
+  try {
+    const data = await fetchJson('/api/profile/invite-friend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (friendInviteForm) friendInviteForm.reset();
+    if (friendInviteCount && Number.isFinite(Number(data.inviteCount))) {
+      friendInviteCount.textContent = String(data.inviteCount);
+      if (currentUser) currentUser.friendInviteCount = Number(data.inviteCount);
+    }
+    if (friendInviteMessage) {
+      friendInviteMessage.textContent = data.message || 'Invite sent.';
+      friendInviteMessage.classList.add('show');
+    }
+  } catch (err) {
+    if (friendInviteError) {
+      friendInviteError.textContent = err.message || 'Unable to send invite.';
+      friendInviteError.classList.add('show');
+    }
+  } finally {
+    setButtonLoading(friendInviteSubmit, false);
   }
 });
 

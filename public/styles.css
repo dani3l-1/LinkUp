@@ -2860,6 +2860,84 @@ button:disabled::before { display: none; }
   box-shadow: 0 6px 28px rgba(62,207,207,0.42);
 }
 
+.profile-invite-section {
+  margin-top: 1.5rem;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.profile-invite-copy {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  max-width: 42rem;
+}
+
+.profile-invite-count {
+  margin: 0;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid rgba(62,207,207,0.18);
+  border-radius: var(--radius-sm);
+  background: rgba(62,207,207,0.06);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.profile-invite-count strong {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.profile-section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.profile-invite-form {
+  margin-top: 0.95rem;
+}
+
+.profile-invite-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-invite-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, auto);
+  gap: 0.6rem;
+  align-items: stretch;
+  max-width: 620px;
+}
+
+.profile-invite-controls input {
+  min-height: 44px;
+}
+
+.profile-invite-controls button {
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 1rem;
+  border-radius: var(--radius-sm);
+}
+
+.profile-invite-form .success-message,
+.profile-invite-form .error-message {
+  margin-top: 0.75rem;
+}
+
 /* ─── Leaderboard ───────────────────────────────────────────── */
 .leaderboard-summary {
   margin: 0.6rem 0 1.1rem;
@@ -4285,6 +4363,11 @@ article.card h3 {
 
 /* Mobile */
 @media (max-width: 720px) {
+  .profile-section-heading-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   #public-profile-page .cart-header {
     align-items: stretch;
   }
@@ -4330,6 +4413,14 @@ article.card h3 {
 
   .rating-card-right {
     align-items: flex-start;
+  }
+
+  .profile-invite-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-invite-controls button {
+    width: 100%;
   }
 }
 

@@ -422,6 +422,24 @@
                     <div id="profile-message" class="success-message"></div>
                     <div id="profile-error" class="error-message"></div>
                   </form>
+                  <div class="profile-section-group profile-invite-section">
+                    <div class="profile-section-heading-row">
+                      <div>
+                        <p class="profile-section-label">Invite friends</p>
+                        <p class="profile-invite-copy">Send a LinkUp invite to a friend who might need safer student rides.</p>
+                      </div>
+                      <p class="profile-invite-count">Invites sent: <strong id="friend-invite-count">0</strong></p>
+                    </div>
+                    <form id="friend-invite-form" class="profile-invite-form">
+                      <label for="friend-invite-email">Friend's email</label>
+                      <div class="profile-invite-controls">
+                        <input type="email" id="friend-invite-email" placeholder="friend@example.com" autocomplete="email" required />
+                        <button type="submit" id="friend-invite-submit">Send invite</button>
+                      </div>
+                      <div id="friend-invite-message" class="success-message"></div>
+                      <div id="friend-invite-error" class="error-message"></div>
+                    </form>
+                  </div>
                 </div>
                 <div id="profile-appearance-panel" class="profile-panel hidden" data-profile-panel="appearance">
                   <form id="appearance-form" class="profile-form appearance-panel-card">

@@ -5,6 +5,7 @@
 ## v2026.05.28 BETA
 
 ### New
+- **Friend invites from Profile.** You can now send a LinkUp invite email to a friend directly from Profile → Personal info.
 - **Interactive ride checklist.** When you have an upcoming ride as a passenger, a step-by-step checklist now appears directly on your dashboard below the ride card. Tap each step to mark it done — your progress is saved per ride and persists across sessions. Steps cover reserving your seat, verifying the driver, sharing live tracking, giving your arrival code, and rating the driver after arrival.
 - **Ride confirmation email upgrade.** Reservation emails now include polished ride details, the driver's vehicle and plate when available, a 6-digit arrival code for offline use, support contact info, and a link back to the ride checklist.
 - **App flowchart.** A new app flowchart document maps the main LinkUp user, checkout, tracking, admin, and backend flows for easier product planning.

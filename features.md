@@ -1,322 +1,446 @@
-# LinkUp — Pages & Features
+# LinkUp Feature Guide
 
-Every user-facing page in the app, with the features available on each.
-
----
-
-## Auth
-
-**ID:** `auth-section`  
-Entry point for all unauthenticated users.
-
-- Sign in with university email and password
-- Create account (first name, last name, middle name, birthday, gender, university email, password)
-- Admin email exceptions can create accounts without a `.edu` address when listed in `ADMIN_EMAILS`
-- Password strength requirements (8+ chars, uppercase, lowercase, number, special character)
-- Forgot password / reset via email code
-- Email verification (6-digit code, resend option)
-- Terms and Conditions + Privacy Notice agreement at signup
-- Updated Terms acceptance required after community safety policy changes
-- 2FA challenge step after sign-in when 2FA is enabled
+This document is the app-team reference for what LinkUp should support across web and future mobile clients. Keep product behavior, labels, emails, checkout, and safety flows aligned with this file.
 
 ---
 
-## Home / Dashboard
+## Product Principles
 
-**ID:** `home-section` (inside `dashboard-mode`)  
-Landing page after sign-in.
+- LinkUp is for verified university students sharing rides within a trusted campus network.
+- Ride services should stay unavailable until the user has completed required profile, policy, payment, or verification steps.
+- Exact private information should be revealed only when the user has a legitimate reason to see it.
+- Payment, payout, login, reservation, and trip-completion flows are launch-critical and must be covered by smoke checks before release.
+- Use `ridewlinkup@gmail.com` as the support contact in user-facing support copy.
 
-- Quick-action buttons: Browse Rides, Request a Ride, List a Ride, Your Rides, Leaderboard
-- Admin button appears for admin accounts
-- Stats summary: rides taken, rides driven, total savings vs Uber
-- Recent rides panel (last few confirmed rides)
-- Trip tracking controls: start/stop live location sharing, trusted person email input, copy/send tracking link, live map preview
+---
+
+## Launch Readiness And Release Process
+
+The app must pass launch-readiness checks before production deployment.
+
+- Run `npm test` before pushing or deploying.
+- GitHub Actions runs `npm test` on pushes to `main` and pull requests.
+- `scripts/check-launch-readiness.js` checks:
+  - JavaScript syntax for `server.js`, `public/app.js`, and `public/boot.js`
+  - Static assets referenced by `public/index.html`
+  - Cache-busted `app.js` and `boot.js` URLs
+  - A real local auth smoke test: sign in, session cookie, `/api/auth/me`
+- Production deployment steps live in `docs/production-deploy-runbook.md`.
+- Do not use `npm run start:test` in production. It is only for local JSON-database testing.
+
+---
+
+## Auth And Account Access
+
+**Primary screen:** `auth-section`
+
+- Sign in with university email and password.
+- Create account with first name, optional middle name, last name, birthday, gender, university email, and password.
+- Password must include 8+ characters, uppercase, lowercase, number, and special character.
+- Signup requires Terms and Conditions plus Privacy Notice acceptance.
+- Email verification uses a 6-digit code with resend support.
+- Forgot password sends reset instructions by email.
+- Two-factor login challenge appears after password sign-in when 2FA is enabled.
+- Admin email exceptions can bypass `.edu` requirements when listed in `ADMIN_EMAILS`.
+- Login must never depend on stale cached JavaScript. Bump script `?v=` values when changing auth-critical frontend code.
+
+---
+
+## Dashboard Home
+
+**Primary screen:** dashboard home inside `dashboard-mode`
+
+- Quick actions: Browse Rides, Request a Ride, List a Ride, Your Rides, Leaderboard.
+- Admin users see an admin entry point.
+- Shows user greeting and core ride stats.
+- Shows recent rides and active upcoming ride cards.
+- Shows the interactive ride checklist for upcoming rider reservations.
+- Trip tracking controls:
+  - Start/stop live location sharing
+  - Trusted contact email input
+  - Copy/send tracking link
+  - Live route/map preview
+
+### Ride Checklist
+
+The checklist is embedded on the dashboard, not a separate page.
+
+Steps:
+
+1. Find your ride — Browse open rides and reserve a seat.
+2. Verify the driver — Confirm name, license plate, and car match.
+3. Share live tracking — Optional. Send your live trip to a trusted contact.
+4. Give the arrival code — Read the 6-digit code so your driver can complete the ride.
+5. Rate the driver — Help the community by rating your driver.
+
+Checklist progress should persist per ride.
 
 ---
 
 ## Browse Rides
 
-**ID:** `browse-page`  
-Dual-role marketplace for finding rides or seeing incoming requests.
+**Primary screen:** `browse-page`
 
-**Driver mode**
-- Lists open ride requests posted by riders
-- Each request card shows: route, date/time, price offered, rider count, request type (ride or moving)
-- Fuzzy drop-off display (exact location hidden until driver offers)
-- Make an offer on a request
-- Post a shared ride directly from a request card
+### Rider Mode
 
-**Rider mode**
-- Lists available rides posted by drivers
-- Filters: destination search, pick-up area + radius, drop-off area + radius, date, minimum seats, maximum price
-- Checkboxes: same school only, same gender drivers only
-- Sort: soonest departure, lowest price, highest price, most seats
-- Live map panel (sticky) showing pick-up radius and matching ride pins
-- Add ride to cart from listing card
-- View driver public profile from card
+- Browse available driver listings.
+- Filter by destination, pickup area/radius, drop-off area/radius, date, minimum seats, maximum price.
+- Same-school-only and same-gender-driver filters.
+- Sort by soonest departure, lowest price, highest price, and most seats.
+- Sticky map panel showing matching ride areas and pins.
+- Add ride to cart from listing card.
+- Tap driver name to view public profile.
+- Driver exact last name and sensitive details stay private until reservation.
 
----
+### Driver Mode
 
-## Request a Ride
-
-**ID:** `request-ride-page`  
-Form for riders to post a trip they need.
-
-**Ride request**
-- Pick-up location with autocomplete
-- Drop-off location with autocomplete
-- Hide drop-off from public view toggle (on by default — shows only approximate area until a driver offers)
-- Route preview map
-- Pick-up and drop-off flex radius inputs
-- Date and time
-- Rider count (1–7)
-- Price willing to pay
-- Share ride with other riders toggle
-- Same gender driver only checkbox
-- Same school driver only checkbox
-- Notes (multi-line)
-
-**Moving request** (toggled from Ride)
-- Replaces rider count with cargo size selector (Small / Medium / Large)
-- Required photo upload of items (PNG, JPG, WebP, max 2 MB)
-- Budget field instead of price
-- Notes adapted for moving context
+- Browse open rider requests.
+- Request cards show route, date/time, offered price, rider count, request type, and privacy-safe destination.
+- Make an offer on a request.
+- Post shared ride directly from a request card.
+- Moving requests show cargo context and uploaded item photo.
 
 ---
 
-## List a Ride
+## Request A Ride
 
-**ID:** `list-ride-page`  
-Form for drivers to post a ride, plus a live activity panel.
+**Primary screen:** `request-ride-page`
 
-**Offer a ride form**
-- Ride type selector: Personal Car, Rideshare Service, Moving Service
-- Pick-up and drop-off location with autocomplete
-- Route preview map
-- Pickup and drop-off detour radius inputs
-- Date and departure time
-- Same gender riders only checkbox
-- Same school riders only checkbox
+### Standard Ride Request
 
-  *Personal Car fields:* car maker, model, color, license plate (hidden until reservation), vehicle layout (2–7 seats), interactive seat picker (choose which seats are available)
+- Pickup and drop-off autocomplete.
+- Drop-off privacy toggle on by default.
+- Route preview map.
+- Pickup and drop-off flex radius inputs.
+- Date and time.
+- Rider count from 1 to 7.
+- Price willing to pay.
+- Share ride with other riders toggle.
+- Same-gender driver only option.
+- Same-school driver only option.
+- Multi-line notes.
 
-  *Rideshare Service fields:* service name (Uber, Lyft, etc.), available spots
+### Moving Request
 
-  *Moving Service fields:* vehicle type, cargo capacity, loading/unloading help checkbox, large furniture checkbox
-
-- Price per seat (or flat rate for moving)
-- Notes (multi-line)
-- Terms agreement checkbox
-- Post ride button
-
-**My ride activity panel** (right column)
-- Lists the driver's current and past rides with status
-
----
-
-## Your Rides
-
-**ID:** `your-rides-page`  
-Full ride history and active trip management.
-
-**Current rides tab**
-- Confirmed reservations as a rider
-- Active rides as a driver (with passenger list, confirmed rider details, seat assignments)
-- Completion code entry for drivers (6-digit code, unlocks earnings)
-- Rating prompt after trip completes
-- Chat access per ride
-
-**Requested rides tab**
-- Open ride requests the user posted
-- Incoming driver offers on each request
-- Accept or decline an offer
-- Cancel a request
-
-**Ride history tab**
-- Completed and departed rides (as driver or rider)
-- Rating display
+- Separate moving request mode.
+- Cargo size selector: Small, Medium, Large.
+- Required item photo upload: PNG, JPG, or WebP, max 2 MB.
+- Budget field instead of per-seat price.
+- Moving-specific notes.
+- Drivers should see enough item context to decide whether they can help.
 
 ---
 
-## Chat
+## List A Ride
 
-**ID:** `chat-page`  
-In-app messaging for confirmed rides.
+**Primary screen:** `list-ride-page`
 
-- Ride list on the left (one entry per confirmed ride the user is part of)
-- Message thread on the right for the selected ride
-- Real-time message delivery and typing indicators
-- Push notification opt-in per ride
+### Ride Types
+
+- Personal Car
+- Rideshare Service
+- Moving Service
+
+### Shared Fields
+
+- Pickup and drop-off autocomplete.
+- Route preview map.
+- Pickup and drop-off detour radius.
+- Date and departure time.
+- Same-gender riders only.
+- Same-school riders only.
+- Price per seat or moving flat rate.
+- Multi-line notes.
+- Terms agreement checkbox.
+
+### Personal Car Fields
+
+- Car maker, model, color, and license plate.
+- License plate is hidden until reservation.
+- Vehicle layout from 2 to 7 seats.
+- Interactive seat picker.
+
+### Rideshare Service Fields
+
+- Service name, such as Uber or Lyft.
+- Available spots.
+
+### Moving Service Fields
+
+- Vehicle type.
+- Cargo capacity.
+- Loading/unloading help.
+- Large furniture support.
+- Moving cards should label the provider as "Mover" instead of "Driver."
 
 ---
 
 ## Cart
 
-**ID:** `cart-page`  
-Multi-trip checkout basket.
+**Primary screen:** `cart-page`
 
-- List of rides added to cart (with trip details and seat info)
-- Select / deselect individual trips or all at once
-- Order summary with subtotal and service fee
-- LinkUp Wallet balance display and credit application
-- Terms agreement checkbox
-- Proceed to checkout button
-- 3-step progress indicator (Cart → Payment → Confirmed)
+- Multi-trip basket.
+- Select/deselect individual trips or all trips.
+- Ride details and seat details for each cart item.
+- Order summary with subtotal and service fee.
+- Terms agreement before checkout.
+- 3-step checkout progress: Cart -> Payment -> Confirmed.
+- Cart should not own payment-method selection. Payment choice belongs on the Payment page.
 
 ---
 
-## Payment (Checkout)
+## Payment And Checkout
 
-**ID:** `payment-page`  
-Stripe-powered payment step.
+**Primary screen:** `payment-page`
 
-- Order summary (right panel) with itemized trips, subtotal, fees
-- LinkUp Wallet credit applied display
-- Stripe Embedded Checkout (card, Apple Pay, Google Pay, Link)
-- Payment details never stored by LinkUp
-- 3-step progress indicator
-- Back to cart
+- Right-side panel shows ride details, selected rides, subtotal, fees, wallet credit, and remaining amount due.
+- Payment method selection lives on the Payment page.
+- LinkUp Wallet credit is selected by default when available.
+- User can manually choose to use card instead.
+- Stripe Embedded Checkout supports card, Apple Pay, Google Pay, and Link.
+- LinkUp never stores raw card details.
+- Checkout button should clearly communicate reservation, such as "Reserve your seat."
+- Wallet-covered checkout should avoid charging card when wallet fully covers the amount.
+
+---
+
+## Reservation Confirmation Email
+
+Sent after a rider successfully reserves a ride.
+
+Email requirements:
+
+- Must be visually polished and user-friendly.
+- Greeting should use the rider's first name.
+- Subject should be ride-specific, such as `Your LinkUp ride to [destination] is confirmed`.
+- Include ride details:
+  - Route
+  - Date/time
+  - Seat/passenger details when available
+  - Driver name
+  - Vehicle and license plate when available
+  - Support email: `ridewlinkup@gmail.com`
+- Include the 6-digit arrival/completion code so the rider can still give it to the driver without Wi-Fi.
+- Include the five ride checklist steps.
+- Include a link back to the dashboard checklist.
+- Do not use collapsed/hidden email content patterns that require users to expand with three dots.
+
+---
+
+## Your Rides
+
+**Primary screen:** `your-rides-page`
+
+### Current Rides
+
+- Confirmed reservations as rider.
+- Active rides as driver.
+- Driver sees passenger list, confirmed rider details, and seat assignments.
+- Rider sees 6-digit arrival/completion code after reservation/departure rules allow it.
+- Driver enters completion code to unlock earnings.
+- Rating prompt appears after completed trip.
+- Chat access per confirmed ride.
+
+### Requested Rides
+
+- Open requests posted by the user.
+- Incoming driver offers.
+- Accept/decline offers.
+- Cancel request.
+
+### Ride History
+
+- Completed and departed rides.
+- Rating display.
+- Role-aware history for driver and rider.
+
+---
+
+## Chat
+
+**Primary screen:** `chat-page`
+
+- One chat per confirmed ride.
+- Ride list on the left, selected thread on the right.
+- Real-time messages.
+- Typing indicators.
+- Push notification opt-in per ride.
+- Chat access should expire or restrict based on ride participation rules.
+
+---
+
+## Track My Trip
+
+- Rider can start/stop live location sharing.
+- Tracking link can be copied or sent to a trusted contact.
+- Trusted contact can be added or updated mid-trip.
+- Tracking page shows live route context on one map.
+- Sharing live tracking is recommended but optional in the ride checklist.
 
 ---
 
 ## Profile
 
-**ID:** `profile-page`  
-Account management hub with a sidebar navigation.
+**Primary screen:** `profile-page`
+
+Sidebar order:
+
+1. Personal info
+2. Payment method
+3. Driver payouts
+4. Security
+5. Appearance
+6. Transfer school
+7. Policy agreement
+8. Release notes
+9. About LinkUp
 
 ### Personal Info
-- Avatar with hover-to-edit overlay (upload, remove; Instagram-style)
-- Identity tag: display name, university (credential label), major · class year, member since + member number
-- **Name section:** first name, last name, middle name
-- **Academic section:** major, class year
-- **Social section:** Instagram, LinkedIn, X (optional, shown on public profile)
-- **Account section:** birthday (locked after set), gender (locked after set), university email (locked)
-- Save profile button
 
-### Transfer School
-- Enter a new college email when transferring schools
-- Sends a 6-digit verification code to the new college email
-- Updates account email, university, school network, same-school matching, and leaderboard school after verification
-- Keeps ride history, profile, wallet, ratings, and member number on the same account
-- Stores previous email/school history for audit context
+- Avatar upload/remove with hover edit overlay.
+- Identity tag: display name, university, major, class year, member since, member number.
+- Name fields: first, middle, last.
+- Academic fields: major and class year.
+- Social fields: Instagram, X, LinkedIn.
+- Account fields: birthday, gender, university email.
+- Birthday, gender, and account email are locked after set except through supported flows.
+- Invite friends form sends a LinkUp invite email using the current user's display name and the LinkUp site link.
+- Profile tracks and displays how many friend invites the user has sent.
 
 ### Payment Method
-- View saved default card (brand, last 4, expiry)
-- Add or update card via Stripe (card details never stored by LinkUp)
+
+- Show saved default card brand, last 4, and expiry.
+- Add/update card through Stripe.
+- Raw card data never touches LinkUp servers.
 
 ### Driver Payouts
-- Stripe Connect onboarding (in-app, no redirect)
-- Payout status and verification state
-- This week's earnings, pending earnings, completed balance, all-time total
-- View bank payout history (Stripe ledger in-app)
-- Wallet balance and earnings flow diagram
+
+- Stripe Connect onboarding.
+- Payout verification status.
+- Earnings summary:
+  - This week's earnings
+  - Pending earnings
+  - Available/completed balance
+  - All-time total
+- Wallet balance and earnings flow explanation.
+- Bank payout history through Stripe ledger.
 
 ### Security
-- Two-factor authentication setup (TOTP — Google Authenticator, Authy, etc.)
-- QR code and manual key for authenticator app
-- Enable / disable 2FA with current code verification
 
-### Policy Agreement
-- Scrollable policy summary (Terms and Privacy Notice)
-- Community safety and moderation rules included in current Terms
-- View full Terms and Conditions
-- View full Privacy Notice
-- Accept latest policies to re-enable ride services
+- Authenticator-app 2FA setup.
+- QR code and manual setup key.
+- Enable/disable 2FA with current code.
+- Email 2FA support where enabled.
+- Change password with email confirmation code.
 
 ### Appearance
-- Theme selector: Dark, Light, Auto (switches by time of day — light 6 AM–7 PM)
-- Saved to account and persisted locally
+
+- Theme options: Dark, Light, Auto.
+- Auto mode uses light from 6 AM to 7 PM and dark outside that window.
+- Preference saves to account and persists locally.
+
+### Transfer School
+
+- Enter a new university email.
+- Send 6-digit verification code to the new email.
+- After verification, update account email, university, school network, same-school matching, and leaderboard school.
+- Preserve ride history, wallet, ratings, profile, and member number.
+- Store previous school/email history for audit context.
+
+### Policy Agreement
+
+- Scrollable policy summary.
+- Full Terms and Conditions.
+- Full Privacy Notice.
+- Latest policy acceptance required before ride services resume.
 
 ### Release Notes
-- Chronological changelog of all LinkUp updates
+
+- In-app changelog, newest updates first.
 
 ### About LinkUp
-- Mission summary and feature overview (For Riders, For Drivers, For Schools, Safety)
-- Community rules covering real listings, harassment, scams, reporting, and moderation actions
+
+- Mission summary.
+- Rider, driver, school, and safety overview.
+- Community rules and moderation expectations.
 
 ---
 
 ## Public Profile
 
-**ID:** `public-profile-page`  
-Read-only profile view shown when tapping a user's name anywhere in the app.
+**Primary screen:** `public-profile-page`
 
-- Avatar, display name, university
-- Major, class year, member since, member number or admin number
-- Social links (Instagram, LinkedIn, X) if the user has set them
-- Ride stats (rides as driver, rides as rider, miles shared)
-- Report user button
-- Block / unblock user button
+- Read-only profile shown when tapping another user's name.
+- Header should say `Public profile`; the user's name appears in the profile hero.
+- Avatar or initial.
+- Display name, university, major, class year, member number.
+- Verified university badge when applicable.
+- Social media icon buttons:
+  - Instagram
+  - X
+  - LinkedIn
+- Icons open saved profile links in a new tab.
+- Ride stats:
+  - Rides offered
+  - Completed as driver
+  - Rides joined
+  - Open requests
+- Driver rating card:
+  - Green for 4.5 to 5.0
+  - Yellow for 3.5 to 4.4
+  - Red below 3.5
+- Block/unblock user action.
+- Blocking hides listings and requests from both users.
 
 ---
 
 ## Leaderboard
 
-**ID:** `leaderboard-page`  
-School-wide ride sharing rankings.
+**Primary screen:** `leaderboard-page`
 
-- Table of all universities with user count and total miles saved
-- Total miles saved across the network
-- Highlighted row for the current user's school
-- Admin/operator accounts excluded from school counts and leaderboard totals
-
----
-
-## Admin Control Room
-
-**ID:** `admin-page`  
-Restricted dashboard for accounts listed in `ADMIN_EMAILS`.
-
-- Deployment version and environment summary
-- Launch metrics: users, approved users, waitlist users, suspended users, rides, requests, open reports
-- Reports tab with report details, admin notes, and status workflow: open, reviewing, resolved, dismissed
-- Users tab with member/admin number, approval/waitlist toggle, suspend/restore action, and moderation notes
-- Rides tab with recent rides, status, moderation notes, and remove action
-- Requests tab with recent ride requests, status, moderation notes, and remove action
-- Activity tab showing recent users, rides, requests, reports, and payments
-- Audit Log tab showing admin moderation actions, targets, admins, details, and timestamps
-- Admin actions are recorded in an internal audit log
+- School-wide ride-sharing rankings.
+- Show universities with user count and total miles saved.
+- Show total miles saved across the network.
+- Highlight current user's school.
 
 ---
 
-## Track My Trip (Shared View)
+## Wallet And Earnings
 
-**ID:** `shared-track-page`  
-Public page opened by a tracking link — no sign-in required.
-
-- Live map showing the traveler's current location and route
-- Trip status and last-update timestamp
-- Open in Google Maps link
-- Updates in real time while sharing is active
-
----
-
-## Legal Pages
-
-**Privacy Notice** (`privacy-page`) and **Terms and Conditions** (`terms-page`)  
-Accessible from auth, profile, cart, and inline legal links anywhere.
-
-- Full document rendered from markdown
-- Effective date displayed
-- Terms include community safety rules, reporting, moderation, suspension, fake listing, harassment, scam, and emergency guidance
+- Driver earnings flow into LinkUp Wallet after completion code confirmation or auto-release.
+- LinkUp commission rate defaults to 15%.
+- Stripe card processing fees are deducted from driver earnings.
+- Wallet credit applies to future rides by default.
+- Users can manually deselect wallet credit and use their own payment card.
+- This behavior encourages wallet credit usage before additional payout movement.
 
 ---
 
-## Waitlist
+## Safety, Privacy, And Moderation
 
-**ID:** `waitlist-page`  
-Shown to users whose university hasn't launched yet.
-
-- Waitlist confirmation message
-- Notified when LinkUp launches at their school
+- Same-school and same-gender filters must be honored.
+- Exact drop-off privacy is on by default for requests.
+- Passenger email and private ride details must not leak to unrelated riders.
+- Completion code must not be visible to the driver before rider provides it.
+- Users can report unsafe behavior.
+- Users can block/unblock other users.
+- Community rules cover fake listings, harassment, scams, off-app pressure, emergency guidance, reports, and moderation.
 
 ---
 
-## Notes
+## Admin Expectations
 
-- All ride-related pages (Browse, Request, List, Cart, Checkout, Your Rides) require a verified email, completed required profile fields (name, birthday, gender), and acceptance of the latest policies.
-- Suspended users are blocked from ride services until restored by an admin.
-- School transfers require verification from the new university email before account affiliation changes.
-- Admin accounts are numbered separately from student members and are not counted in student leaderboard totals.
-- The shared tracking page (`/track/:token`) is the only page accessible without signing in.
-- Legal pages can be opened as modals (inline) or as full pages depending on context.
+- Admin users have an admin entry point from the dashboard.
+- Admins can inspect and support production data only through explicit protected flows.
+- Any temporary admin recovery endpoint must be treated as temporary and removed after use.
+- Admin tools should never bypass launch-readiness checks.
+
+---
+
+## Documents To Keep Updated
+
+- `features.md` — product/app-team feature guide.
+- `public/release-notes.md` — user-facing changelog.
+- `docs/app-flowchart.md` — app flow diagrams.
+- `docs/production-deploy-runbook.md` — production deployment process.
+- `API.md` — API behavior for client teams.
