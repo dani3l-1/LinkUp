@@ -2921,12 +2921,13 @@ button:disabled::before { display: none; }
   justify-content: start;
 }
 
-.profile-invite-controls input {
+.profile-invite-controls #friend-invite-email {
   min-height: 44px;
   width: 100%;
+  margin: 0;
 }
 
-.profile-invite-controls button {
+.profile-invite-controls #friend-invite-submit {
   align-self: stretch;
   width: auto;
   min-height: 44px;
@@ -4427,7 +4428,7 @@ article.card h3 {
     align-items: flex-start;
   }
 
-  .profile-invite-controls button {
+  .profile-invite-controls #friend-invite-submit {
     width: 100%;
   }
 }
