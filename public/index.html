@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260530-footer-gap" />
+    <link rel="stylesheet" href="styles.css?v=20260601-waitlist" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -51,6 +51,7 @@
       <header>
         <div class="header-left-actions hidden" id="header-left-actions">
           <button id="chat-button" type="button">Chat</button>
+          <button id="social-button" type="button">Social</button>
         </div>
         <img class="site-logo" src="assets/images/LinkUp-header.png" alt="LinkUp — Ride Connect Save" />
         <div class="header-actions hidden" id="header-actions">
@@ -234,8 +235,74 @@
           </div>
 
           <section id="waitlist-page" class="card hidden">
-            <h3>You are on the LinkUp waitlist</h3>
-            <p id="waitlist-message">You're on the list. We'll notify you when LinkUp launches at your university.</p>
+            <div class="waitlist-inner">
+
+              <div class="waitlist-check-badge" aria-hidden="true">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+
+              <span class="waitlist-eyebrow">You're on the list</span>
+              <h2 id="waitlist-title" class="waitlist-member-number">Member #—</h2>
+              <p id="waitlist-school" class="waitlist-school">Your school is coming soon.</p>
+
+              <div class="waitlist-steps" aria-label="Your progress">
+                <div class="waitlist-step waitlist-step--done">
+                  <div class="waitlist-step-dot">✓</div>
+                  <span>Account created</span>
+                </div>
+                <div class="waitlist-step-connector waitlist-step-connector--done"></div>
+                <div class="waitlist-step waitlist-step--active">
+                  <div class="waitlist-step-dot">2</div>
+                  <span>School approved</span>
+                </div>
+                <div class="waitlist-step-connector"></div>
+                <div class="waitlist-step">
+                  <div class="waitlist-step-dot">3</div>
+                  <span>Start riding</span>
+                </div>
+              </div>
+
+              <div class="waitlist-features">
+                <div class="waitlist-feature">
+                  <span class="waitlist-feature-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  </span>
+                  <div>
+                    <strong>Verified students only</strong>
+                    <span>.edu emails and university networks — no strangers.</span>
+                  </div>
+                </div>
+                <div class="waitlist-feature">
+                  <span class="waitlist-feature-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12l2 2 4-4"/></svg>
+                  </span>
+                  <div>
+                    <strong>Reserve your seat</strong>
+                    <span>Browse rides, pick your seat, and pay securely in one place.</span>
+                  </div>
+                </div>
+                <div class="waitlist-feature">
+                  <span class="waitlist-feature-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  </span>
+                  <div>
+                    <strong>Split the cost</strong>
+                    <span>Cheaper than Uber. Earnings go straight to your wallet.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="waitlist-actions">
+                <button id="waitlist-share-btn" type="button" class="waitlist-share-btn">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  Invite a classmate
+                </button>
+                <button id="waitlist-profile-button" type="button" class="waitlist-profile-btn">Edit profile</button>
+              </div>
+
+              <p id="waitlist-message" class="waitlist-notify-msg">We'll email you when LinkUp launches at your school.</p>
+
+            </div>
           </section>
 
 
@@ -374,11 +441,24 @@
                       </div>
 
                       <div class="profile-section-group">
+                        <p class="profile-section-label">Interests <span class="profile-section-optional">used for campus discovery</span></p>
+                        <label>Interests <input type="text" id="profile-interests" maxlength="240" placeholder="Startups, tennis, concerts, study groups" /></label>
+                      </div>
+
+                      <div class="profile-section-group">
                         <p class="profile-section-label">Social <span class="profile-section-optional">optional · shown on your public profile</span></p>
                         <div class="profile-grid profile-grid-3">
                           <label>Instagram <input type="text" id="profile-instagram" maxlength="80" placeholder="@username" /></label>
                           <label>LinkedIn <input type="text" id="profile-linkedin" maxlength="120" placeholder="linkedin.com/in/you" /></label>
-                          <label>X <input type="text" id="profile-x" maxlength="80" placeholder="@username" /></label>
+                          <label>X / Twitter<input type="text" id="profile-x" maxlength="80" placeholder="@username" /></label>
+                        </div>
+                      </div>
+
+                      <div class="profile-section-group">
+                        <p class="profile-section-label">Campus groups <span class="profile-section-optional">clubs, interests, communities</span></p>
+                        <div class="profile-grid">
+                          <label>Public groups <input type="text" id="profile-public-groups" maxlength="240" placeholder="Airport Rides, CS Majors" /></label>
+                          <label>Private groups <input type="text" id="profile-private-groups" maxlength="240" placeholder="Close Friends, Club Board" /></label>
                         </div>
                       </div>
 
@@ -829,6 +909,58 @@
             </div>
           </div>
 
+          <section id="social-page" class="hidden">
+            <div class="cart-header">
+              <div>
+                <h3 id="social-page-title">Social</h3>
+                <p id="social-page-subtitle">Posts from your links, campus discovery, and trusted groups.</p>
+              </div>
+              <button id="social-back-home" type="button">← Home</button>
+            </div>
+
+            <div class="social-feed-section" id="social-feed-section">
+              <div class="dashboard-section-heading-row">
+                <h3 class="dashboard-section-label">Feed</h3>
+              </div>
+              <div id="social-home-feed" class="social-home-feed">Loading posts...</div>
+            </div>
+
+            <div class="dashboard-discovery-section" id="dashboard-discovery-section">
+              <div class="dashboard-section-heading-row">
+                <h3 class="dashboard-section-label">Campus discovery</h3>
+              </div>
+              <div id="dashboard-people-suggestions" class="dashboard-people-suggestions"></div>
+            </div>
+
+            <div class="dashboard-groups-section" id="dashboard-groups-section">
+              <div class="dashboard-section-heading-row">
+                <h3 class="dashboard-section-label">Groups and clubs</h3>
+              </div>
+              <div class="dashboard-group-forms">
+                <form id="campus-group-create-form" class="dashboard-group-form">
+                  <input type="text" id="campus-group-name" maxlength="48" placeholder="Create a group or club" required />
+                  <select id="campus-group-kind" aria-label="Type">
+                    <option value="group">Group</option>
+                    <option value="club">Official club</option>
+                  </select>
+                  <select id="campus-group-visibility" aria-label="Group visibility">
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                  <button type="submit">Create</button>
+                </form>
+                <form id="campus-group-join-form" class="dashboard-group-form">
+                  <input type="text" id="campus-group-code" maxlength="32" placeholder="Invite code" />
+                  <button type="submit">Join</button>
+                </form>
+              </div>
+              <div id="dashboard-campus-groups" class="dashboard-campus-groups"></div>
+              <div id="dashboard-connection-requests" class="dashboard-connection-requests"></div>
+            </div>
+
+            <div id="social-detail-section" class="dashboard-groups-section hidden"></div>
+          </section>
+
           <!-- Browse rides page -->
           <section id="browse-page" class="hidden">
             <div class="cart-header">
@@ -992,6 +1124,14 @@
                 </div>
                 <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
                 <label class="checkbox-label"><input type="checkbox" id="request-same-school-driver" /> Same school driver only</label>
+                  <div class="ride-audience-panel">
+                    <div class="ride-audience-header">
+                      <p>Share request</p>
+                    <span>Campus-wide by default, or post only inside selected groups and clubs.</span>
+                    </div>
+                  <label class="checkbox-label"><input type="checkbox" id="request-group-only" /> Post only to selected groups and clubs</label>
+                  <div id="request-group-options" class="ride-group-options hidden"></div>
+                </div>
                 <label>Notes <textarea id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." rows="3"></textarea></label>
                 <button type="submit" id="request-submit-btn">Post request</button>
                 <div id="request-ride-message" class="success-message"></div>
@@ -1067,6 +1207,14 @@
                   <label>Departure time <input type="time" id="ride-time" required /></label>
                   <label class="checkbox-label"><input type="checkbox" id="same-gender-only-ride" /> Same gender riders only</label>
                   <label class="checkbox-label"><input type="checkbox" id="same-school-only-ride" /> Same school riders only</label>
+                  <div class="ride-audience-panel">
+                    <div class="ride-audience-header">
+                      <p>Share ride</p>
+                      <span>Campus-wide by default, or post only inside selected groups and clubs.</span>
+                    </div>
+                    <label class="checkbox-label"><input type="checkbox" id="ride-group-only" /> Post only to selected groups and clubs</label>
+                    <div id="ride-group-options" class="ride-group-options hidden"></div>
+                  </div>
                   <div id="rideshare-service-fields" class="vehicle-grid hidden">
                     <label>Rideshare Service
                       <input type="text" id="rideshare-service" placeholder="Uber, Lyft, Alto..." />
@@ -1139,15 +1287,23 @@
           <section id="chat-page" class="card hidden">
             <div class="cart-header">
               <div>
-                <h3>Ride chat</h3>
-                <p>Message drivers and riders on your booked trips.</p>
+                <h3>Chat</h3>
+                <p>Ride conversations and social messages with your links.</p>
               </div>
               <button id="chat-back-home" type="button">← Home</button>
             </div>
+            <div class="chat-section-tabs" role="tablist" aria-label="Chat sections">
+              <button id="chat-ride-tab" type="button" class="active">Ride</button>
+              <button id="chat-social-tab" type="button">Social</button>
+            </div>
             <div class="chat-page-layout">
-              <div>
+              <div id="chat-ride-panel">
                 <h4>Your ride chats</h4>
                 <div id="chat-ride-list" class="chat-ride-list">Loading ride chats...</div>
+              </div>
+              <div id="chat-social-panel" class="hidden">
+                <h4>Your social chats</h4>
+                <div id="chat-social-list" class="chat-ride-list">Loading social chats...</div>
               </div>
               <div id="chat-conversation" class="chat-conversation">
                 <p>Select a ride to open its chat.</p>
@@ -1425,6 +1581,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260529-login-syntax-fix"></script>
+    <script src="app.js?v=20260601-waitlist"></script>
   </body>
 </html>

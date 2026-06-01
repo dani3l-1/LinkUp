@@ -62,14 +62,26 @@ const welcomeMessage = document.getElementById('welcome-message');
 const studentUniversityLabel = document.getElementById('student-university-label');
 const signoutButton = document.getElementById('signout');
 const chatButton = document.getElementById('chat-button');
+const socialButton = document.getElementById('social-button');
 const chatPage = document.getElementById('chat-page');
 const chatBackHomeButton = document.getElementById('chat-back-home');
+const chatRideTab = document.getElementById('chat-ride-tab');
+const chatSocialTab = document.getElementById('chat-social-tab');
+const chatRidePanel = document.getElementById('chat-ride-panel');
+const chatSocialPanel = document.getElementById('chat-social-panel');
 const chatRideList = document.getElementById('chat-ride-list');
+const chatSocialList = document.getElementById('chat-social-list');
 const chatConversation = document.getElementById('chat-conversation');
 const offerForm = document.getElementById('offer-form');
 const ridesList = document.getElementById('rides-list');
 const profileRides = document.getElementById('profile-rides');
 const dashboardHome = document.getElementById('dashboard-home');
+const socialPage = document.getElementById('social-page');
+const socialPageTitle = document.getElementById('social-page-title');
+const socialPageSubtitle = document.getElementById('social-page-subtitle');
+const socialDetailSection = document.getElementById('social-detail-section');
+const socialFeedSection = document.getElementById('social-feed-section');
+const socialHomeFeed = document.getElementById('social-home-feed');
 const browseTitle = document.getElementById('browse-title');
 const browseSubtitle = document.getElementById('browse-subtitle');
 const browseControls = document.getElementById('browse-controls');
@@ -77,7 +89,9 @@ const browseResultsTitle = document.getElementById('browse-results-title');
 const browseDriverButton = document.getElementById('browse-driver-button');
 const browseRiderButton = document.getElementById('browse-rider-button');
 const waitlistPage = document.getElementById('waitlist-page');
+const waitlistTitle = document.getElementById('waitlist-title');
 const waitlistMessage = document.getElementById('waitlist-message');
+const waitlistProfileButton = document.getElementById('waitlist-profile-button');
 const listRidePage = document.getElementById('list-ride-page');
 const requestRidePage = document.getElementById('request-ride-page');
 const cartPage = document.getElementById('cart-page');
@@ -253,6 +267,7 @@ const appearanceError = document.getElementById('appearance-error');
 const themePreferenceInputs = document.querySelectorAll('input[name="theme-preference"]');
 
 let currentUser = null;
+let currentCampusGroups = [];
 let originMap = null;
 let originMarker = null;
 let destinationMarker = null;
@@ -392,6 +407,12 @@ function getAppRoute() {
   return decodeURIComponent(window.location.hash.replace(/^#/, '')).trim();
 }
 
+function isSocialPreviewEnabled() {
+  return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+    || window.location.hostname.endsWith('.local')
+    || window.localStorage?.getItem('LINKUP_ENABLE_SOCIAL') === 'true';
+}
+
 function setAppRoute(route) {
   if (isRestoringRoute || !route) return;
   const nextUrl = window.location.pathname + window.location.search + '#' + encodeURIComponent(route);
@@ -417,11 +438,24 @@ function profileRouteForTab(tabName = 'info') {
 function publicProfileRoute(userId) {
   return 'user-profile-' + userId;
 }
+
+function interestTagRoute(tag) {
+  return 'interest-tag-' + encodeURIComponent(String(tag || '').trim());
+}
+
+function groupWelcomeRoute(groupName) {
+  return 'group-' + encodeURIComponent(String(groupName || '').trim());
+}
+if (!isSocialPreviewEnabled()) {
+  socialButton?.classList.add('hidden');
+}
 let browseRole = null;
 let yourRidesView = 'current';
 let adminView = 'reports';
 let adminSnapshot = null;
 let selectedChatRideId = '';
+let selectedSocialChatUserId = '';
+let activeChatSection = 'ride';
 let browseRadiusMap = null;
 let browsePickupCircle = null;
 let browseDropoffCircle = null;
@@ -449,6 +483,8 @@ document.addEventListener('click', async (event) => {
     'browse-rider-button': () => showRiderBrowse(),
     'browse-rides-button': () => showBrowsePage(),
     'browse-back-home': () => returnToBrowseRides(),
+    'social-button': () => showSocialPage(),
+    'social-back-home': () => handleSocialBackButton(),
     'request-ride-button': () => showRequestRidePage(),
     'list-ride-button': () => showListRidePage(),
     'your-rides-button': () => showYourRidesPage(),
@@ -1667,8 +1703,11 @@ function showDashboardShell(user = currentUser) {
   siteLogo.setAttribute('aria-label', 'Go to home');
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
+  dashboard.classList.toggle('waitlist-lock-mode', user.serviceApproved !== true);
   headerLeftActions.classList.remove('hidden');
   headerActions.classList.remove('hidden');
+  headerLeftActions.classList.toggle('hidden', user.serviceApproved !== true);
+  cartButton?.classList.toggle('hidden', user.serviceApproved !== true);
   adminButton?.classList.toggle('hidden', !user.isAdmin);
   authSection.classList.add('hidden');
   dashboard.classList.remove('hidden');
@@ -1758,6 +1797,7 @@ function clearTrackingMessages() {
 function hideDashboardPages() {
   hideLegalPages();
   dashboardHome.classList.add('hidden');
+  socialPage?.classList.add('hidden');
   browsePage.classList.add('hidden');
   waitlistPage.classList.add('hidden');
   requestRidePage.classList.add('hidden');
@@ -1777,7 +1817,7 @@ function updateUserHeader(user) {
   welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
   studentUniversityLabel.textContent = user.rideServicesPaused
     ? 'Ride services temporarily paused'
-    : user.serviceApproved ? `${user.university} Ride Network` : `${user.university || user.universityDomain} Waitlist`;
+    : user.serviceApproved ? `${user.university} Ride Network` : 'LinkUp waitlist';
 }
 
 function clearProfileMessages() {
@@ -1806,9 +1846,12 @@ function fillProfileForm(user) {
   document.getElementById('profile-last-name').value = user.lastName || '';
   document.getElementById('profile-class-year').value = user.classYear || '';
   document.getElementById('profile-major').value = user.major || '';
+  document.getElementById('profile-interests').value = joinInterestTags(user.interests);
   document.getElementById('profile-instagram').value = user.socialLinks?.instagram || '';
   document.getElementById('profile-linkedin').value = user.socialLinks?.linkedin || '';
   document.getElementById('profile-x').value = user.socialLinks?.x || '';
+  document.getElementById('profile-public-groups').value = joinCampusGroups(user.campusGroups, 'public');
+  document.getElementById('profile-private-groups').value = joinCampusGroups(user.campusGroups, 'private');
   birthdayInput.value = user.birthday || '';
   genderInput.value = user.gender || '';
   document.getElementById('profile-email').value = user.email || '';
@@ -1836,6 +1879,7 @@ function fillProfileForm(user) {
   if (friendInviteCount) {
     friendInviteCount.textContent = String(user.friendInviteCount || 0);
   }
+  refreshRideAudienceControls();
 }
 
 function clearSchoolTransferMessages() {
@@ -2781,6 +2825,197 @@ function renderPublicSocialLinks(profile) {
   `;
 }
 
+function parseCampusGroupInput(value, visibility) {
+  const seen = new Set();
+  return String(value || '')
+    .split(',')
+    .map((name) => name.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .filter((name) => {
+      const key = name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8)
+    .map((name) => ({ name, visibility }));
+}
+
+function parseInterestInput(value) {
+  const seen = new Set();
+  return String(value || '')
+    .split(',')
+    .map((interest) => interest.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .filter((interest) => {
+      const key = interest.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 12);
+}
+
+function joinInterestTags(interests) {
+  return (interests || []).filter(Boolean).join(', ');
+}
+
+function joinCampusGroups(groups, visibility) {
+  return (groups || [])
+    .filter((group) => group?.visibility === visibility)
+    .map((group) => group.name)
+    .filter(Boolean)
+    .join(', ');
+}
+
+function renderCampusGroupTags(groups) {
+  const publicGroups = (groups || []).filter((group) => group?.name && group.visibility !== 'private');
+  if (!publicGroups.length) return '';
+  return `
+    <div class="public-profile-tag-block">
+      <div class="public-profile-tag-label">Clubs and groups</div>
+      <div class="public-profile-groups" aria-label="Clubs and campus groups">
+      ${publicGroups.map((group) => `<button type="button" class="public-profile-group-tag" data-group-name="${esc(group.name)}">${esc(group.name)}</button>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderInterestTags(interests) {
+  const tags = (interests || []).filter(Boolean);
+  if (!tags.length) return '';
+  return `
+    <div class="public-profile-tag-block">
+      <div class="public-profile-tag-label">Interests</div>
+      <div class="public-profile-interests" aria-label="Interests">
+        ${tags.map((interest) => `<button type="button" class="public-profile-interest-tag" data-interest-tag="${esc(interest)}">${esc(interest)}</button>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderPublicProfileTrustStrip(profile, hasRating, ratingAvg) {
+  const items = [
+    profile.serviceApproved ? ['Verified student', 'University email approved'] : null,
+    profile.sharedContext?.sameSchool ? ['Same campus', profile.university || profile.universityDomain || 'Campus network'] : null,
+    profile.sharedContext?.sameMajor ? ['Same major', profile.major] : null,
+    profile.sharedContext?.sameYear ? ['Same class', 'Class of ' + profile.classYear] : null,
+    hasRating ? ['Driver rating', Number(ratingAvg).toFixed(1) + ' / 5'] : null,
+  ].filter(Boolean).slice(0, 4);
+  if (!items.length) return '';
+  return `
+    <div class="public-profile-trust-strip" aria-label="Profile trust signals">
+      ${items.map(([label, value]) => `
+        <div class="public-profile-trust-pill">
+          <span>${esc(label)}</span>
+          <strong>${esc(value)}</strong>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderPublicProfileSharedContext(profile) {
+  const context = profile.sharedContext || {};
+  const rows = [];
+  if (context.mutualLinkCount > 0) rows.push(`${context.mutualLinkCount} mutual link${context.mutualLinkCount === 1 ? '' : 's'}`);
+  (context.groups || []).forEach((group) => rows.push(`Both in ${group}`));
+  (context.interests || []).forEach((interest) => rows.push(`Shared interest: ${interest}`));
+  if (context.sameSchool && !rows.length) rows.push('Same verified campus network');
+  if (!rows.length) return '';
+  return `
+    <section class="public-profile-section-card">
+      <div class="public-profile-section-title">Shared context</div>
+      <div class="public-profile-context-list">
+        ${rows.slice(0, 5).map((row) => `<span>${esc(row)}</span>`).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderPublicProfileTagSection(profile) {
+  const interestTags = renderInterestTags(profile.interests);
+  const groupTags = renderCampusGroupTags(profile.campusGroups);
+  if (!interestTags && !groupTags) return '';
+  return `
+    <section class="public-profile-section-card">
+      <div class="public-profile-section-title">Clubs and interests</div>
+      ${groupTags}
+      ${interestTags}
+    </section>
+  `;
+}
+
+function renderRideAudienceMarkup(item) {
+  if (item?.audienceType !== 'groups' || !item.audienceGroups?.length) return '';
+  return `<div><strong>Audience:</strong> ${item.audienceGroups.map((group) => `<span class="ride-audience-tag">${esc(group)}</span>`).join(' ')}</div>`;
+}
+
+function getCurrentCampusGroups() {
+  const profileGroups = (currentUser?.campusGroups || []).filter((group) => group?.name);
+  const directoryGroups = (currentCampusGroups || [])
+    .filter((group) => group.membershipStatus === 'active')
+    .map((group) => ({ name: group.name, visibility: group.visibility, kind: group.kind || 'group' }));
+  const seen = new Set();
+  return [...profileGroups, ...directoryGroups].filter((group) => {
+    const key = group.name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderRideGroupOptions(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const groups = getCurrentCampusGroups();
+  if (!groups.length) {
+    container.innerHTML = '<p class="ride-group-empty">Join or create groups and clubs before posting only to a selected audience.</p>';
+    return;
+  }
+  container.innerHTML = `
+    <label class="ride-group-select-label">
+      <span>Select groups and clubs</span>
+      <select class="ride-group-select" multiple size="${Math.min(6, Math.max(3, groups.length))}" aria-label="Select groups and clubs">
+        ${groups.map((group) => {
+          const type = group.kind === 'club' ? 'Club' : 'Group';
+          const visibility = group.visibility === 'private' ? 'Private' : 'Public';
+          return `<option value="${esc(group.name)}">${esc(group.name)} - ${esc(type)} · ${esc(visibility)}</option>`;
+        }).join('')}
+      </select>
+    </label>
+    <p class="ride-group-empty">Hold Command on Mac or Control on Windows to select multiple.</p>
+  `;
+}
+
+function refreshRideAudienceControls() {
+  renderRideGroupOptions('ride-group-options');
+  renderRideGroupOptions('request-group-options');
+}
+
+function getSelectedRideAudience(prefix) {
+  const groupOnly = document.getElementById(prefix + '-group-only')?.checked;
+  const options = document.getElementById(prefix + '-group-options');
+  const groups = groupOnly && options
+    ? [...(options.querySelector('select')?.selectedOptions || [])].map((option) => option.value).filter(Boolean)
+    : [];
+  return {
+    audienceType: groupOnly ? 'groups' : 'school',
+    audienceGroups: groups,
+  };
+}
+
+async function requestUserConnection(profile) {
+  if (!profile?.id || profile.isCurrentUser) return;
+  try {
+    const response = await fetchJson('/api/users/' + encodeURIComponent(profile.id) + '/linkup', { method: 'POST' });
+    showToast(response.message || 'LinkUp request sent.', 'success');
+    await showPublicProfilePage(profile.id);
+  } catch (err) {
+    showToast(err.message || 'Unable to send LinkUp request.', 'error');
+  }
+}
+
 async function toggleUserBlock(profile) {
   if (!profile?.id || profile.isCurrentUser) return;
   const blocking = !profile.isBlockedByCurrentUser;
@@ -2839,20 +3074,44 @@ function renderPublicProfile(profile) {
        </span>`
     : '';
   const memberLabel = formatProfileNumberLabel(profile);
+  const linkupStatusText = profile.connectionStatus === 'requested'
+    ? 'LinkUp request sent.'
+    : profile.connectionStatus === 'pending'
+      ? 'They sent you a LinkUp request. Accept it from Social.'
+      : '';
+  const linksLabel = `${profile.connectionCount || 0} link${profile.connectionCount === 1 ? '' : 's'}`;
+  const heroMeta = [
+    profile.university || profile.universityDomain || '',
+    academicParts.join(' · '),
+    memberLabel,
+  ].filter(Boolean);
+  const profileDetailSectionList = [
+    renderPublicProfileTagSection(profile),
+  ].filter(Boolean);
+  const profileDetailSections = profileDetailSectionList.join('');
 
   publicProfileTitle.textContent = 'Public profile';
   publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), memberLabel].filter(Boolean).join(' · ');
   publicProfileContent.innerHTML = `
     <div class="public-profile-hero">
-      <div class="public-profile-avatar">${avatarMarkup}</div>
+      <div class="public-profile-avatar-wrap">
+        <div class="public-profile-avatar">${avatarMarkup}</div>
+      </div>
       <div class="public-profile-hero-info">
         <div class="public-profile-name-row">
           <h4>${esc(profile.name || 'LinkUp user')}</h4>
           ${verifiedBadge}
         </div>
-        <p class="public-profile-university">${esc(profile.university || profile.universityDomain || '')}</p>
-        ${academicParts.length ? `<p class="public-profile-academic">${esc(academicParts.join(' · '))}</p>` : ''}
-        ${memberLabel ? `<p class="public-profile-member-label">${esc(memberLabel)}</p>` : ''}
+        <p class="public-profile-university">${esc(heroMeta.join(' · '))}</p>
+        ${profile.isCurrentUser ? '' : `
+          <div class="public-profile-hero-actions">
+            <button id="public-profile-connect-button" type="button" class="primary-action-button" ${profile.connectionStatus && profile.connectionStatus !== 'none' ? 'disabled' : ''}>
+              ${profile.connectionStatus === 'connected' ? 'Linked' : 'LinkUp'}
+            </button>
+            <span class="public-profile-link-count">${esc(linksLabel)}</span>
+            ${linkupStatusText ? `<span>${esc(linkupStatusText)}</span>` : ''}
+          </div>
+        `}
         ${renderPublicSocialLinks(profile)}
       </div>
     </div>
@@ -2876,6 +3135,8 @@ function renderPublicProfile(profile) {
       </div>
     </div>
 
+    ${profileDetailSections ? `<div class="public-profile-detail-grid${profileDetailSectionList.length === 1 ? ' public-profile-detail-grid--single' : ''}">${profileDetailSections}</div>` : ''}
+
     ${hasRating ? `
     <div class="public-profile-rating-card public-profile-rating-card--${ratingTone}">
       <div class="rating-card-left">
@@ -2890,14 +3151,24 @@ function renderPublicProfile(profile) {
 
     ${profile.isCurrentUser ? '' : `
       <div class="public-profile-actions">
+        <div>
+          <strong>Safety controls</strong>
+          <p>${profile.isBlockedByCurrentUser ? 'You blocked this user. Listings and requests are hidden from each other.' : 'Blocking hides your listings and requests from each other.'}</p>
+        </div>
         <button id="public-profile-block-button" type="button" class="${profile.isBlockedByCurrentUser ? 'secondary-action-button' : 'block-user-button'}">
           ${profile.isBlockedByCurrentUser ? 'Unblock user' : 'Block user'}
         </button>
-        <p>${profile.isBlockedByCurrentUser ? 'You blocked this user. Listings and requests are hidden from each other.' : 'Blocking hides your listings and requests from each other.'}</p>
       </div>
     `}
   `;
+  document.getElementById('public-profile-connect-button')?.addEventListener('click', () => requestUserConnection(profile));
   document.getElementById('public-profile-block-button')?.addEventListener('click', () => toggleUserBlock(profile));
+  publicProfileContent.querySelectorAll('[data-interest-tag]').forEach((button) => {
+    button.addEventListener('click', () => showInterestTagPage(button.dataset.interestTag));
+  });
+  publicProfileContent.querySelectorAll('[data-group-name]').forEach((button) => {
+    button.addEventListener('click', () => showGroupWelcomePage(button.dataset.groupName));
+  });
 }
 
 async function showPublicProfilePage(userId) {
@@ -2987,6 +3258,710 @@ function loadDashboardHome() {
   if (findBtn) findBtn.onclick = () => showBrowsePage();
   if (listBtn) listBtn.onclick = () => showListRidePage();
   loadDashboardUpcomingRide();
+}
+
+function showSocialPage() {
+  if (!isSocialPreviewEnabled()) {
+    showDashboardHome();
+    return;
+  }
+  if (!ensureServiceAccess()) return;
+  setAppRoute('social');
+  clearCartMessages();
+  hideDashboardPages();
+  socialPage?.classList.remove('hidden');
+  socialPage?.classList.remove('social-detail-mode');
+  if (socialPageTitle) socialPageTitle.textContent = 'Social';
+  if (socialPageSubtitle) socialPageSubtitle.textContent = 'Posts from your links, campus discovery, and trusted groups.';
+  if (socialBackHomeButton) socialBackHomeButton.textContent = '← Home';
+  loadSocialPage();
+}
+
+function handleSocialBackButton() {
+  if (socialPage?.classList.contains('social-detail-mode')) {
+    showSocialPage();
+    return;
+  }
+  returnToBrowseRides();
+}
+
+function loadSocialPage() {
+  socialDetailSection?.classList.add('hidden');
+  socialFeedSection?.classList.remove('hidden');
+  document.getElementById('dashboard-discovery-section')?.classList.remove('hidden');
+  document.getElementById('dashboard-groups-section')?.classList.remove('hidden');
+  setupCampusGroupForms();
+  loadSocialHomeFeed();
+  loadDashboardPeopleSuggestions();
+  loadCampusGroupsPanel();
+  loadConnectionRequestsPanel();
+}
+
+function showSocialDetailShell(route, title = 'Social', subtitle = 'Campus discovery and trusted groups.') {
+  if (!isSocialPreviewEnabled()) {
+    showDashboardHome();
+    return false;
+  }
+  if (!ensureServiceAccess()) return false;
+  setAppRoute(route);
+  clearCartMessages();
+  hideDashboardPages();
+  socialPage?.classList.remove('hidden');
+  socialPage?.classList.add('social-detail-mode');
+  if (socialPageTitle) socialPageTitle.textContent = title;
+  if (socialPageSubtitle) socialPageSubtitle.textContent = subtitle;
+  if (socialBackHomeButton) socialBackHomeButton.textContent = '← Social';
+  socialFeedSection?.classList.add('hidden');
+  document.getElementById('dashboard-discovery-section')?.classList.add('hidden');
+  document.getElementById('dashboard-groups-section')?.classList.add('hidden');
+  socialDetailSection?.classList.remove('hidden');
+  return true;
+}
+
+async function loadSocialHomeFeed() {
+  if (!socialHomeFeed) return;
+  socialHomeFeed.textContent = 'Loading posts...';
+  try {
+    const data = await fetchJson('/api/social/feed');
+    const posts = data.posts || [];
+    if (!posts.length) {
+      socialHomeFeed.innerHTML = `
+        <div class="social-feed-empty">
+          <strong>No posts from your links yet.</strong>
+          <span>LinkUp with classmates or join campus groups to start seeing updates here.</span>
+        </div>
+      `;
+      return;
+    }
+    socialHomeFeed.innerHTML = posts.map((post) => {
+      const avatar = post.authorProfilePictureDataUrl
+        ? `<img src="${esc(post.authorProfilePictureDataUrl)}" alt="${esc(post.authorName || 'Member')} profile picture" />`
+        : `<span>${esc((post.authorFirstName || post.authorName || 'S').charAt(0).toUpperCase())}</span>`;
+      return `
+        <article class="social-feed-card">
+          <div class="social-feed-card-head">
+            <button type="button" class="social-feed-avatar user-profile-link" data-user-id="${esc(post.authorId)}">${avatar}</button>
+            <div>
+              <button type="button" class="user-profile-link social-feed-author" data-user-id="${esc(post.authorId)}">${esc(post.authorName || 'Member')}</button>
+              <p>${esc(post.groupName || 'Campus')} · ${esc(formatPublicProfileDate(post.createdAt))}</p>
+            </div>
+          </div>
+          <p class="social-feed-text">${esc(post.text)}</p>
+          <div class="social-feed-actions">
+            <button type="button" data-group-name="${esc(post.groupName || '')}">View group</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+    socialHomeFeed.querySelectorAll('[data-group-name]').forEach((button) => {
+      button.addEventListener('click', () => showGroupWelcomePage(button.dataset.groupName));
+    });
+  } catch (err) {
+    socialHomeFeed.innerHTML = `<div class="social-feed-empty"><strong>Unable to load posts.</strong><span>${esc(err.message || 'Try again later.')}</span></div>`;
+  }
+}
+
+async function showInterestTagPage(tag) {
+  const cleanTag = String(tag || '').trim();
+  if (!cleanTag || !showSocialDetailShell(interestTagRoute(cleanTag), cleanTag, 'Posts and group updates tagged with this interest.')) return;
+  socialDetailSection.innerHTML = `
+    <div class="social-detail-feed">Loading tagged posts...</div>
+  `;
+  try {
+    const data = await fetchJson('/api/interests/' + encodeURIComponent(cleanTag) + '/posts');
+    const feed = socialDetailSection.querySelector('.social-detail-feed');
+    const posts = data.posts || [];
+    feed.innerHTML = posts.length ? posts.map((post) => `
+      <article class="social-post-card">
+        <div>
+          <strong>${esc(post.authorName || 'Member')}</strong>
+          <span>${esc(post.groupName || 'Campus')}</span>
+        </div>
+        <p>${esc(post.text)}</p>
+      </article>
+    `).join('') : '<div class="dashboard-discovery-empty">No posts with this tag yet.</div>';
+  } catch (err) {
+    socialDetailSection.querySelector('.social-detail-feed').innerHTML = `<div class="dashboard-discovery-empty">${esc(err.message || 'Unable to load tagged posts.')}</div>`;
+  }
+}
+
+async function showGroupWelcomePage(groupName) {
+  const cleanName = String(groupName || '').trim();
+  if (!cleanName || !showSocialDetailShell(groupWelcomeRoute(cleanName), cleanName, 'Club profile, announcements, events, members, and chat.')) return;
+  socialDetailSection.innerHTML = `
+    <div class="social-group-welcome">Loading group...</div>
+  `;
+  try {
+    const group = await fetchJson('/api/groups/lookup?name=' + encodeURIComponent(cleanName));
+    if (socialPageTitle) socialPageTitle.textContent = group.name || cleanName;
+    if (socialPageSubtitle) socialPageSubtitle.textContent = group.kind === 'club'
+      ? 'Club profile, announcements, events, members, and chat.'
+      : 'Group profile, announcements, members, and campus rides.';
+    renderGroupWelcome(group);
+  } catch (err) {
+    socialDetailSection.querySelector('.social-group-welcome').innerHTML = `<div class="dashboard-discovery-empty">${esc(err.message || 'This group does not have a welcome page yet.')}</div>`;
+  }
+}
+
+function renderGroupWelcome(group) {
+  const joined = group.membershipStatus === 'active';
+  const pending = group.membershipStatus === 'pending';
+  const isClub = group.kind === 'club';
+  const description = group.description || (isClub ? 'An official campus club with events, officers, and member approval.' : 'An open campus group for students with shared interests.');
+  const logoInitials = (group.name || 'LU')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join('') || 'LU';
+  const logoMarkup = group.logoDataUrl
+    ? `<img class="club-logo-image" src="${esc(group.logoDataUrl)}" alt="${esc(group.name || 'Club')} logo" />`
+    : esc(logoInitials);
+  const bannerMarkup = group.bannerDataUrl
+    ? `<img class="club-cover-image" src="${esc(group.bannerDataUrl)}" alt="${esc(group.name || 'Club')} banner" />`
+    : '';
+  const memberList = (group.members || []).map((member) => {
+    const avatar = member.profilePictureDataUrl
+      ? `<img src="${esc(member.profilePictureDataUrl)}" alt="${esc(member.name)} profile picture" />`
+      : `<span>${esc((member.firstName || member.name || 'M').charAt(0).toUpperCase())}</span>`;
+    return `
+      <article class="club-member-card">
+        <button type="button" class="club-member-avatar user-profile-link" data-user-id="${esc(member.id)}">${avatar}</button>
+        <div>
+          <button type="button" class="user-profile-link club-member-name" data-user-id="${esc(member.id)}">${esc(member.name)}</button>
+          <p>${esc(member.boardPosition || (member.role === 'owner' ? 'President' : member.role === 'admin' ? 'Board member' : 'Member'))}</p>
+          <span>${esc([member.major, member.classYear ? 'Class of ' + member.classYear : ''].filter(Boolean).join(' · '))}</span>
+        </div>
+        ${group.canRemoveMembers && member.role !== 'owner' && member.id !== currentUser?.id ? `<button type="button" class="club-member-remove" data-remove-member="${esc(member.id)}">Remove</button>` : ''}
+      </article>
+    `;
+  }).join('');
+  const eventList = (group.events || []).map((event) => `
+    <article class="club-event-card">
+      <time datetime="${esc(event.date)}">${esc(new Date(event.date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' }))}</time>
+      <div>
+        <h5>${esc(event.title)}</h5>
+        <p>${esc([event.time, event.location].filter(Boolean).join(' · ') || 'Details coming soon')}</p>
+        ${event.description ? `<span>${esc(event.description)}</span>` : ''}
+      </div>
+    </article>
+  `).join('');
+  const announcementMarkup = joined && group.posts?.length ? group.posts.map((post) => `
+    <article class="social-post-card">
+      <div><strong>${esc(post.authorName || 'Member')}</strong><span>Announcement</span></div>
+      <p>${esc(post.text)}</p>
+    </article>
+  `).join('') : `<div class="dashboard-discovery-empty">${joined ? 'No announcements yet.' : 'Join this ' + (isClub ? 'club' : 'group') + ' to see announcements and private ride posts.'}</div>`;
+  socialDetailSection.querySelector('.social-group-welcome').innerHTML = `
+    <article class="club-profile-hero">
+      <div class="club-cover">${bannerMarkup}</div>
+      <div class="club-profile-main">
+        <div class="club-logo">${logoMarkup}</div>
+        <div class="club-profile-copy">
+          <span class="social-group-kicker">${esc(isClub ? 'Official club' : 'Open group')} · ${esc(group.visibility || 'public')} · ${esc(String(group.memberCount || 0))} member${group.memberCount === 1 ? '' : 's'}</span>
+          <p>${esc(description)}</p>
+          ${isClub && group.canManageBoard ? `
+            <div class="club-identity-actions" aria-label="Club identity controls">
+              <button type="button" data-club-logo-button>Change logo</button>
+              <button type="button" data-club-banner-button>Change banner</button>
+              <input type="file" class="hidden" data-club-logo-input accept="image/png,image/jpeg,image/webp" />
+              <input type="file" class="hidden" data-club-banner-input accept="image/png,image/jpeg,image/webp" />
+            </div>
+          ` : ''}
+        </div>
+        <div class="club-profile-action">
+          ${joined ? '<span class="social-group-status">Member</span>' : pending ? '<span class="social-group-status">Waiting for board approval</span>' : '<button type="button" class="primary-action-button" data-request-group-join>Request to join</button>'}
+        </div>
+      </div>
+    </article>
+    <div class="club-profile-tabs" role="tablist" aria-label="${esc(group.name || 'Club')} sections">
+      <button type="button" class="active" data-club-tab="announcements">Announcements</button>
+      <button type="button" data-club-tab="events">Events</button>
+      <button type="button" data-club-tab="members">Members</button>
+      <button type="button" data-club-tab="chat">Chat</button>
+    </div>
+    <div class="club-tab-panels">
+      <section class="club-tab-panel" data-club-panel="announcements">
+        <div class="club-page-panel-head">
+          <h4>Announcements</h4>
+          <span>${esc(String((group.posts || []).length))} posts</span>
+        </div>
+        <div class="social-detail-feed">${announcementMarkup}</div>
+      </section>
+      <section class="club-tab-panel hidden" data-club-panel="events">
+        <div class="club-page-panel-head">
+          <h4>Events</h4>
+          <span>${esc(String((group.events || []).length))} upcoming</span>
+        </div>
+        ${isClub && group.canManageEvents ? `
+          <form class="club-event-form">
+            <input type="text" name="title" maxlength="80" placeholder="Event title" required />
+            <input type="date" name="date" required />
+            <input type="text" name="time" maxlength="12" placeholder="Time" />
+            <input type="text" name="location" maxlength="100" placeholder="Location" />
+            <button type="submit">Add event</button>
+          </form>
+        ` : ''}
+        <div class="club-event-list">${eventList || '<p class="dashboard-discovery-empty">No upcoming events yet.</p>'}</div>
+      </section>
+      <section class="club-tab-panel hidden" data-club-panel="members">
+        <div class="club-page-panel-head">
+          <h4>Members</h4>
+          <span>${esc(String(group.memberCount || 0))} total</span>
+        </div>
+        ${isClub && group.canManageBoard ? `
+          <form class="club-position-form">
+            <p class="club-position-note">President and vice president can assign board titles and clearance.</p>
+            <select name="userId" aria-label="Member">
+              ${(group.members || []).map((member) => `<option value="${esc(member.id)}">${esc(member.name)}</option>`).join('')}
+            </select>
+            <input type="text" name="boardPosition" maxlength="60" placeholder="Board position, e.g. Treasurer" />
+            <label><input type="checkbox" name="approveMembers" /> Approve</label>
+            <label><input type="checkbox" name="manageEvents" /> Events</label>
+            <label><input type="checkbox" name="removeMembers" /> Remove</label>
+            <button type="submit">Save title</button>
+          </form>
+        ` : ''}
+        <div class="club-member-list">${memberList || '<p class="dashboard-discovery-empty">Members appear after approval.</p>'}</div>
+      </section>
+      <section class="club-tab-panel hidden" data-club-panel="chat">
+        ${isClub ? `
+          <div class="club-chat-panel">
+            <div class="club-page-panel-head">
+              <h4>Club chat</h4>
+              <span>${joined ? 'Members only' : 'Join to chat'}</span>
+            </div>
+            ${joined ? `
+              <div class="ride-chat-messages club-chat-messages" data-club-chat-messages>Loading club chat...</div>
+              <form class="ride-chat-form club-chat-form">
+                <input type="text" maxlength="500" placeholder="Message the club..." />
+                <button type="submit">Send</button>
+              </form>
+              <div class="error-message" data-club-chat-error></div>
+            ` : '<div class="dashboard-discovery-empty">Approved club members can use club chat.</div>'}
+          </div>
+        ` : '<div class="dashboard-discovery-empty">Chat is available inside official clubs.</div>'}
+      </section>
+    </div>
+  `;
+  socialDetailSection.querySelectorAll('[data-club-tab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const tab = button.dataset.clubTab;
+      socialDetailSection.querySelectorAll('[data-club-tab]').forEach((item) => item.classList.toggle('active', item === button));
+      socialDetailSection.querySelectorAll('[data-club-panel]').forEach((panel) => panel.classList.toggle('hidden', panel.dataset.clubPanel !== tab));
+      if (tab === 'chat' && isClub && joined && !button.dataset.loadedChat) {
+        setupClubChat(group);
+        button.dataset.loadedChat = 'true';
+      }
+    });
+  });
+  setupClubIdentityUploads(group);
+  socialDetailSection.querySelector('[data-request-group-join]')?.addEventListener('click', async () => {
+    try {
+      const updated = await fetchJson('/api/groups/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: group.id }),
+      });
+      showToast(updated.membershipStatus === 'pending' ? 'Request sent for board approval.' : 'Joined group.', 'success');
+      renderGroupWelcome(updated);
+    } catch (err) {
+      showToast(err.message || 'Unable to request access.', 'error');
+    }
+  });
+  socialDetailSection.querySelector('.club-event-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    try {
+      const updated = await fetchJson('/api/groups/' + encodeURIComponent(group.id) + '/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.elements.title.value,
+          date: form.elements.date.value,
+          time: form.elements.time.value,
+          location: form.elements.location.value,
+        }),
+      });
+      showToast('Event added.', 'success');
+      renderGroupWelcome(updated);
+    } catch (err) {
+      showToast(err.message || 'Unable to add event.', 'error');
+    }
+  });
+  socialDetailSection.querySelector('.club-position-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    try {
+      const updated = await fetchJson('/api/groups/' + encodeURIComponent(group.id) + '/members/' + encodeURIComponent(form.elements.userId.value) + '/position', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          boardPosition: form.elements.boardPosition.value,
+          permissions: {
+            approveMembers: form.elements.approveMembers.checked,
+            manageEvents: form.elements.manageEvents.checked,
+            removeMembers: form.elements.removeMembers.checked,
+          },
+        }),
+      });
+      showToast('Board position updated.', 'success');
+      renderGroupWelcome(updated);
+    } catch (err) {
+      showToast(err.message || 'Unable to update board position.', 'error');
+    }
+  });
+  const positionForm = socialDetailSection.querySelector('.club-position-form');
+  if (positionForm) {
+    const applyMemberPermissionFields = () => {
+      const member = (group.members || []).find((entry) => entry.id === positionForm.elements.userId.value);
+      positionForm.elements.boardPosition.value = member?.boardPosition || '';
+      positionForm.elements.approveMembers.checked = member?.permissions?.approveMembers === true;
+      positionForm.elements.manageEvents.checked = member?.permissions?.manageEvents === true;
+      positionForm.elements.removeMembers.checked = member?.permissions?.removeMembers === true;
+    };
+    positionForm.elements.userId.addEventListener('change', applyMemberPermissionFields);
+    applyMemberPermissionFields();
+  }
+  socialDetailSection.querySelectorAll('[data-remove-member]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const confirmed = window.confirm('Remove this member from the group?');
+      if (!confirmed) return;
+      try {
+        const updated = await fetchJson('/api/groups/' + encodeURIComponent(group.id) + '/members/' + encodeURIComponent(button.dataset.removeMember), { method: 'DELETE' });
+        showToast('Member removed.', 'success');
+        renderGroupWelcome(updated);
+      } catch (err) {
+        showToast(err.message || 'Unable to remove member.', 'error');
+      }
+    });
+  });
+}
+
+function readClubIdentityImage(file) {
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('Choose an image first.'));
+      return;
+    }
+    if (!allowedTypes.includes(file.type)) {
+      reject(new Error('Use a PNG, JPG, or WebP image.'));
+      return;
+    }
+    if (file.size > 512 * 1024) {
+      reject(new Error('Club images must be 512 KB or smaller.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Unable to read that image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function setupClubIdentityUploads(group) {
+  if (!group?.canManageBoard || group.kind !== 'club') return;
+  const logoButton = socialDetailSection.querySelector('[data-club-logo-button]');
+  const bannerButton = socialDetailSection.querySelector('[data-club-banner-button]');
+  const logoInput = socialDetailSection.querySelector('[data-club-logo-input]');
+  const bannerInput = socialDetailSection.querySelector('[data-club-banner-input]');
+
+  const uploadIdentityImage = async (input, key, successMessage) => {
+    const file = input?.files?.[0];
+    try {
+      const dataUrl = await readClubIdentityImage(file);
+      const updated = await fetchJson('/api/groups/' + encodeURIComponent(group.id) + '/identity', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: dataUrl }),
+      });
+      showToast(successMessage, 'success');
+      renderGroupWelcome(updated);
+    } catch (err) {
+      showToast(err.message || 'Unable to update club image.', 'error');
+      if (input) input.value = '';
+    }
+  };
+
+  logoButton?.addEventListener('click', () => logoInput?.click());
+  bannerButton?.addEventListener('click', () => bannerInput?.click());
+  logoInput?.addEventListener('change', () => uploadIdentityImage(logoInput, 'logoDataUrl', 'Club logo updated.'));
+  bannerInput?.addEventListener('change', () => uploadIdentityImage(bannerInput, 'bannerDataUrl', 'Club banner updated.'));
+}
+
+async function loadClubChatMessages(groupId, listElement, errorElement) {
+  listElement.textContent = 'Loading club chat...';
+  if (errorElement) {
+    errorElement.textContent = '';
+    errorElement.classList.remove('show');
+  }
+  try {
+    const data = await fetchJson('/api/groups/' + encodeURIComponent(groupId) + '/chat/messages');
+    listElement.innerHTML = '';
+    if (!data.messages.length) {
+      listElement.textContent = 'No club messages yet.';
+      return;
+    }
+    data.messages.forEach((message) => {
+      const item = document.createElement('div');
+      item.className = 'chat-message' + (message.senderId === currentUser?.id ? ' mine' : '');
+      const meta = document.createElement('div');
+      meta.className = 'chat-message-meta';
+      meta.append(
+        createPublicProfileLink(message.senderId, message.senderFirstName || 'Member'),
+        document.createTextNode(' · Club · ' + formatChatTime(message.createdAt))
+      );
+      const textDiv = document.createElement('div');
+      textDiv.className = 'chat-message-text';
+      textDiv.textContent = message.text;
+      item.append(meta, textDiv);
+      listElement.appendChild(item);
+    });
+    listElement.scrollTop = listElement.scrollHeight;
+  } catch (err) {
+    listElement.textContent = '';
+    if (errorElement) {
+      errorElement.textContent = err.message || 'Unable to load club chat.';
+      errorElement.classList.add('show');
+    }
+  }
+}
+
+function setupClubChat(group) {
+  const listElement = socialDetailSection.querySelector('[data-club-chat-messages]');
+  const form = socialDetailSection.querySelector('.club-chat-form');
+  const errorElement = socialDetailSection.querySelector('[data-club-chat-error]');
+  if (!listElement || !form) return;
+  loadClubChatMessages(group.id, listElement, errorElement);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = form.querySelector('input');
+    const button = form.querySelector('button');
+    const text = input.value.trim();
+    if (!text) return;
+    button.disabled = true;
+    input.disabled = true;
+    errorElement?.classList.remove('show');
+    try {
+      await fetchJson('/api/groups/' + encodeURIComponent(group.id) + '/chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      input.value = '';
+      await loadClubChatMessages(group.id, listElement, errorElement);
+    } catch (err) {
+      if (errorElement) {
+        errorElement.textContent = err.message || 'Unable to send club message.';
+        errorElement.classList.add('show');
+      }
+    } finally {
+      button.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
+  });
+}
+
+async function loadDashboardPeopleSuggestions() {
+  const container = document.getElementById('dashboard-people-suggestions');
+  if (!container) return;
+  container.textContent = 'Finding trusted campus matches...';
+  try {
+    const data = await fetchJson('/api/users/suggestions');
+    const suggestions = data.suggestions || [];
+    container.innerHTML = '';
+    if (!suggestions.length) {
+      const empty = document.createElement('div');
+      empty.className = 'dashboard-discovery-empty';
+      empty.textContent = 'Add interests and campus groups to your profile to unlock better suggestions.';
+      container.appendChild(empty);
+      return;
+    }
+    suggestions.forEach((person) => {
+      const card = document.createElement('article');
+      card.className = 'dashboard-person-card';
+      const avatar = person.profilePictureDataUrl
+        ? `<img src="${esc(person.profilePictureDataUrl)}" alt="${esc(person.name)} profile picture" />`
+        : `<span>${esc((person.firstName || person.name || 'S').charAt(0).toUpperCase())}</span>`;
+      const shared = [
+          ...(person.sharedGroups || []).map((value) => 'Group: ' + value),
+          ...(person.sharedInterests || []).map((value) => 'Interest: ' + value),
+          ...(person.matchTypes || []),
+          person.mutualConnectionCount ? `${person.mutualConnectionCount} mutual link${person.mutualConnectionCount === 1 ? '' : 's'}` : '',
+      ].filter(Boolean);
+      card.innerHTML = `
+        <div class="dashboard-person-avatar">${avatar}</div>
+        <div class="dashboard-person-body">
+          <button type="button" class="user-profile-link dashboard-person-name" data-user-id="${esc(person.id)}">${esc(person.name || 'Student')}</button>
+          <p>${esc([person.major, person.classYear ? 'Class of ' + person.classYear : '', person.university].filter(Boolean).join(' · '))}</p>
+          ${shared.length ? `<div class="dashboard-person-shared">${shared.slice(0, 3).map((item) => `<span>${esc(item)}</span>`).join('')}</div>` : ''}
+        </div>
+        <button type="button" class="dashboard-person-follow" data-linkup-user-id="${esc(person.id)}">LinkUp</button>
+      `;
+      card.querySelector('[data-linkup-user-id]')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.textContent = 'Sending...';
+        try {
+          await fetchJson('/api/users/' + encodeURIComponent(person.id) + '/linkup', { method: 'POST' });
+          button.textContent = 'LinkUp sent';
+          button.classList.add('is-following');
+        } catch (err) {
+          button.disabled = false;
+          button.textContent = 'LinkUp';
+          showToast(err.message || 'Unable to send LinkUp request.', 'error');
+        }
+      });
+      container.appendChild(card);
+    });
+  } catch {
+    container.textContent = 'Unable to load campus suggestions.';
+  }
+}
+
+function setupCampusGroupForms() {
+  const createForm = document.getElementById('campus-group-create-form');
+  const joinForm = document.getElementById('campus-group-join-form');
+  if (createForm && !createForm.dataset.bound) {
+    createForm.dataset.bound = 'true';
+    createForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await fetchJson('/api/groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('campus-group-name').value,
+            kind: document.getElementById('campus-group-kind').value,
+            visibility: document.getElementById('campus-group-visibility').value,
+          }),
+        });
+        createForm.reset();
+        await loadCampusGroupsPanel();
+        showToast('Group or club created.', 'success');
+      } catch (err) {
+        showToast(err.message || 'Unable to create group.', 'error');
+      }
+    });
+  }
+  if (joinForm && !joinForm.dataset.bound) {
+    joinForm.dataset.bound = 'true';
+    joinForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await fetchJson('/api/groups/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inviteCode: document.getElementById('campus-group-code').value }),
+        });
+        joinForm.reset();
+        await loadCampusGroupsPanel();
+        showToast('Joined or requested access.', 'success');
+      } catch (err) {
+        showToast(err.message || 'Unable to join group.', 'error');
+      }
+    });
+  }
+}
+
+async function loadCampusGroupsPanel() {
+  const container = document.getElementById('dashboard-campus-groups');
+  if (!container) return;
+  container.textContent = 'Loading campus groups...';
+  try {
+    const data = await fetchJson('/api/groups');
+    currentCampusGroups = data.groups || [];
+    refreshRideAudienceControls();
+    container.innerHTML = '';
+    if (!currentCampusGroups.length) {
+      container.innerHTML = '<div class="dashboard-discovery-empty">Create or join a group to unlock group-only rides and announcements.</div>';
+      return;
+    }
+    currentCampusGroups.forEach((group) => {
+      const card = document.createElement('article');
+      card.className = 'dashboard-group-card';
+      const joined = group.membershipStatus === 'active';
+      const pending = group.membershipStatus === 'pending';
+      card.innerHTML = `
+        <div class="dashboard-group-card-head">
+          <div>
+            <h4>${esc(group.name)}</h4>
+            <p>${esc([group.kind === 'club' ? 'Official club' : 'Open group', group.visibility, group.memberCount + ' member' + (group.memberCount === 1 ? '' : 's')].join(' · '))}</p>
+          </div>
+          ${group.canManage && group.inviteCode ? `<code>${esc(group.inviteCode)}</code>` : ''}
+        </div>
+        ${group.description ? `<p class="dashboard-group-desc">${esc(group.description)}</p>` : ''}
+        ${!joined && !pending ? `<button type="button" class="dashboard-group-join">Join</button>` : ''}
+        ${pending ? '<p class="dashboard-group-desc">Waiting for approval.</p>' : ''}
+        ${group.canApproveMembers && group.pendingMembers?.length ? `<div class="dashboard-group-pending">${group.pendingMembers.map((member) => `<button type="button" data-approve-user="${esc(member.id)}">Approve ${esc(member.name)}</button>`).join('')}</div>` : ''}
+        ${joined ? `
+          <div class="dashboard-group-club-summary">
+            ${group.kind === 'club' ? `<span>${esc(String((group.events || []).length))} upcoming events</span><span>${esc(String((group.members || []).filter((member) => member.boardPosition).length))} board members</span>` : '<span>Open interest group</span>'}
+          </div>
+          <button type="button" class="dashboard-group-open" data-open-group="${esc(group.name)}">Open ${group.kind === 'club' ? 'club' : 'group'} page</button>
+          <form class="dashboard-group-post-form">
+            <input type="text" maxlength="500" placeholder="Share an update, meetup, or ride announcement" />
+            <button type="submit">Post</button>
+          </form>
+          <div class="dashboard-group-posts">${(group.posts || []).map((post) => `<p><strong>${esc(post.authorName)}</strong> ${esc(post.text)}</p>`).join('') || '<p>No announcements yet.</p>'}</div>
+        ` : ''}
+      `;
+      card.querySelector('.dashboard-group-join')?.addEventListener('click', async () => {
+        await fetchJson('/api/groups/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupId: group.id }),
+        });
+        await loadCampusGroupsPanel();
+      });
+      card.querySelector('[data-open-group]')?.addEventListener('click', () => showGroupWelcomePage(group.name));
+      card.querySelectorAll('[data-approve-user]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          await fetchJson('/api/groups/' + encodeURIComponent(group.id) + '/members/' + encodeURIComponent(button.dataset.approveUser) + '/approve', { method: 'POST' });
+          await loadCampusGroupsPanel();
+        });
+      });
+      card.querySelector('.dashboard-group-post-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = event.currentTarget.querySelector('input');
+        await fetchJson('/api/groups/' + encodeURIComponent(group.id) + '/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: input.value }),
+        });
+        input.value = '';
+        await loadCampusGroupsPanel();
+      });
+      container.appendChild(card);
+    });
+  } catch {
+    container.textContent = 'Unable to load campus groups.';
+  }
+}
+
+async function loadConnectionRequestsPanel() {
+  const container = document.getElementById('dashboard-connection-requests');
+  if (!container) return;
+  try {
+    const data = await fetchJson('/api/linkups');
+    const pending = data.pending || [];
+    container.innerHTML = pending.length ? '<h4>LinkUp requests</h4>' : '';
+    pending.forEach((person) => {
+      const row = document.createElement('div');
+      row.className = 'dashboard-connection-request';
+      row.innerHTML = `<span>${esc(person.name)}</span><button type="button">Accept</button>`;
+      row.querySelector('button').addEventListener('click', async () => {
+        await fetchJson('/api/users/' + encodeURIComponent(person.id) + '/linkup/accept', { method: 'POST' });
+        await loadConnectionRequestsPanel();
+        await loadDashboardPeopleSuggestions();
+      });
+      container.appendChild(row);
+    });
+  } catch {
+    container.textContent = '';
+  }
 }
 
 async function loadDashboardUpcomingRide() {
@@ -3219,8 +4194,42 @@ function returnFromLegalPage() {
 function showWaitlistPage(user) {
   setAppRoute('waitlist');
   hideDashboardPages();
+  dashboard.classList.add('waitlist-lock-mode');
   waitlistPage.classList.remove('hidden');
-  waitlistMessage.textContent = 'We saved your account for ' + (user.university || user.universityDomain || 'your university') + '. We will notify you when LinkUp launches at your university.';
+
+  const memberLabel = formatMemberNumber(user?.memberNumber);
+  if (waitlistTitle) {
+    waitlistTitle.textContent = memberLabel ? 'Member ' + memberLabel : "You're in.";
+  }
+
+  const schoolEl = document.getElementById('waitlist-school');
+  if (schoolEl) {
+    const school = user?.university || user?.universityDomain || 'Your school';
+    schoolEl.textContent = school + ' — access coming soon.';
+  }
+
+  if (waitlistMessage) {
+    waitlistMessage.textContent = "We'll email " + (user?.email || 'you') + " the moment LinkUp launches at your school.";
+  }
+
+  const shareBtn = document.getElementById('waitlist-share-btn');
+  if (shareBtn) {
+    shareBtn.onclick = () => {
+      const shareText = 'Just joined LinkUp — ride sharing for university students. Get early access: https://linkuprides.com';
+      if (navigator.share) {
+        navigator.share({ title: 'LinkUp', text: shareText, url: 'https://linkuprides.com' }).catch(() => {});
+      } else {
+        navigator.clipboard?.writeText('https://linkuprides.com').then(() => {
+          const orig = shareBtn.innerHTML;
+          shareBtn.textContent = 'Link copied!';
+          setTimeout(() => { shareBtn.innerHTML = orig; }, 2200);
+        }).catch(() => {});
+      }
+    };
+  }
+
+  const profileBtn = document.getElementById('waitlist-profile-button');
+  if (profileBtn) profileBtn.onclick = () => showProfilePage('info');
 }
 
 function showCartPage() {
@@ -3256,6 +4265,7 @@ function showRequestRidePage() {
   clearCartMessages();
   clearRequestRideMessages();
   hideDashboardPages();
+  refreshRideAudienceControls();
   requestRidePage.classList.remove('hidden');
   loadGoogleMapsAPI().then(() => initializeRequestAutocomplete()).catch(() => {});
 }
@@ -3265,6 +4275,7 @@ function showListRidePage() {
   setAppRoute('list-ride');
   clearCartMessages();
   hideDashboardPages();
+  refreshRideAudienceControls();
   listRidePage.classList.remove('hidden');
   loadProfile();
   loadGoogleMapsAPI().then(() => {
@@ -3454,6 +4465,9 @@ function restoreAppRoute() {
     else if (route === 'your-rides') showYourRidesPage();
     else if (route === 'admin') showAdminPage();
     else if (route === 'chat') showChatPage();
+    else if (route === 'social') showSocialPage();
+    else if (route.startsWith('interest-tag-')) showInterestTagPage(decodeURIComponent(route.replace(/^interest-tag-/, '')));
+    else if (route.startsWith('group-')) showGroupWelcomePage(decodeURIComponent(route.replace(/^group-/, '')));
     else if (route === 'request-ride') showRequestRidePage();
     else if (route === 'list-ride') showListRidePage();
     else if (route === 'leaderboard') showLeaderboardPage();
@@ -4794,6 +5808,7 @@ function renderRideCard(ride) {
     <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
     ${!isMovingCard ? `<div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>` : ''}
     ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school only</div>' : ''}
+    ${renderRideAudienceMarkup(ride)}
     ${getFlexRadiusMarkup(ride, 'driver')}
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
     <div><strong>Estimated time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
@@ -5101,6 +6116,20 @@ function createRideChat(ride, options = {}) {
   return wrapper;
 }
 
+function setChatSection(section) {
+  activeChatSection = section === 'social' ? 'social' : 'ride';
+  chatRideTab?.classList.toggle('active', activeChatSection === 'ride');
+  chatSocialTab?.classList.toggle('active', activeChatSection === 'social');
+  chatRidePanel?.classList.toggle('hidden', activeChatSection !== 'ride');
+  chatSocialPanel?.classList.toggle('hidden', activeChatSection !== 'social');
+  chatConversation.innerHTML = `<p>Select a ${activeChatSection === 'social' ? 'social chat' : 'ride'} to open its chat.</p>`;
+  if (activeChatSection === 'ride') {
+    loadRideChatList();
+  } else {
+    loadSocialChatList();
+  }
+}
+
 function getChatRideRole(ride) {
   return ride.driverId === currentUser?.id ? 'Driver' : 'Rider';
 }
@@ -5110,6 +6139,10 @@ function getChatRideTitle(ride) {
 }
 
 async function loadChatPage() {
+  setChatSection(activeChatSection);
+}
+
+async function loadRideChatList() {
   chatRideList.textContent = 'Loading ride chats...';
   chatConversation.innerHTML = '<p>Select a ride to open its chat.</p>';
   try {
@@ -5146,6 +6179,160 @@ async function loadChatPage() {
     }
   } catch (err) {
     chatRideList.textContent = 'Unable to load ride chats.';
+  }
+}
+
+async function loadSocialChatMessages(userId, listElement, errorElement, formElement) {
+  listElement.textContent = 'Loading chat...';
+  if (errorElement) {
+    errorElement.textContent = '';
+    errorElement.classList.remove('show');
+  }
+  try {
+    const data = await fetchJson('/api/social/chats/' + encodeURIComponent(userId) + '/messages');
+    listElement.innerHTML = '';
+    if (!data.messages.length) {
+      listElement.textContent = 'No messages yet.';
+      return;
+    }
+    data.messages.forEach((message) => {
+      const item = document.createElement('div');
+      item.className = 'chat-message' + (message.senderId === currentUser?.id ? ' mine' : '');
+      const meta = document.createElement('div');
+      meta.className = 'chat-message-meta';
+      meta.append(
+        createPublicProfileLink(message.senderId, message.senderFirstName || 'Student'),
+        document.createTextNode(' · Social · ' + formatChatTime(message.createdAt))
+      );
+      const textDiv = document.createElement('div');
+      textDiv.className = 'chat-message-text';
+      textDiv.textContent = message.text;
+      item.append(meta, textDiv);
+      listElement.appendChild(item);
+    });
+    listElement.scrollTop = listElement.scrollHeight;
+  } catch (err) {
+    listElement.textContent = '';
+    if (errorElement) {
+      errorElement.textContent = err.message;
+      errorElement.classList.add('show');
+    }
+  }
+}
+
+function createSocialChat(chat) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'ride-chat ride-chat-full';
+
+  const header = document.createElement('div');
+  header.className = 'ride-chat-header';
+
+  const title = document.createElement('strong');
+  title.textContent = 'Social chat - ' + (chat.name || 'Link');
+
+  const refreshButton = document.createElement('button');
+  refreshButton.type = 'button';
+  refreshButton.textContent = 'Refresh';
+
+  header.append(title, refreshButton);
+
+  const details = document.createElement('div');
+  details.className = 'chat-ride-details';
+  details.innerHTML = `
+    <h4>${publicProfileLinkMarkup(chat.id, chat.name || 'LinkUp user')}</h4>
+    <div class="chat-ride-detail-grid">
+      <div><strong>School:</strong> ${esc(chat.university || 'Campus network')}</div>
+      <div><strong>Major:</strong> ${esc(chat.major || 'Not shared')}</div>
+      <div><strong>Year:</strong> ${esc(chat.classYear ? 'Class of ' + chat.classYear : 'Not shared')}</div>
+      <div><strong>Connection:</strong> Linked</div>
+    </div>
+  `;
+
+  const messages = document.createElement('div');
+  messages.className = 'ride-chat-messages';
+
+  const form = document.createElement('form');
+  form.className = 'ride-chat-form';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 500;
+  input.placeholder = 'Message your Link...';
+
+  const sendButton = document.createElement('button');
+  sendButton.type = 'submit';
+  sendButton.textContent = 'Send';
+
+  const error = document.createElement('div');
+  error.className = 'error-message';
+
+  form.append(input, sendButton);
+  wrapper.append(header, details, messages, form, error);
+
+  refreshButton.addEventListener('click', () => loadSocialChatMessages(chat.id, messages, error, form));
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    sendButton.disabled = true;
+    input.disabled = true;
+    error.classList.remove('show');
+    try {
+      await fetchJson('/api/social/chats/' + encodeURIComponent(chat.id) + '/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      input.value = '';
+      loadSocialChatMessages(chat.id, messages, error, form);
+    } catch (err) {
+      error.textContent = err.message;
+      error.classList.add('show');
+    } finally {
+      sendButton.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
+  });
+
+  loadSocialChatMessages(chat.id, messages, error, form);
+  return wrapper;
+}
+
+async function loadSocialChatList() {
+  chatSocialList.textContent = 'Loading social chats...';
+  chatConversation.innerHTML = '<p>Select a social chat to open its chat.</p>';
+  try {
+    const data = await fetchJson('/api/social/chats');
+    const chats = data.chats || [];
+    chatSocialList.innerHTML = '';
+    if (!chats.length) {
+      chatSocialList.textContent = 'No social chats yet. LinkUp with classmates to start one.';
+      return;
+    }
+    chats.forEach((chat) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'chat-ride-button' + (selectedSocialChatUserId === chat.id ? ' active' : '');
+      button.dataset.userId = chat.id;
+      button.innerHTML = `<span>${esc(chat.name || 'LinkUp user')}</span>${chat.lastMessage ? `<small>${esc(chat.lastMessage.text)}</small>` : '<small>No messages yet</small>'}`;
+      button.addEventListener('click', () => {
+        selectedSocialChatUserId = chat.id;
+        chatSocialList.querySelectorAll('.chat-ride-button').forEach((item) => item.classList.remove('active'));
+        button.classList.add('active');
+        chatConversation.innerHTML = '';
+        chatConversation.appendChild(createSocialChat(chat));
+      });
+      chatSocialList.appendChild(button);
+    });
+    const initialChat = chats.find((chat) => chat.id === selectedSocialChatUserId) || chats[0];
+    if (initialChat) {
+      selectedSocialChatUserId = initialChat.id;
+      const firstButton = chatSocialList.querySelector('[data-user-id="' + initialChat.id + '"]');
+      firstButton?.click();
+    }
+  } catch (err) {
+    chatSocialList.textContent = 'Unable to load social chats.';
   }
 }
 
@@ -5277,6 +6464,7 @@ function buildRequestSummary(request) {
     <div><strong>School:</strong> ${esc(request.university || 'Unknown school')}</div>
     <div><strong>Preference:</strong> ${request.sameGenderDriverOnly ? 'Same gender driver only' : 'Open to all drivers'}</div>
     ${request.sameSchoolDriverOnly ? '<div><strong>School restriction:</strong> Same school drivers only</div>' : ''}
+    ${renderRideAudienceMarkup(request)}
     ${getFlexRadiusMarkup(request, 'rider')}
     <div><strong>Requested time:</strong> ${esc(requestTime)}</div>
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(request.estimatedDurationMinutes))}</div>
@@ -6698,6 +7886,11 @@ rideProviderChoices.forEach((button) => {
   button.addEventListener('click', () => chooseOfferProviderType(button.dataset.providerType));
 });
 changeRideProviderButton?.addEventListener('click', () => resetOfferProviderSelection());
+['ride', 'request'].forEach((prefix) => {
+  document.getElementById(prefix + '-group-only')?.addEventListener('change', (event) => {
+    document.getElementById(prefix + '-group-options')?.classList.toggle('hidden', !event.target.checked);
+  });
+});
 try {
   renderDriverSeatLayout();
   updateOfferProviderFields();
@@ -6850,6 +8043,7 @@ offerForm.addEventListener('submit', async (event) => {
   const time = document.getElementById('ride-time').value;
   const sameGenderOnly = sameGenderOnlyRideCheckbox.checked;
   const sameSchoolOnly = sameSchoolOnlyRideCheckbox.checked;
+  const rideAudience = getSelectedRideAudience('ride');
   const rideProviderType = rideProviderTypeSelect.value;
   const seats = document.getElementById('seats').value;
   const vehicleSeatCount = Number(vehicleSeatCountSelect.value);
@@ -6894,6 +8088,10 @@ offerForm.addEventListener('submit', async (event) => {
     showToast('Set a visible gender on your profile before offering same-gender rides.', 'error');
     return;
   }
+  if (rideAudience.audienceType === 'groups' && !rideAudience.audienceGroups.length) {
+    showToast('Choose at least one group or club, or post to the marketplace.', 'error');
+    return;
+  }
   // All validation passed — now estimate route metrics
   setButtonLoading(offerSubmitButton, true);
   try {
@@ -6919,6 +8117,8 @@ offerForm.addEventListener('submit', async (event) => {
         time,
         sameGenderOnly,
         sameSchoolOnly,
+        audienceType: rideAudience.audienceType,
+        audienceGroups: rideAudience.audienceGroups,
         rideProviderType,
         rideshareService,
         rideshareSeatCount,
@@ -6941,6 +8141,7 @@ offerForm.addEventListener('submit', async (event) => {
       }),
     });
     offerForm.reset();
+    document.getElementById('ride-group-options')?.classList.add('hidden');
     offerPickupRadiusCircle = drawMapFlexCircle(offerPickupRadiusCircle, originMap, null, 0, '#3ecfcf');
     offerDropoffRadiusCircle = drawMapFlexCircle(offerDropoffRadiusCircle, originMap, null, 0, '#4d9ef5');
     currentVehicleSeatCount = 5;
@@ -6993,6 +8194,12 @@ requestRideForm.addEventListener('submit', async (event) => {
     document.getElementById('request-date').value,
     document.getElementById('request-time').value
   );
+  const requestAudience = getSelectedRideAudience('request');
+  if (requestAudience.audienceType === 'groups' && !requestAudience.audienceGroups.length) {
+    requestRideError.textContent = 'Choose at least one group or club, or post to the marketplace.';
+    requestRideError.classList.add('show');
+    return;
+  }
   const payload = {
     origin: document.getElementById('request-origin').value.trim(),
     destination: document.getElementById('request-destination').value.trim(),
@@ -7015,6 +8222,8 @@ requestRideForm.addEventListener('submit', async (event) => {
     shareRideWithOthers: document.getElementById('request-share-ride').checked,
     sameGenderDriverOnly: document.getElementById('request-same-gender-driver').checked,
     sameSchoolDriverOnly: document.getElementById('request-same-school-driver').checked,
+    audienceType: requestAudience.audienceType,
+    audienceGroups: requestAudience.audienceGroups,
     notes: document.getElementById('request-notes').value.trim(),
   };
   setButtonLoading(requestSubmitButton, true);
@@ -7022,6 +8231,7 @@ requestRideForm.addEventListener('submit', async (event) => {
     await fetchJson('/api/ride-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     setButtonLoading(requestSubmitButton, false);
     requestRideForm.reset();
+    document.getElementById('request-group-options')?.classList.add('hidden');
     const destHint = document.getElementById('request-destination-hint');
     if (destHint) destHint.textContent = 'Only a general area is shown to drivers until one accepts your request.';
     resetMovingPhoto();
@@ -7129,7 +8339,10 @@ document.querySelectorAll('.request-type-btn').forEach((btn) => {
 listRideButton.addEventListener('click', () => showListRidePage());
 listRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 chatButton.addEventListener('click', () => showChatPage());
+socialButton?.addEventListener('click', () => showSocialPage());
 chatBackHomeButton.addEventListener('click', () => returnToBrowseRides());
+chatRideTab?.addEventListener('click', () => setChatSection('ride'));
+chatSocialTab?.addEventListener('click', () => setChatSection('social'));
 cartButton.addEventListener('click', () => showCartPage());
 yourRidesButton.addEventListener('click', () => showYourRidesPage());
 yourRidesCurrentTab.addEventListener('click', () => { setYourRidesView('current'); loadYourRides(); });
@@ -7140,6 +8353,7 @@ leaderboardButton.addEventListener('click', () => showLeaderboardPage());
 leaderboardBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 publicProfileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 profileButton.addEventListener('click', () => showProfilePage());
+waitlistProfileButton?.addEventListener('click', () => showProfilePage('info'));
 profileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 privacyLink.addEventListener('click', () => showLegalPage('privacy'));
 termsLink.addEventListener('click', () => showLegalPage('terms'));
@@ -7950,11 +9164,16 @@ profileForm.addEventListener('submit', async (event) => {
     lastName: document.getElementById('profile-last-name').value.trim(),
     classYear: document.getElementById('profile-class-year').value.trim(),
     major: document.getElementById('profile-major').value.trim(),
+    interests: parseInterestInput(document.getElementById('profile-interests').value),
     socialLinks: {
       instagram: normalizeSocialUrl('instagram', document.getElementById('profile-instagram').value),
       linkedin: normalizeSocialUrl('linkedin', document.getElementById('profile-linkedin').value),
       x: normalizeSocialUrl('x', document.getElementById('profile-x').value),
     },
+    campusGroups: [
+      ...parseCampusGroupInput(document.getElementById('profile-public-groups').value, 'public'),
+      ...parseCampusGroupInput(document.getElementById('profile-private-groups').value, 'private'),
+    ],
     birthday: document.getElementById('profile-birthday').value,
     gender: document.getElementById('profile-gender').value,
     profilePictureDataUrl: pendingProfilePictureDataUrl ?? currentUser?.profilePictureDataUrl ?? '',
