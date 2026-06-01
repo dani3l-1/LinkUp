@@ -435,6 +435,25 @@ function profileRouteForTab(tabName = 'info') {
   return tabName === 'info' ? 'profile' : 'profile-' + tabName;
 }
 
+const WAITLIST_RESTRICTED_PROFILE_TABS = new Set(['payment', 'payouts']);
+
+function isWaitlistProfileMode() {
+  return Boolean(currentUser && currentUser.serviceApproved !== true);
+}
+
+function getAvailableProfileTab(tabName = 'info') {
+  return isWaitlistProfileMode() && WAITLIST_RESTRICTED_PROFILE_TABS.has(tabName) ? 'info' : tabName;
+}
+
+function updateProfileTabAvailability() {
+  const restricted = isWaitlistProfileMode();
+  profileSidebarButtons.forEach((button) => {
+    if (button.dataset.waitlistHidden === 'true') {
+      button.hidden = restricted;
+    }
+  });
+}
+
 function publicProfileRoute(userId) {
   return 'user-profile-' + userId;
 }
@@ -2058,6 +2077,8 @@ function fillPolicyConsentForm(user) {
 }
 
 function showProfileTab(tabName) {
+  tabName = getAvailableProfileTab(tabName);
+  updateProfileTabAvailability();
   if (!profilePage.classList.contains('hidden')) setAppRoute(profileRouteForTab(tabName));
   profileSidebarButtons.forEach((button) => button.classList.toggle('active', button.dataset.profileTab === tabName));
   profilePanels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.profilePanel !== tabName));
@@ -3193,14 +3214,17 @@ async function showPublicProfilePage(userId) {
 }
 
 function showProfilePage(tabName = 'info') {
+  tabName = getAvailableProfileTab(tabName);
   setAppRoute(profileRouteForTab(tabName));
   clearCartMessages();
   clearProfileMessages();
   clearPolicyMessages();
   hideDashboardPages();
   fillProfileForm(currentUser || {});
-  fillDefaultPaymentForm(currentUser || {});
-  fillDriverPayoutForm(currentUser || {});
+  if (!isWaitlistProfileMode()) {
+    fillDefaultPaymentForm(currentUser || {});
+    fillDriverPayoutForm(currentUser || {});
+  }
   fillPolicyConsentForm(currentUser || {});
   if (tabName === 'security') render2FAPanel(currentUser);
   showProfileTab(tabName);
@@ -8359,6 +8383,7 @@ document.addEventListener('click', (event) => {
 });
 profileSidebarButtons.forEach((button) => {
   button.addEventListener('click', () => {
+    if (button.hidden) return;
     clearDefaultPaymentMessages();
     clearPayoutMessages();
     clearAppearanceMessages();
