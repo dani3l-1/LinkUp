@@ -2919,6 +2919,13 @@ button:disabled::before { display: none; }
   font-size: 1.05rem;
 }
 
+.profile-invite-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
 .profile-section-heading-row {
   display: flex;
   align-items: flex-start;
@@ -2926,8 +2933,39 @@ button:disabled::before { display: none; }
   gap: 1rem;
 }
 
-.profile-invite-form {
+.profile-invite-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
   margin-top: 0.15rem;
+}
+
+.profile-invite-method {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(62,207,207,0.12);
+  border-radius: var(--radius-md);
+  background: rgba(62,207,207,0.035);
+}
+
+.profile-invite-method-heading {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: 0.75rem;
+}
+
+.profile-invite-method-heading strong {
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-invite-method-heading span {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .profile-invite-controls label {
@@ -2944,19 +2982,29 @@ button:disabled::before { display: none; }
 
 .profile-invite-controls {
   display: grid;
-  grid-template-columns: auto minmax(260px, 420px) auto;
+  grid-template-columns: 1fr auto;
   gap: 0.6rem;
   align-items: center;
-  justify-content: start;
 }
 
-.profile-invite-controls #friend-invite-email {
+.profile-invite-controls label {
+  grid-column: 1 / -1;
+}
+
+.profile-invite-controls #friend-invite-email,
+.profile-invite-controls #friend-invite-link {
   min-height: 44px;
   width: 100%;
   margin: 0;
 }
 
-.profile-invite-controls #friend-invite-submit {
+.profile-invite-controls #friend-invite-link {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.profile-invite-controls #friend-invite-submit,
+.profile-invite-controls #friend-invite-copy {
   align-self: stretch;
   width: auto;
   min-height: 44px;
@@ -2966,8 +3014,8 @@ button:disabled::before { display: none; }
   white-space: nowrap;
 }
 
-.profile-invite-form .success-message,
-.profile-invite-form .error-message {
+.profile-invite-method .success-message,
+.profile-invite-method .error-message {
   margin-top: 0.75rem;
 }
 
@@ -5711,6 +5759,16 @@ article.card h3 {
     align-items: flex-start;
   }
 
+  .profile-section-heading-row,
+  .profile-invite-stats {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-invite-methods {
+    grid-template-columns: 1fr;
+  }
+
   .profile-invite-controls {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -5720,7 +5778,8 @@ article.card h3 {
     align-items: flex-start;
   }
 
-  .profile-invite-controls #friend-invite-submit {
+  .profile-invite-controls #friend-invite-submit,
+  .profile-invite-controls #friend-invite-copy {
     width: 100%;
   }
 }

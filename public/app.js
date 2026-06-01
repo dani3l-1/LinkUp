@@ -146,6 +146,10 @@ const friendInviteSubmit = document.getElementById('friend-invite-submit');
 const friendInviteMessage = document.getElementById('friend-invite-message');
 const friendInviteError = document.getElementById('friend-invite-error');
 const friendInviteCount = document.getElementById('friend-invite-count');
+const friendInviteJoinedCount = document.getElementById('friend-invite-joined-count');
+const friendInviteLink = document.getElementById('friend-invite-link');
+const friendInviteCopyButton = document.getElementById('friend-invite-copy');
+const friendInviteLinkMessage = document.getElementById('friend-invite-link-message');
 const profileSidebarButtons = document.querySelectorAll('.profile-sidebar-button');
 const profilePanels = document.querySelectorAll('[data-profile-panel]');
 const profilePictureInput = document.getElementById('profile-picture-input');
@@ -1855,6 +1859,10 @@ function clearFriendInviteMessages() {
     friendInviteError.textContent = '';
     friendInviteError.classList.remove('show');
   }
+  if (friendInviteLinkMessage) {
+    friendInviteLinkMessage.textContent = '';
+    friendInviteLinkMessage.classList.remove('show');
+  }
 }
 
 function fillProfileForm(user) {
@@ -1894,6 +1902,12 @@ function fillProfileForm(user) {
   }
   if (friendInviteCount) {
     friendInviteCount.textContent = String(user.friendInviteCount || 0);
+  }
+  if (friendInviteJoinedCount) {
+    friendInviteJoinedCount.textContent = String(user.friendInviteJoinedCount || 0);
+  }
+  if (friendInviteLink) {
+    friendInviteLink.value = user.friendInviteUrl || '';
   }
   refreshRideAudienceControls();
 }
@@ -7955,7 +7969,8 @@ signupForm.addEventListener('submit', async (event) => {
     return;
   }
   try {
-    const data = await fetchJson('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, middleName, lastName, birthday, gender, email, password, termsAccepted, privacyAccepted }) });
+    const inviteCode = new URLSearchParams(window.location.search).get('invite') || '';
+    const data = await fetchJson('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, middleName, lastName, birthday, gender, email, password, termsAccepted, privacyAccepted, inviteCode }) });
     setButtonLoading(submitButton, false);
     signupForm.reset();
     if (data.requiresVerification === false) {
@@ -9178,6 +9193,36 @@ friendInviteForm?.addEventListener('submit', async (event) => {
   }
 });
 
+friendInviteCopyButton?.addEventListener('click', async () => {
+  clearFriendInviteMessages();
+  const inviteUrl = friendInviteLink?.value || currentUser?.friendInviteUrl || '';
+  if (!inviteUrl) {
+    if (friendInviteLinkMessage) {
+      friendInviteLinkMessage.textContent = 'Your invite link is still loading.';
+      friendInviteLinkMessage.classList.add('show');
+    }
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(inviteUrl);
+    } else if (friendInviteLink) {
+      friendInviteLink.select();
+      document.execCommand('copy');
+      friendInviteLink.blur();
+    }
+    if (friendInviteLinkMessage) {
+      friendInviteLinkMessage.textContent = 'Invite link copied.';
+      friendInviteLinkMessage.classList.add('show');
+    }
+  } catch (err) {
+    if (friendInviteLinkMessage) {
+      friendInviteLinkMessage.textContent = 'Select the link and copy it manually.';
+      friendInviteLinkMessage.classList.add('show');
+    }
+  }
+});
+
 checkoutCartButton.addEventListener('click', async () => {
   clearCartMessages();
   const visibleRideIds = syncCartStateFromDom();
@@ -9392,6 +9437,7 @@ const connectStatus = params.get('status');
 const checkoutSessionId = params.get('session_id');
 const checkoutPaymentIntentId = params.get('payment_intent');
 const setupIntentId = params.get('setup_intent');
+const friendInviteCode = params.get('invite');
 if (trackingViewerToken) {
   loadSharedTrackingPage(trackingViewerToken).finally(finishAppBoot);
 } else if (resetToken) {
@@ -9418,6 +9464,10 @@ if (trackingViewerToken) {
   }).finally(finishAppBoot);
 } else if (connectTarget === 'payout') {
   refreshStripePayoutStatus(connectStatus).finally(finishAppBoot);
+} else if (friendInviteCode) {
+  checkAuth().then(() => {
+    if (!currentUser) showAuthForm('signup-form');
+  }).finally(finishAppBoot);
 } else {
   checkAuth().finally(finishAppBoot);
 }

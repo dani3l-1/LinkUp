@@ -196,6 +196,9 @@ async function checkAuthSmoke() {
     if (me.status !== 200 || me.data?.email !== 'launch.smoke@uci.edu') {
       fail(`Session smoke test failed with ${me.status}: ${me.text || JSON.stringify(me.data)}`);
     }
+    if (!/^http:\/\/127\.0\.0\.1:\d+\/\?invite=/.test(me.data?.friendInviteUrl || '')) {
+      fail(`Session smoke test returned unexpected friendInviteUrl: ${JSON.stringify(me.data?.friendInviteUrl)}`);
+    }
     const invite = await requestJson({
       port,
       method: 'POST',
@@ -214,6 +217,9 @@ async function checkAuthSmoke() {
     const inviteEmail = outbox.find((email) => email.to === 'friend.launch.smoke@example.com');
     if (!inviteEmail || !/invited you to LinkUp/.test(inviteEmail.subject || '')) {
       fail('Friend invite smoke test did not write the expected invite email.');
+    }
+    if (!String(inviteEmail.text || inviteEmail.html || '').includes('?invite=')) {
+      fail('Friend invite smoke test email did not include the personalized invite link.');
     }
     log('Auth smoke test passed.');
   } finally {

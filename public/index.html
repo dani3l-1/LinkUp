@@ -437,17 +437,38 @@
                         <p class="profile-section-label">Invite friends</p>
                         <p class="profile-invite-copy">Send a LinkUp invite to a friend who might need safer student rides.</p>
                       </div>
-                      <p class="profile-invite-count">Invites sent: <strong id="friend-invite-count">0</strong></p>
-                    </div>
-                    <form id="friend-invite-form" class="profile-invite-form">
-                      <div class="profile-invite-controls">
-                        <label for="friend-invite-email">Friend's email</label>
-                        <input type="email" id="friend-invite-email" placeholder="friend@example.com" autocomplete="email" required />
-                        <button type="submit" id="friend-invite-submit">Send invite</button>
+                      <div class="profile-invite-stats">
+                        <p class="profile-invite-count">Invites sent: <strong id="friend-invite-count">0</strong></p>
+                        <p class="profile-invite-count">Friends joined: <strong id="friend-invite-joined-count">0</strong></p>
                       </div>
-                      <div id="friend-invite-message" class="success-message"></div>
-                      <div id="friend-invite-error" class="error-message"></div>
-                    </form>
+                    </div>
+                    <div class="profile-invite-methods">
+                      <form id="friend-invite-form" class="profile-invite-form profile-invite-method">
+                        <div class="profile-invite-method-heading">
+                          <strong>Email invite</strong>
+                          <span>Send a polished LinkUp email directly.</span>
+                        </div>
+                        <div class="profile-invite-controls">
+                          <label for="friend-invite-email">Friend's email</label>
+                          <input type="email" id="friend-invite-email" placeholder="friend@example.com" autocomplete="email" required />
+                          <button type="submit" id="friend-invite-submit">Send invite</button>
+                        </div>
+                        <div id="friend-invite-message" class="success-message"></div>
+                        <div id="friend-invite-error" class="error-message"></div>
+                      </form>
+                      <div class="profile-invite-method">
+                        <div class="profile-invite-method-heading">
+                          <strong>Personal invite link</strong>
+                          <span>Copy your link and share it anywhere.</span>
+                        </div>
+                        <div class="profile-invite-controls profile-invite-link-controls">
+                          <label for="friend-invite-link">Your link</label>
+                          <input type="url" id="friend-invite-link" readonly value="" aria-label="Your personal LinkUp invite link" />
+                          <button type="button" id="friend-invite-copy">Copy link</button>
+                        </div>
+                        <div id="friend-invite-link-message" class="success-message"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div id="profile-appearance-panel" class="profile-panel hidden" data-profile-panel="appearance">

@@ -849,6 +849,24 @@ function normalizeFriendInvites(invites) {
     .filter((invite) => invite.email);
 }
 
+function getFriendInviteCode(user) {
+  const existing = String(user?.friendInviteCode || '').trim().toLowerCase();
+  if (/^[a-z0-9_-]{8,40}$/.test(existing)) return existing;
+  const source = String(user?.id || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  return ('lu' + source).slice(0, 14);
+}
+
+function buildFriendInviteUrl(user) {
+  const inviteCode = getFriendInviteCode(user);
+  return `${APP_BASE_URL.replace(/\/$/, '')}/?invite=${encodeURIComponent(inviteCode)}`;
+}
+
+function findUserByFriendInviteCode(db, inviteCode) {
+  const normalizedCode = String(inviteCode || '').trim().toLowerCase();
+  if (!normalizedCode) return null;
+  return asArray(db?.users).find((user) => getFriendInviteCode(user) === normalizedCode) || null;
+}
+
 function normalizeCheckoutSessions(sessions) {
   return uniqueById(sessions).map((session) => ({
     ...session,
@@ -2357,6 +2375,9 @@ function publicUser(user, db = null) {
     twoFactorEnabled: Boolean(user.totpEnabled),
     emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
     friendInviteCount: normalizeFriendInvites(user.friendInvites).length,
+    friendInviteJoinedCount: db ? asArray(db.users).filter((entry) => entry.invitedByUserId === user.id).length : 0,
+    friendInviteCode: getFriendInviteCode(user),
+    friendInviteUrl: buildFriendInviteUrl(user),
     wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
 }
@@ -2392,7 +2413,7 @@ async function sendTwoFactorEmail(to, code) {
 
 function sendFriendInviteEmail(inviter, friendEmail) {
   const inviterName = getUserDisplayName(inviter);
-  const inviteUrl = APP_BASE_URL;
+  const inviteUrl = buildFriendInviteUrl(inviter);
   const subject = `${inviterName} invited you to LinkUp`;
   const textBody = `${inviterName} has invited you to something creative: LinkUp.\n\nLinkUp helps verified students find, reserve, and share rides with people in their university network.\n\nJoin here:\n${inviteUrl}\n\n- LinkUp`;
   const htmlBody = `
@@ -3255,6 +3276,7 @@ function canStudentReserveRide(student, ride, seatId = '', db = null) {
 app.post('/api/auth/signup', async (req, res) => {
   const { firstName, middleName, lastName, birthday, email, password } = req.body;
   const gender = normalizeGender(req.body.gender);
+  const inviteCode = String(req.body.inviteCode || '').trim().toLowerCase();
   if (!firstName || !lastName || !birthday || !gender || !email || !password) {
     return res.status(400).json({ error: 'All fields are required' });
   }
@@ -3291,6 +3313,7 @@ app.post('/api/auth/signup', async (req, res) => {
   if (existingUser) {
     return res.status(400).json({ error: 'This email is already associated with an account' });
   }
+  const invitedByUser = findUserByFriendInviteCode(db, inviteCode);
 
   const hashedPassword = await bcrypt.hash(password, 10);
   const user = {
@@ -3315,6 +3338,11 @@ app.post('/api/auth/signup', async (req, res) => {
     policyAcceptedAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   };
+  if (invitedByUser && invitedByUser.email !== normalizedEmail) {
+    user.invitedByUserId = invitedByUser.id;
+    user.invitedByInviteCode = getFriendInviteCode(invitedByUser);
+    user.invitedAt = new Date().toISOString();
+  }
 
   if (BYPASS_EMAIL_VERIFICATION) {
     user.emailVerified = true;
