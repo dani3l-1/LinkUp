@@ -10372,7 +10372,7 @@ html[data-theme="light"] body.dashboard-mode #main-content > .card::after {
   display: none;
 }
 
-html[data-theme="light"] body.dashboard-mode #waitlist-page.card {
+html[data-theme="light"] #waitlist-page.card {
   padding: clamp(2rem, 5vw, 4.5rem) 1.25rem;
   border: 1px solid rgba(18,91,97,0.13);
   border-radius: var(--radius-lg);
@@ -10383,7 +10383,7 @@ html[data-theme="light"] body.dashboard-mode #waitlist-page.card {
   overflow: hidden;
 }
 
-html[data-theme="light"] body.dashboard-mode #waitlist-page::before {
+html[data-theme="light"] #waitlist-page::before {
   display: block;
   border-color: rgba(18,91,97,0.08);
 }
