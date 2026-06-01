@@ -54,7 +54,10 @@ Create a `.env` file in the project root (copy from `.env.example`):
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 NODE_ENV=development
 SESSION_SECRET=your_session_secret_key_here
+WAITLIST_MODE=true
 ```
+
+Before launch, keep `WAITLIST_MODE=true` so every non-admin student stays on the waitlist. When you are ready for approved schools to ride, set `WAITLIST_MODE=false` and restart/redeploy.
 
 ## Project structure
 - `server.js` — Express backend with API endpoints and authentication

@@ -44,3 +44,15 @@ The server will **refuse to start** if:
 - `SESSION_SECRET` is missing
 - Running in production without `DATABASE_URL`, Stripe keys, or SMTP config
 - Running from a local Mac with `.env` pointed at `DATABASE_URL`, unless `ALLOW_PRODUCTION_DATABASE_LOCALLY=true`
+
+## Pre-Launch Waitlist
+
+Set `WAITLIST_MODE=true` before launch. This keeps every non-admin student on the waitlist, even if their school domain is already in the supported-school list.
+
+When LinkUp is ready to launch approved schools, set:
+
+```env
+WAITLIST_MODE=false
+```
+
+Then restart the server or redeploy production. Supported school users will be approved by the normal access rules.

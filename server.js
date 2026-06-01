@@ -68,6 +68,7 @@ const ADMIN_EMAILS = new Set(String(process.env.ADMIN_EMAILS || '')
   .map((email) => normalizeEmail(email))
   .filter(Boolean));
 const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
+const WAITLIST_MODE = process.env.WAITLIST_MODE === 'true';
 // Email verification can be bypassed in local test mode via .env.local.
 const BYPASS_EMAIL_VERIFICATION = NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
 const PAYMENT_PROVIDER = String(process.env.PAYMENT_PROVIDER || 'stripe').trim().toLowerCase();
@@ -996,8 +997,11 @@ async function migrateDbOnStartup() {
       await initPostgresStorage();
       saveDb(loadDb());
       await dbWritePromise;
+      normalizeUserAccess(loadDb());
+      await dbWritePromise;
     } else {
       saveDb(loadDb());
+      normalizeUserAccess(loadDb());
     }
   } catch (err) {
     console.error('Database migration failed:', err);
@@ -1031,9 +1035,19 @@ function normalizeUserAccess(db) {
     }
     const supportedUniversity = SUPPORTED_UNIVERSITY_DOMAINS[user.universityDomain];
     const adminEmail = isAdminEmail(user.email);
-    if ((supportedUniversity || adminEmail) && !user.suspendedAt && !user.manuallyWaitlistedAt && user.serviceApproved !== true) {
+    if (WAITLIST_MODE && !adminEmail && !user.suspendedAt) {
+      if (user.serviceApproved !== false) {
+        user.serviceApproved = false;
+        user.waitlistedAt = user.waitlistedAt || new Date().toISOString();
+        changed = true;
+      }
+    } else if ((supportedUniversity || adminEmail) && !user.suspendedAt && !user.manuallyWaitlistedAt && user.serviceApproved !== true) {
       user.serviceApproved = true;
       user.waitlistedAt = null;
+      if (supportedUniversity && !user.schoolApprovedEmailSentAt) {
+        user.schoolApprovedEmailSentAt = new Date().toISOString();
+        sendSchoolApprovedEmail(user, supportedUniversity);
+      }
       changed = true;
     } else if (user.serviceApproved === undefined) {
       user.serviceApproved = false;
@@ -1722,6 +1736,68 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function sendSchoolApprovedEmail(user, schoolName = '') {
+  if (!user?.email) return;
+  const firstName = user.firstName || 'there';
+  const university = schoolName || getUserUniversityDisplay(user) || 'your school';
+  const appUrl = APP_BASE_URL;
+  const textBody = [
+    `Hi ${firstName},`,
+    '',
+    `${university} has been approved on LinkUp.`,
+    '',
+    'Your account is ready, and you can now ride with LinkUp.',
+    '',
+    `Open LinkUp: ${appUrl}`,
+    '',
+    `Questions? Email ${SUPPORT_EMAIL}.`,
+    '',
+    '- LinkUp',
+  ].join('\n');
+  const htmlBody = `
+    <!doctype html>
+    <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#061719;font-family:Arial,Helvetica,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#061719;padding:34px 16px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:22px;overflow:hidden;border:1px solid #d7fbfb;">
+                <tr>
+                  <td style="background:#082326;padding:30px 34px;text-align:center;">
+                    <div style="font-size:34px;font-weight:900;color:#ffffff;letter-spacing:-1px;">LinkUp</div>
+                    <div style="margin-top:8px;color:#3ecfcf;font-size:12px;font-weight:800;letter-spacing:3px;text-transform:uppercase;">School approved</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:34px;">
+                    <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;color:#082326;">You can now ride with LinkUp</h1>
+                    <p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#536970;">Hi ${escapeHtml(firstName)}, ${escapeHtml(university)} has been approved on LinkUp. Your account is ready.</p>
+                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
+                      <tr>
+                        <td style="border-radius:12px;background:#3ecfcf;">
+                          <a href="${escapeHtml(appUrl)}" style="display:inline-block;padding:14px 22px;color:#052326;text-decoration:none;font-weight:900;font-size:14px;letter-spacing:1px;text-transform:uppercase;">Open LinkUp</a>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="margin:0;font-size:13px;line-height:1.6;color:#7b9196;">You can browse rides, request rides, list rides, and use your verified school network.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#f6fdfd;padding:20px 34px;text-align:center;border-top:1px solid #e7f7f7;">
+                    <p style="margin:0;font-size:12px;line-height:1.6;color:#8aa1a6;">Questions? Email ${escapeHtml(SUPPORT_EMAIL)}.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+  sendAuthEmail(user.email, 'Your school is approved on LinkUp', textBody, htmlBody);
+}
+
 function formatEmailCurrency(cents) {
   return '$' + (Math.max(0, Number(cents || 0)) / 100).toFixed(2);
 }
@@ -2275,6 +2351,7 @@ function publicUser(user, db = null) {
     requiresRequiredSettings: missingRequiredSettings.length > 0,
     createdAt: user.createdAt || null,
     rideServicesPaused: RIDE_SERVICES_PAUSED,
+    waitlistMode: WAITLIST_MODE,
     twoFactorEnabled: Boolean(user.totpEnabled),
     emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
     friendInviteCount: normalizeFriendInvites(user.friendInvites).length,
@@ -3199,7 +3276,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
   const universityDomain = getEmailDomain(normalizedEmail);
   const supportedUniversity = extractUniversityFromEmail(normalizedEmail);
-  const serviceApproved = Boolean(supportedUniversity) || adminEmail;
+  const serviceApproved = adminEmail || (!WAITLIST_MODE && Boolean(supportedUniversity));
   const university = supportedUniversity || (adminEmail ? 'LinkUp Admin' : getUniversityInfoFromDomain(universityDomain).name);
 
   const passwordValidation = validatePassword(password);
@@ -3352,8 +3429,8 @@ app.post('/api/auth/signin', async (req, res) => {
       email: normalizedEmail,
       university: supportedUniversity || getUniversityInfoFromDomain(universityDomain).name,
       universityDomain,
-      serviceApproved: Boolean(supportedUniversity),
-      waitlistedAt: supportedUniversity ? null : new Date().toISOString(),
+      serviceApproved: !WAITLIST_MODE && Boolean(supportedUniversity),
+      waitlistedAt: !WAITLIST_MODE && supportedUniversity ? null : new Date().toISOString(),
       passwordHash: await bcrypt.hash(password, 10),
       emailVerified: true,
       themePreference: 'dark',
@@ -3964,6 +4041,7 @@ app.post('/api/profile/school-transfer/verify', requireAuth, (req, res) => {
 
   const previousEmail = user.email;
   const previousUniversity = getUserUniversityDisplay(user);
+  const wasServiceApproved = user.serviceApproved === true;
   const now = new Date().toISOString();
   user.emailHistory = Array.isArray(user.emailHistory) ? user.emailHistory : [];
   user.emailHistory.push({
@@ -3977,8 +4055,12 @@ app.post('/api/profile/school-transfer/verify', requireAuth, (req, res) => {
   user.universityDomain = pending.universityDomain || getEmailDomain(pending.email);
   user.university = pending.university || getUniversityInfoFromDomain(user.universityDomain).name;
   user.emailVerified = true;
-  user.serviceApproved = Boolean(SUPPORTED_UNIVERSITY_DOMAINS[user.universityDomain]);
+  user.serviceApproved = !WAITLIST_MODE && Boolean(SUPPORTED_UNIVERSITY_DOMAINS[user.universityDomain]);
   user.waitlistedAt = user.serviceApproved ? null : (user.waitlistedAt || now);
+  if (!wasServiceApproved && user.serviceApproved && !user.schoolApprovedEmailSentAt) {
+    user.schoolApprovedEmailSentAt = now;
+    sendSchoolApprovedEmail(user, user.university);
+  }
   user.manuallyWaitlistedAt = null;
   user.schoolTransferredAt = now;
   delete user.pendingSchoolTransfer;
@@ -5867,6 +5949,7 @@ app.get('/health', (req, res) => {
     environment: NODE_ENV,
     database: USE_POSTGRES ? 'postgres' : 'json',
     rideServicesPaused: RIDE_SERVICES_PAUSED,
+    waitlistMode: WAITLIST_MODE,
     timestamp: new Date().toISOString(),
   });
 });
@@ -5876,6 +5959,7 @@ app.get('/api/version', (req, res) => {
     version: APP_VERSION,
     environment: NODE_ENV,
     rideServicesPaused: RIDE_SERVICES_PAUSED,
+    waitlistMode: WAITLIST_MODE,
     requiredTermsVersion: REQUIRED_TERMS_VERSION,
     requiredPrivacyVersion: REQUIRED_PRIVACY_VERSION,
     timestamp: new Date().toISOString(),
@@ -6074,10 +6158,18 @@ app.patch('/api/admin/users/:userId', requireAuth, requireAdmin, adminDashboardR
   const user = (db.users || []).find((entry) => entry.id === String(req.params.userId || ''));
   if (!user) return res.status(404).json({ error: 'User not found' });
   const isTargetAdmin = isAdminUser(user);
+  const wasServiceApproved = user.serviceApproved === true;
   if (req.body.serviceApproved !== undefined) {
+    if (WAITLIST_MODE && req.body.serviceApproved === true && !isTargetAdmin) {
+      return res.status(400).json({ error: 'Waitlist mode is on. Turn WAITLIST_MODE=false before approving student access.' });
+    }
     user.serviceApproved = req.body.serviceApproved === true;
     user.waitlistedAt = user.serviceApproved ? null : (user.waitlistedAt || new Date().toISOString());
     user.manuallyWaitlistedAt = user.serviceApproved ? null : (user.manuallyWaitlistedAt || new Date().toISOString());
+    if (!wasServiceApproved && user.serviceApproved && !user.schoolApprovedEmailSentAt) {
+      user.schoolApprovedEmailSentAt = new Date().toISOString();
+      sendSchoolApprovedEmail(user, getUserUniversityDisplay(user));
+    }
     addAdminAuditEntry(db, req.adminUser, user.serviceApproved ? 'approved_user' : 'waitlisted_user', 'user', user, {
       targetLabel: user.email || getUserDisplayName(user),
     });
@@ -6097,9 +6189,16 @@ app.patch('/api/admin/users/:userId', requireAuth, requireAdmin, adminDashboardR
       user.waitlistedAt = user.waitlistedAt || new Date().toISOString();
       user.manuallyWaitlistedAt = user.manuallyWaitlistedAt || new Date().toISOString();
     } else if (req.body.serviceApproved === undefined) {
+      if (WAITLIST_MODE && !isTargetAdmin) {
+        return res.status(400).json({ error: 'Waitlist mode is on. Turn WAITLIST_MODE=false before restoring student access.' });
+      }
       user.serviceApproved = true;
       user.waitlistedAt = null;
       user.manuallyWaitlistedAt = null;
+      if (!wasServiceApproved && !user.schoolApprovedEmailSentAt) {
+        user.schoolApprovedEmailSentAt = new Date().toISOString();
+        sendSchoolApprovedEmail(user, getUserUniversityDisplay(user));
+      }
     }
     addAdminAuditEntry(db, req.adminUser, shouldSuspend ? 'suspended_user' : 'restored_user', 'user', user, {
       targetLabel: user.email || getUserDisplayName(user),

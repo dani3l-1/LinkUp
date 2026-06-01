@@ -118,6 +118,28 @@ async function checkAuthSmoke() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'linkup-launch-check-'));
   const dataDir = path.join(tempRoot, 'data');
   fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'db.json'), JSON.stringify({
+    meta: { schemaVersion: 2 },
+    users: [{
+      id: 'startup-waitlist-user',
+      firstName: 'Startup',
+      lastName: 'Waitlist',
+      birthday: '2000-01-01',
+      gender: 'prefer-not-to-say',
+      email: 'startup.waitlist@uci.edu',
+      university: 'University of California, Irvine',
+      universityDomain: 'uci.edu',
+      serviceApproved: false,
+      waitlistedAt: new Date(Date.now() - 86400000).toISOString(),
+      passwordHash: 'unused',
+      emailVerified: true,
+      createdAt: new Date(Date.now() - 86400000).toISOString(),
+    }],
+    rides: [],
+    rideRequests: [],
+    payments: [],
+    friendInvites: [],
+  }, null, 2));
   const envPath = path.join(tempRoot, '.env.launch-check');
   const port = 4300 + Math.floor(Math.random() * 1000);
   fs.writeFileSync(envPath, [
@@ -130,6 +152,7 @@ async function checkAuthSmoke() {
     `APP_BASE_URL=http://127.0.0.1:${port}`,
     'DATABASE_URL=',
     'RIDE_SERVICES_PAUSED=false',
+    'WAITLIST_MODE=false',
   ].join('\n'));
 
   const child = spawn(process.execPath, ['server.js'], {
@@ -150,6 +173,13 @@ async function checkAuthSmoke() {
 
   try {
     await waitForServer(port, child, () => output);
+    let startupOutbox = [];
+    try {
+      startupOutbox = JSON.parse(fs.readFileSync(path.join(dataDir, 'email-outbox.json'), 'utf8'));
+    } catch (_) {}
+    if (!startupOutbox.some((email) => email.to === 'startup.waitlist@uci.edu' && /school is approved/i.test(email.subject || ''))) {
+      fail('Startup approved-school email was not sent to a waitlisted supported-school user.');
+    }
     const signin = await requestJson({
       port,
       method: 'POST',

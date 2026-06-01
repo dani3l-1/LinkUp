@@ -4202,30 +4202,8 @@ function showWaitlistPage(user) {
     waitlistTitle.textContent = memberLabel ? 'Member ' + memberLabel : "You're in.";
   }
 
-  const schoolEl = document.getElementById('waitlist-school');
-  if (schoolEl) {
-    const school = user?.university || user?.universityDomain || 'Your school';
-    schoolEl.textContent = school + ' — access coming soon.';
-  }
-
   if (waitlistMessage) {
-    waitlistMessage.textContent = "We'll email " + (user?.email || 'you') + " the moment LinkUp launches at your school.";
-  }
-
-  const shareBtn = document.getElementById('waitlist-share-btn');
-  if (shareBtn) {
-    shareBtn.onclick = () => {
-      const shareText = 'Just joined LinkUp — ride sharing for university students. Get early access: https://linkuprides.com';
-      if (navigator.share) {
-        navigator.share({ title: 'LinkUp', text: shareText, url: 'https://linkuprides.com' }).catch(() => {});
-      } else {
-        navigator.clipboard?.writeText('https://linkuprides.com').then(() => {
-          const orig = shareBtn.innerHTML;
-          shareBtn.textContent = 'Link copied!';
-          setTimeout(() => { shareBtn.innerHTML = orig; }, 2200);
-        }).catch(() => {});
-      }
-    };
+    waitlistMessage.textContent = 'We saved your account. We will notify you when your access is approved and you can ride with LinkUp.';
   }
 
   const profileBtn = document.getElementById('waitlist-profile-button');
