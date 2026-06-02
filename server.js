@@ -1636,6 +1636,76 @@ function setEmailVerificationCode(user) {
   return code;
 }
 
+function renderEmailCodeDigits(code, options = {}) {
+  const size = options.size || 'large';
+  const box = size === 'small'
+    ? { width: 34, height: 42, font: 22, radius: 10, padding: '0 3px' }
+    : { width: 52, height: 66, font: 32, radius: 14, padding: '0 5px' };
+  return String(code || '').split('').map((d) =>
+    `<td style="padding:${box.padding};"><div style="width:${box.width}px;height:${box.height}px;line-height:${box.height}px;text-align:center;background:#f0fafa;border:2px solid #3ecfcf;border-radius:${box.radius}px;font-size:${box.font}px;font-weight:900;color:#082023;font-family:monospace,monospace;">${escapeHtml(d)}</div></td>`
+  ).join('');
+}
+
+function renderLinkUpEmail({ eyebrow = '', title = '', intro = '', bodyHtml = '', cta = null, footer = '' } = {}) {
+  const eyebrowHtml = eyebrow
+    ? `<p style="margin:18px 0 0;font-size:13px;letter-spacing:0.32em;text-transform:uppercase;color:#61eeee;font-weight:900;">${escapeHtml(eyebrow)}</p>`
+    : '';
+  const titleHtml = title
+    ? `<h1 style="margin:0;font-size:34px;line-height:1.16;color:#102326;font-weight:900;">${escapeHtml(title)}</h1>`
+    : '';
+  const introHtml = intro
+    ? `<p style="margin:20px 0 0;font-size:19px;line-height:1.62;color:#54636a;">${intro}</p>`
+    : '';
+  const ctaHtml = cta?.href && cta?.label
+    ? `
+      <table role="presentation" cellspacing="0" cellpadding="0" style="margin:26px auto 0;">
+        <tr>
+          <td style="border-radius:999px;background:#0c747a;text-align:center;">
+            <a href="${escapeHtml(cta.href)}" style="display:inline-block;padding:14px 24px;font-size:15px;font-weight:900;color:#ffffff;text-decoration:none;border-radius:999px;">${escapeHtml(cta.label)}</a>
+          </td>
+        </tr>
+      </table>`
+    : '';
+  const footerText = footer || `Questions? Email ${SUPPORT_EMAIL}.`;
+  return `
+    <!doctype html>
+    <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#f4fbfb;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4fbfb;padding:22px 12px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #bdeff0;border-radius:24px;overflow:hidden;">
+                <tr>
+                  <td style="padding:54px 32px 50px;text-align:center;background:#073b3f;border-bottom:1px solid #bdeff0;">
+                    <div style="font-size:40px;line-height:1;font-weight:900;color:#ffffff;letter-spacing:0;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">LinkUp</div>
+                    ${eyebrowHtml}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:46px 42px 42px;background:#ffffff;">
+                    ${titleHtml}
+                    ${introHtml}
+                    <div style="margin-top:36px;">
+                    ${bodyHtml}
+                    </div>
+                    ${ctaHtml}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#f5fcfc;padding:28px 34px;text-align:center;border-top:1px solid #e4f7f7;">
+                    <p style="margin:0;font-size:15px;line-height:1.55;color:#8aa1a6;">${footerText}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
 function sendVerificationCode(user, code) {
   const firstName = user.firstName || 'there';
   const textBody = [
@@ -1649,66 +1719,26 @@ function sendVerificationCode(user, code) {
     '',
     '- LinkUp',
   ].join('\n');
-  const codeDigits = code.split('').map((d) =>
-    `<td style="padding:0 4px;"><div style="width:44px;height:56px;line-height:56px;text-align:center;background:#f0fafa;border:2px solid #3ecfcf;border-radius:12px;font-size:28px;font-weight:900;color:#082023;font-family:monospace,monospace;">${d}</div></td>`
-  ).join('');
-  const htmlBody = `
-    <!doctype html>
-    <html lang="en">
-      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-      <body style="margin:0;padding:0;background:#071719;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#102326;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:40px 16px;">
-          <tr>
-            <td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;">
-
-                <!-- Header -->
-                <tr>
-                  <td style="background:linear-gradient(135deg,#082a2f 0%,#0a3840 100%);padding:32px 36px;border-radius:20px 20px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
-                    <div style="font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
-                    <div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">Student ride sharing</div>
-                  </td>
-                </tr>
-
-                <!-- Body -->
-                <tr>
-                  <td style="background:#ffffff;padding:36px 36px 28px;border:1px solid #d7fbfb;border-top:none;border-bottom:none;">
-                    <h1 style="margin:0 0 10px;font-size:26px;line-height:1.25;font-weight:800;color:#082023;">Verify your email</h1>
-                    <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#54636a;">Hi ${escapeHtml(firstName)}, welcome to LinkUp! Enter this code in the app to finish creating your account.</p>
-
-                    <!-- Digit boxes -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;">
-                      <tr>${codeDigits}</tr>
-                    </table>
-                    <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:700;">Your verification code</p>
-
-                    <!-- Expiry note -->
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                      <tr>
-                        <td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:10px;padding:14px 18px;">
-                          <p style="margin:0;font-size:13px;line-height:1.6;color:#7a6520;">
-                            <strong>Expires in 10 minutes.</strong> If you didn't create a LinkUp account, you can safely ignore this email — no action is needed.
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-
-                <!-- Footer -->
-                <tr>
-                  <td style="background:#f7fdfd;padding:20px 36px 24px;border-radius:0 0 20px 20px;border:1px solid #d7fbfb;border-top:1px solid #e8f8f8;">
-                    <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">LinkUp connects university students for safer, more affordable shared rides.<br>Questions? Email ${escapeHtml(SUPPORT_EMAIL)}.</p>
-                  </td>
-                </tr>
-
-              </table>
-            </td>
-          </tr>
-        </table>
-      </body>
-    </html>
-  `;
+  const codeDigits = renderEmailCodeDigits(code);
+  const htmlBody = renderLinkUpEmail({
+    eyebrow: 'Student ride sharing',
+    title: 'Verify your email',
+    intro: `Hi ${escapeHtml(firstName)}, welcome to LinkUp! Enter this code in the app to finish creating your account.`,
+    bodyHtml: `
+      <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;">
+        <tr>${codeDigits}</tr>
+      </table>
+      <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:700;">Your verification code</p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        <tr>
+          <td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:12px;padding:15px 18px;">
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#7a6520;"><strong>Expires in 10 minutes.</strong> If you didn't create a LinkUp account, you can safely ignore this email. No action is needed.</p>
+          </td>
+        </tr>
+      </table>
+    `,
+    footer: 'LinkUp connects university students for safer, more affordable shared rides.<br>Questions? Reply to this email.',
+  });
   sendAuthEmail(
     user.email,
     'Your LinkUp verification code',
@@ -1737,84 +1767,30 @@ function sendSchoolTransferVerificationCode(user, newEmail, code, newUniversity)
     '',
     '- LinkUp',
   ].join('\n');
-  const codeDigits = code.split('').map((d) =>
-    `<td style="padding:0 4px;"><div style="width:44px;height:56px;line-height:56px;text-align:center;background:#f0fafa;border:2px solid #3ecfcf;border-radius:12px;font-size:28px;font-weight:900;color:#082023;font-family:monospace,monospace;">${d}</div></td>`
-  ).join('');
-  const htmlBody = `
-    <!doctype html>
-    <html lang="en">
-      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-      <body style="margin:0;padding:0;background:#071719;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#102326;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:40px 16px;">
-          <tr>
-            <td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;">
-
-                <!-- Header -->
-                <tr>
-                  <td style="background:linear-gradient(135deg,#082a2f 0%,#0b3a40 100%);padding:34px 36px 30px;border-radius:22px 22px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
-                    <div style="font-size:34px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
-                    <div style="margin-top:8px;font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">School transfer</div>
-                  </td>
-                </tr>
-
-                <!-- Body -->
-                <tr>
-                  <td style="background:#ffffff;padding:38px 38px 30px;border:1px solid #d7fbfb;border-top:none;border-bottom:none;">
-                    <h1 style="margin:0 0 12px;font-size:27px;line-height:1.25;font-weight:900;color:#082023;">Verify your new school email</h1>
-                    <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#54636a;">Hi ${safeFirstName}, enter this code in LinkUp to move your account to ${safeNewUniversity}.</p>
-
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px;">
-                      <tr>
-                        <td style="background:#f4fbfb;border:1px solid #d8eeee;border-radius:14px;padding:16px 18px;">
-                          <p style="margin:0 0 4px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#6a898f;">New school email</p>
-                          <p style="margin:0;font-size:16px;font-weight:800;color:#082023;word-break:break-word;">${safeNewEmail}</p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <!-- Digit boxes -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;">
-                      <tr>${codeDigits}</tr>
-                    </table>
-                    <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:800;">School transfer code</p>
-
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 14px;">
-                      <tr>
-                        <td style="background:#eefbfa;border:1px solid #ccefee;border-radius:12px;padding:15px 18px;">
-                          <p style="margin:0;font-size:13px;line-height:1.65;color:#315a60;">
-                            Your ride history, wallet, profile, ratings, and member number stay with you. Only your school network, campus matching, and university email update after verification.
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                      <tr>
-                        <td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:12px;padding:15px 18px;">
-                          <p style="margin:0;font-size:13px;line-height:1.6;color:#7a6520;">
-                            <strong>Expires in 10 minutes.</strong> If you did not request this school transfer, ignore this email and your account will stay unchanged.
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-
-                <!-- Footer -->
-                <tr>
-                  <td style="background:#f7fdfd;padding:21px 36px 25px;border-radius:0 0 22px 22px;border:1px solid #d7fbfb;border-top:1px solid #e8f8f8;">
-                    <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">Questions? Email ${escapeHtml(SUPPORT_EMAIL)}.</p>
-                  </td>
-                </tr>
-
-              </table>
-            </td>
-          </tr>
-        </table>
-      </body>
-    </html>
-  `;
+  const codeDigits = renderEmailCodeDigits(code);
+  const htmlBody = renderLinkUpEmail({
+    eyebrow: 'School transfer',
+    title: 'Verify your new school email',
+    intro: `Hi ${safeFirstName}, enter this code in LinkUp to move your account to ${safeNewUniversity}.`,
+    bodyHtml: `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px;">
+        <tr>
+          <td style="background:#f4fbfb;border:1px solid #d8eeee;border-radius:14px;padding:16px 18px;">
+            <p style="margin:0 0 4px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#6a898f;">New school email</p>
+            <p style="margin:0;font-size:16px;font-weight:800;color:#082023;word-break:break-word;">${safeNewEmail}</p>
+          </td>
+        </tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;"><tr>${codeDigits}</tr></table>
+      <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:800;">School transfer code</p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 14px;">
+        <tr><td style="background:#eefbfa;border:1px solid #ccefee;border-radius:12px;padding:15px 18px;"><p style="margin:0;font-size:13px;line-height:1.65;color:#315a60;">Your ride history, wallet, profile, ratings, and member number stay with you. Only your school network, campus matching, and university email update after verification.</p></td></tr>
+      </table>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        <tr><td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:12px;padding:15px 18px;"><p style="margin:0;font-size:13px;line-height:1.6;color:#7a6520;"><strong>Expires in 10 minutes.</strong> If you did not request this school transfer, ignore this email and your account will stay unchanged.</p></td></tr>
+      </table>
+    `,
+  });
   sendAuthEmail(newEmail, 'Verify your new LinkUp school email', textBody, htmlBody);
 }
 
@@ -1845,47 +1821,13 @@ function sendSchoolApprovedEmail(user, schoolName = '') {
     '',
     '- LinkUp',
   ].join('\n');
-  const htmlBody = `
-    <!doctype html>
-    <html lang="en">
-      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-      <body style="margin:0;padding:0;background:#061719;font-family:Arial,Helvetica,sans-serif;color:#102326;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#061719;padding:34px 16px;">
-          <tr>
-            <td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:22px;overflow:hidden;border:1px solid #d7fbfb;">
-                <tr>
-                  <td style="background:#082326;padding:30px 34px;text-align:center;">
-                    <div style="font-size:34px;font-weight:900;color:#ffffff;letter-spacing:-1px;">LinkUp</div>
-                    <div style="margin-top:8px;color:#3ecfcf;font-size:12px;font-weight:800;letter-spacing:3px;text-transform:uppercase;">School approved</div>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:34px;">
-                    <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;color:#082326;">You can now ride with LinkUp</h1>
-                    <p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#536970;">Hi ${escapeHtml(firstName)}, ${escapeHtml(university)} has been approved on LinkUp. Your account is ready.</p>
-                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
-                      <tr>
-                        <td style="border-radius:12px;background:#3ecfcf;">
-                          <a href="${escapeHtml(appUrl)}" style="display:inline-block;padding:14px 22px;color:#052326;text-decoration:none;font-weight:900;font-size:14px;letter-spacing:1px;text-transform:uppercase;">Open LinkUp</a>
-                        </td>
-                      </tr>
-                    </table>
-                    <p style="margin:0;font-size:13px;line-height:1.6;color:#7b9196;">You can browse rides, request rides, list rides, and use your verified school network.</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="background:#f6fdfd;padding:20px 34px;text-align:center;border-top:1px solid #e7f7f7;">
-                    <p style="margin:0;font-size:12px;line-height:1.6;color:#8aa1a6;">Questions? Email ${escapeHtml(SUPPORT_EMAIL)}.</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </body>
-    </html>
-  `;
+  const htmlBody = renderLinkUpEmail({
+    eyebrow: 'School approved',
+    title: 'You can now ride with LinkUp',
+    intro: `Hi ${escapeHtml(firstName)}, ${escapeHtml(university)} has been approved on LinkUp. Your account is ready.`,
+    bodyHtml: '<p style="margin:0;font-size:15px;line-height:1.65;color:#54636a;">You can browse rides, request rides, list rides, and use your verified school network.</p>',
+    cta: { href: appUrl, label: 'Open LinkUp' },
+  });
   sendAuthEmail(user.email, 'Your school is approved on LinkUp', textBody, htmlBody);
 }
 
@@ -1980,7 +1922,6 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
   const totalCents = Number(checkoutSession.expectedAmountCents || checkoutSession.stripeAmountTotal || 0);
   const tripWord = rideDetails.length === 1 ? 'trip' : 'trips';
   const successSteps = getSuccessfulRideSteps();
-  const logoUrl = APP_BASE_URL.replace(/\/$/, '') + '/assets/images/LinkUp-wordmark.png';
   const textRideDetails = rideDetails.map((detail, index) => [
     `${index + 1}. ${detail.route}`,
     `When: ${detail.when}`,
@@ -2028,7 +1969,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
     ].filter(Boolean);
     const arrivalCodeDigits = String(detail.arrivalCode || '').split('').map((digit) => `
       <td style="padding:0 3px;">
-        <div style="width:32px;height:40px;line-height:40px;text-align:center;border-radius:10px;background:#102326;color:#ffffff;font-size:20px;font-weight:900;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">${escapeHtml(digit)}</div>
+        <div style="width:32px;height:40px;line-height:40px;text-align:center;border-radius:10px;background:#eafafa;border:1px solid #b7eeee;color:#102326;font-size:20px;font-weight:900;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">${escapeHtml(digit)}</div>
       </td>
     `).join('');
     return `
@@ -2086,7 +2027,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
   const htmlSteps = successSteps.map((step, index) => `
     <tr>
       <td style="width:42px;padding:13px 0;vertical-align:top;">
-        <div style="width:28px;height:28px;border-radius:50%;background:#102326;color:#ffffff;text-align:center;line-height:28px;font-size:13px;font-weight:900;">${index + 1}</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:#eafafa;border:1px solid #b7eeee;color:#0c747a;text-align:center;line-height:26px;font-size:13px;font-weight:900;">${index + 1}</div>
       </td>
       <td style="padding:13px 0;vertical-align:top;border-bottom:${index === successSteps.length - 1 ? 'none' : '1px solid #dceeee'};">
         <div style="font-size:15px;font-weight:900;color:#102326;">${escapeHtml(step.title)}</div>
@@ -2103,25 +2044,25 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Your LinkUp ride is confirmed</title>
       </head>
-      <body style="margin:0;padding:0;background:#071719;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#102326;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:24px 14px;">
+      <body style="margin:0;padding:0;background:#f4fbfb;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#102326;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4fbfb;padding:24px 14px;">
           <tr>
             <td align="center">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #d7fbfb;">
                 <tr>
-                  <td style="background:#082023;padding:22px 28px 24px;">
+                  <td style="background:#ffffff;padding:24px 28px 26px;border-bottom:1px solid #e7f7f7;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr>
                         <td style="vertical-align:middle;">
-                          <img src="${escapeHtml(logoUrl)}" width="104" alt="LinkUp" style="display:block;width:104px;max-width:46%;height:auto;border:0;outline:none;text-decoration:none;" />
+                          <div style="font-size:28px;line-height:1;font-weight:900;color:#3a4649;letter-spacing:0;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">LinkUp</div>
                         </td>
                         <td align="right" style="vertical-align:middle;">
-                          <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#0c747a;color:#ffffff;font-size:11px;font-weight:900;letter-spacing:1.3px;text-transform:uppercase;">Ride confirmed</span>
+                          <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#eafafa;color:#0c747a;font-size:11px;font-weight:900;letter-spacing:1.3px;text-transform:uppercase;">Ride confirmed</span>
                         </td>
                       </tr>
                     </table>
-                    <h1 style="margin:24px 0 0;font-size:28px;line-height:1.18;color:#ffffff;">Your ride is confirmed</h1>
-                    <p style="margin:10px 0 0;max-width:500px;font-size:15px;line-height:1.6;color:#c3e7ea;">Hi ${escapeHtml(firstName)}, your LinkUp ${escapeHtml(tripWord)} ${rideDetails.length === 1 ? 'is' : 'are'} booked. Your trip details and arrival code are below.</p>
+                    <h1 style="margin:24px 0 0;font-size:28px;line-height:1.18;color:#102326;">Your ride is confirmed</h1>
+                    <p style="margin:10px 0 0;max-width:500px;font-size:15px;line-height:1.6;color:#54636a;">Hi ${escapeHtml(firstName)}, your LinkUp ${escapeHtml(tripWord)} ${rideDetails.length === 1 ? 'is' : 'are'} booked. Your trip details and arrival code are below.</p>
                   </td>
                 </tr>
                 <tr>
@@ -2133,9 +2074,9 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${htmlRows}</table>
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;">
                       <tr>
-                        <td style="padding:18px 20px;border-radius:16px;background:#102326;">
-                          <div style="font-size:12px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#61e0e0;">Total paid</div>
-                          <div style="margin-top:6px;font-size:30px;font-weight:900;color:#ffffff;">${escapeHtml(formatEmailCurrency(totalCents))}</div>
+                        <td style="padding:18px 20px;border-radius:16px;background:#f7fdfd;border:1px solid #d7fbfb;">
+                          <div style="font-size:12px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:#0c747a;">Total paid</div>
+                          <div style="margin-top:6px;font-size:30px;font-weight:900;color:#102326;">${escapeHtml(formatEmailCurrency(totalCents))}</div>
                         </td>
                       </tr>
                     </table>
@@ -2544,24 +2485,16 @@ function maskEmail(email) {
 }
 
 async function sendTwoFactorEmail(to, code) {
-  const codeDigits = code.split('').map((d) =>
-    `<td style="padding:0 4px;"><div style="width:44px;height:56px;line-height:56px;text-align:center;background:#f0fafa;border:2px solid #3ecfcf;border-radius:12px;font-size:28px;font-weight:900;color:#082023;font-family:monospace,monospace;">${d}</div></td>`
-  ).join('');
-  const html = `
-    <div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid #e0f5f5;">
-      <div style="background:linear-gradient(135deg,#082023 0%,#0d3535 100%);padding:32px 36px 28px;">
-        <div style="font-size:22px;font-weight:800;color:#3ecfcf;letter-spacing:-0.5px;">LinkUp</div>
-        <div style="font-size:15px;color:#b0e8e8;margin-top:4px;">Sign-in verification</div>
-      </div>
-      <div style="padding:32px 36px;">
-        <p style="font-size:15px;color:#1a2a2a;margin:0 0 8px;">Here is your sign-in verification code:</p>
-        <table style="border-collapse:separate;border-spacing:0;margin:24px 0 8px;" cellpadding="0" cellspacing="0"><tr>${codeDigits}</tr></table>
-        <p style="font-size:13px;color:#888;margin:20px 0 0;">This code expires in <strong>10 minutes</strong>. If you didn't try to sign in, you can safely ignore this email.</p>
-      </div>
-      <div style="padding:16px 36px;border-top:1px solid #e8f5f5;background:#f8fefe;">
-        <p style="font-size:12px;color:#aaa;margin:0;">LinkUp · University ride sharing</p>
-      </div>
-    </div>`;
+  const codeDigits = renderEmailCodeDigits(code);
+  const html = renderLinkUpEmail({
+    eyebrow: 'Sign-in verification',
+    title: 'Your sign-in code',
+    intro: 'Enter this code to finish signing in to LinkUp.',
+    bodyHtml: `
+      <table style="border-collapse:separate;border-spacing:0;margin:0 auto 10px;" cellpadding="0" cellspacing="0"><tr>${codeDigits}</tr></table>
+      <p style="font-size:13px;color:#7a6520;margin:22px 0 0;padding:14px 18px;background:#fdf8ec;border:1px solid #f0dfa0;border-radius:12px;"><strong>Expires in 10 minutes.</strong> If you didn't try to sign in, you can safely ignore this email.</p>
+    `,
+  });
   await sendAuthEmail(to, 'Your LinkUp sign-in code', `Your LinkUp sign-in code is: ${code}\n\nThis code expires in 10 minutes.`, html);
 }
 
@@ -2570,42 +2503,13 @@ function sendFriendInviteEmail(inviter, friendEmail) {
   const inviteUrl = buildFriendInviteUrl(inviter);
   const subject = `${inviterName} invited you to LinkUp`;
   const textBody = `${inviterName} has invited you to something creative: LinkUp.\n\nLinkUp helps verified students find, reserve, and share rides with people in their university network.\n\nJoin here:\n${inviteUrl}\n\n- LinkUp`;
-  const htmlBody = `
-    <!doctype html>
-    <html>
-      <body style="margin:0;padding:0;background:#f4fbfb;font-family:Arial,sans-serif;color:#102326;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4fbfb;padding:28px 12px;">
-          <tr>
-            <td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d7eeee;border-radius:18px;overflow:hidden;">
-                <tr>
-                  <td style="background:#082426;padding:30px 28px;text-align:center;">
-                    <img src="${escapeHtml(APP_BASE_URL)}/assets/images/LinkUp-wordmark.png" alt="LinkUp" style="width:150px;max-width:70%;height:auto;display:block;margin:0 auto 18px;" />
-                    <p style="margin:0;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#68eeee;font-weight:900;">Friend invite</p>
-                    <h1 style="margin:14px 0 0;font-size:28px;line-height:1.22;color:#ffffff;">${escapeHtml(inviterName)} invited you to LinkUp</h1>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:30px 28px;">
-                    <p style="margin:0 0 14px;font-size:16px;line-height:1.65;color:#21363a;">${escapeHtml(inviterName)} has invited you to something creative: a student ride network built around trust.</p>
-                    <p style="margin:0;font-size:15px;line-height:1.65;color:#54636a;">With LinkUp, verified students can find rides, reserve seats, share trip tracking, and keep ride details organized in one place.</p>
-                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:26px auto 0;">
-                      <tr>
-                        <td style="border-radius:999px;background:#0c747a;text-align:center;">
-                          <a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:14px 24px;font-size:15px;font-weight:900;color:#ffffff;text-decoration:none;border-radius:999px;">Open LinkUp</a>
-                        </td>
-                      </tr>
-                    </table>
-                    <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#7b8d91;text-align:center;">Questions? Email <a href="mailto:${escapeHtml(SUPPORT_EMAIL)}" style="color:#0c747a;font-weight:900;">${escapeHtml(SUPPORT_EMAIL)}</a>.</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </body>
-    </html>
-  `;
+  const htmlBody = renderLinkUpEmail({
+    eyebrow: 'Friend invite',
+    title: `${inviterName} invited you to LinkUp`,
+    intro: `${escapeHtml(inviterName)} has invited you to something creative: a student ride network built around trust.`,
+    bodyHtml: '<p style="margin:0;font-size:15px;line-height:1.65;color:#54636a;">With LinkUp, verified students can find rides, reserve seats, share trip tracking, and keep ride details organized in one place.</p>',
+    cta: { href: inviteUrl, label: 'Open LinkUp' },
+  });
   sendAuthEmail(friendEmail, subject, textBody, htmlBody);
 }
 
@@ -3829,7 +3733,14 @@ app.post('/api/auth/forgot-password', (req, res) => {
     sendAuthEmail(
       user.email,
       'Reset your LinkUp password',
-      `Hi ${user.firstName},\n\nUse this link to reset your LinkUp password. It expires in 1 hour:\n${resetUrl}\n\n- LinkUp`
+      `Hi ${user.firstName},\n\nUse this link to reset your LinkUp password. It expires in 1 hour:\n${resetUrl}\n\n- LinkUp`,
+      renderLinkUpEmail({
+        eyebrow: 'Password reset',
+        title: 'Reset your password',
+        intro: `Hi ${escapeHtml(user.firstName || 'there')}, use this secure link to reset your LinkUp password. It expires in 1 hour.`,
+        bodyHtml: '<p style="margin:0;font-size:14px;line-height:1.65;color:#54636a;">If you did not request a password reset, you can safely ignore this email.</p>',
+        cta: { href: resetUrl, label: 'Reset password' },
+      })
     );
 
     if (NODE_ENV !== 'production') {
@@ -3882,20 +3793,15 @@ app.post('/api/auth/change-password', requireAuth, sensitiveWriteRateLimit, asyn
     '— LinkUp',
   ].join('\n');
 
-  const htmlBody = `<!doctype html><html><body style="margin:0;padding:0;background:#071719;font-family:Arial,sans-serif;">
-    <table width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:32px 14px;"><tr><td align="center">
-    <table width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border-radius:18px;overflow:hidden;">
-      <tr><td style="background:#082023;padding:24px 28px;">
-        <div style="font-size:22px;font-weight:900;color:#ffffff;">LinkUp</div>
-        <div style="margin-top:6px;font-size:13px;color:#61e0e0;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Password change</div>
-      </td></tr>
-      <tr><td style="padding:28px 28px 24px;">
-        <p style="margin:0 0 16px;font-size:16px;color:#102326;">Hi ${escapeHtml(firstName)}, enter this code to confirm your password change:</p>
-        <table cellspacing="0" cellpadding="0"><tr>${code.split('').map(d => `<td style="padding:0 3px;"><div style="width:36px;height:44px;line-height:44px;text-align:center;border-radius:10px;background:#eafafa;color:#102326;font-size:22px;font-weight:900;">${escapeHtml(d)}</div></td>`).join('')}</tr></table>
-        <p style="margin:20px 0 0;font-size:13px;color:#54636a;">Expires in 10 minutes. Didn't request this? Ignore this email — your password has not changed.</p>
-      </td></tr>
-    </table></td></tr></table>
-  </body></html>`;
+  const htmlBody = renderLinkUpEmail({
+    eyebrow: 'Password change',
+    title: 'Confirm your password change',
+    intro: `Hi ${escapeHtml(firstName)}, enter this code to confirm your password change.`,
+    bodyHtml: `
+      <table cellspacing="0" cellpadding="0" style="margin:0 auto 10px;"><tr>${renderEmailCodeDigits(code, { size: 'small' })}</tr></table>
+      <p style="margin:20px 0 0;font-size:13px;color:#7a6520;padding:14px 18px;background:#fdf8ec;border:1px solid #f0dfa0;border-radius:12px;"><strong>Expires in 10 minutes.</strong> Didn't request this? Ignore this email. Your password has not changed.</p>
+    `,
+  });
 
   try {
     const transporter = getMailTransporter();
@@ -4773,10 +4679,18 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
   trips.push(trip);
   saveDb(db);
   if (trustedEmail) {
+    const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
     sendAuthEmail(
       trustedEmail,
       user.firstName + ' invited you to track their LinkUp trip',
-      'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp'
+      trackingText,
+      renderLinkUpEmail({
+        eyebrow: 'Live tracking',
+        title: `${user.firstName || 'A LinkUp rider'} invited you to track their trip`,
+        intro: `${escapeHtml(user.firstName || 'A LinkUp rider')} wants to share their live LinkUp trip location with you for safety.`,
+        bodyHtml: '<p style="margin:0;font-size:14px;line-height:1.65;color:#54636a;">This secure link only works while sharing is active. It expires when the trip ends or after 8 hours.</p>',
+        cta: { href: viewerUrl, label: 'View trip' },
+      })
     );
   }
 
@@ -4825,10 +4739,18 @@ app.put('/api/trips/track/:tripId/trusted-email', requireAuth, requireServiceAcc
   if (!trip.viewerUrl) {
     return res.status(400).json({ error: 'This tracking trip was started before invite updates were supported. Copy the tracking link and send it manually, or restart sharing.' });
   }
+  const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + trip.viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
   sendAuthEmail(
     trustedEmail,
     user.firstName + ' invited you to track their LinkUp trip',
-    'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + trip.viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp'
+    trackingText,
+    renderLinkUpEmail({
+      eyebrow: 'Live tracking',
+      title: `${user.firstName || 'A LinkUp rider'} invited you to track their trip`,
+      intro: `${escapeHtml(user.firstName || 'A LinkUp rider')} wants to share their live LinkUp trip location with you for safety.`,
+      bodyHtml: '<p style="margin:0;font-size:14px;line-height:1.65;color:#54636a;">This secure link only works while sharing is active. It expires when the trip ends or after 8 hours.</p>',
+      cta: { href: trip.viewerUrl, label: 'View trip' },
+    })
   );
 
   res.json({
