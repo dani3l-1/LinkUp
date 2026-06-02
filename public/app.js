@@ -2512,7 +2512,7 @@ function getDriverPayoutPayload() {
   };
 }
 
-function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter) {
+function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter, options = {}) {
   chartElement.innerHTML = '';
   if (!items.length) return;
 
@@ -2531,6 +2531,8 @@ function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter) 
     previousValue = value;
     const row = document.createElement('div');
     row.className = 'leaderboard-row';
+    const rowClassName = typeof options.rowClassName === 'function' ? options.rowClassName(item) : '';
+    if (rowClassName) row.classList.add(rowClassName);
 
     const rank = document.createElement('div');
     rank.className = 'leaderboard-rank';
@@ -2562,7 +2564,8 @@ function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter) 
     const meta = document.createElement('div');
     meta.className = 'leaderboard-meta';
     const schoolLocation = item.location || [item.city, item.state].filter(Boolean).join(', ');
-    meta.textContent = [schoolLocation, item.domain, item.needsReview ? 'Needs review' : '', item.serviceApproved ? 'Service active' : 'Waitlist'].filter(Boolean).join(' - ');
+    const extraMeta = typeof options.extraMeta === 'function' ? options.extraMeta(item) : '';
+    meta.textContent = [schoolLocation, item.domain, item.needsReview ? 'Needs review' : '', item.serviceApproved ? 'Service active' : 'Waitlist', extraMeta].filter(Boolean).join(' - ');
 
     content.append(header, track, meta);
     row.append(rank, content);
@@ -2599,12 +2602,16 @@ function renderSchoolLeaderboard(data) {
 function renderWaitlistLeaderboard(data) {
   if (!waitlistLeaderboardChart || !waitlistLeaderboardSummary || !waitlistLeaderboardCount) return;
   const schools = data.schools || [];
+  const currentSchoolDomain = String(currentUser?.universityDomain || '').toLowerCase();
   waitlistLeaderboardChart.innerHTML = '';
   waitlistLeaderboardCount.textContent = (data.totalUsers || 0) + ' student' + ((data.totalUsers || 0) === 1 ? '' : 's');
   waitlistLeaderboardSummary.textContent = schools.length
     ? `${data.totalUsers} waitlisted student${data.totalUsers === 1 ? '' : 's'} across ${schools.length} school${schools.length === 1 ? '' : 's'}.`
     : 'You are one of the first students on the waitlist.';
-  renderLeaderboardRows(schools, waitlistLeaderboardChart, 'userCount', (school) => school.userCount + ' student' + (school.userCount === 1 ? '' : 's'));
+  renderLeaderboardRows(schools, waitlistLeaderboardChart, 'userCount', (school) => school.userCount + ' student' + (school.userCount === 1 ? '' : 's'), {
+    rowClassName: (school) => String(school.domain || '').toLowerCase() === currentSchoolDomain ? 'current-school' : '',
+    extraMeta: (school) => String(school.domain || '').toLowerCase() === currentSchoolDomain ? 'Your school' : '',
+  });
 
   if (waitlistLeaderboardReview) {
     const reviewDomains = (data.needsReviewSchools || []).slice(0, 3).map((school) => school.domain).filter(Boolean);
