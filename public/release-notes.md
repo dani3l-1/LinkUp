@@ -6,10 +6,12 @@
 
 ### New
 - **Optional parking / airport fee for ride listings.** Drivers can now add a separate parking or airport fee when listing a ride. Riders see the seat price, fee, and total before checkout.
+- **Pre-launch waitlist page.** Students whose school is not approved yet now see a focused waitlist page with their LinkUp member number, the LinkUp logo, and an Edit profile button while ride access stays locked.
 
 ### Improvements
 - **Clearer ride totals.** Browse, cart, payment, checkout, and reservation emails now use the full ride total when an optional parking / airport fee is included.
 - **Fairer driver earnings math.** Parking / airport fees are collected and paid through with the ride, while LinkUp commission is calculated from the seat price instead of the reimbursement fee.
+- **Cleaner waitlist profile access.** Waitlisted students can update basic profile information without seeing payment method or driver payout settings before their school is approved.
 
 ---
 
