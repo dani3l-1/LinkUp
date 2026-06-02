@@ -4543,11 +4543,12 @@ article.card h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: clamp(390px, 62vh, 680px);
-  padding: clamp(2rem, 5vw, 4.5rem) 1.25rem;
+  min-height: clamp(560px, 70vh, 780px);
+  padding: clamp(2.25rem, 5vw, 4.75rem) clamp(1rem, 4vw, 2.25rem);
   border-color: rgba(62,207,207,0.16);
   background:
-    linear-gradient(135deg, rgba(62,207,207,0.08), rgba(255,255,255,0.018) 42%, rgba(0,0,0,0.08)),
+    radial-gradient(circle at 50% 0%, rgba(62,207,207,0.12), transparent 42%),
+    linear-gradient(145deg, rgba(62,207,207,0.08), rgba(255,255,255,0.018) 42%, rgba(0,0,0,0.12)),
     rgba(7,16,18,0.7);
   overflow: hidden;
 }
@@ -4573,22 +4574,47 @@ article.card h3 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.95rem;
-  width: min(520px, 100%);
+  gap: 1rem;
+  width: min(780px, 100%);
   text-align: center;
 }
 
+.waitlist-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  width: min(620px, 100%);
+}
+
 .waitlist-logo {
-  width: clamp(122px, 18vw, 176px);
+  width: clamp(112px, 14vw, 156px);
   height: auto;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.1rem;
   filter: drop-shadow(0 16px 32px rgba(0,0,0,0.3));
+}
+
+.waitlist-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgba(62,207,207,0.22);
+  border-radius: 999px;
+  background: rgba(62,207,207,0.08);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .waitlist-member-number {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.1rem, 6vw, 3.9rem);
+  font-size: clamp(2.5rem, 6vw, 4.4rem);
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1;
@@ -4596,14 +4622,10 @@ article.card h3 {
 }
 
 .waitlist-about-msg {
-  max-width: 500px;
-  margin: -0.15rem 0 0;
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(62,207,207,0.14);
-  border-radius: var(--radius-sm);
-  background: rgba(62,207,207,0.055);
+  max-width: 570px;
+  margin: -0.1rem 0 0;
   color: var(--text-secondary);
-  font-size: 0.96rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -4627,24 +4649,38 @@ article.card h3 {
 }
 
 .waitlist-notify-msg {
-  max-width: 440px;
+  max-width: 530px;
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1.5;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid rgba(62,207,207,0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(3,10,12,0.28);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.waitlist-action-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.86fr) minmax(320px, 1.14fr);
+  gap: 0.85rem;
+  align-items: stretch;
+  width: 100%;
+  margin-top: 0.2rem;
 }
 
 .waitlist-intent-panel {
-  width: min(440px, 100%);
-  margin-top: 0.1rem;
-  padding: 0.85rem;
+  width: 100%;
+  min-height: 100%;
+  padding: 0.95rem;
   border: 1px solid rgba(62,207,207,0.14);
   border-radius: var(--radius-sm);
   background: rgba(255,255,255,0.035);
+  text-align: left;
 }
 
 .waitlist-intent-title {
-  margin: 0 0 0.65rem;
+  margin: 0 0 0.75rem;
   color: var(--text-secondary);
   font-size: 0.86rem;
   font-weight: 800;
@@ -4652,7 +4688,7 @@ article.card h3 {
 
 .waitlist-intent-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 0.45rem;
 }
 
@@ -4682,14 +4718,14 @@ article.card h3 {
 
 .waitlist-intent-message {
   min-height: 1rem;
-  margin: 0.5rem 0 0;
+  margin: 0.65rem 0 0;
   color: var(--text-muted);
   font-size: 0.78rem;
 }
 
 .waitlist-leaderboard-panel {
-  width: min(520px, 100%);
-  margin-top: 0.2rem;
+  width: 100%;
+  min-height: 100%;
   padding: 0.95rem;
   border: 1px solid rgba(62,207,207,0.14);
   border-radius: var(--radius-sm);
@@ -4763,8 +4799,30 @@ article.card h3 {
   font-size: 0.76rem;
 }
 
+@media (max-width: 760px) {
+  .waitlist-inner {
+    width: min(560px, 100%);
+  }
+  .waitlist-action-grid {
+    grid-template-columns: 1fr;
+  }
+  .waitlist-intent-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 480px) {
-  #waitlist-page { min-height: 420px; }
+  #waitlist-page {
+    min-height: 520px;
+    padding: 1.5rem 0.8rem;
+  }
+  .waitlist-member-number {
+    font-size: clamp(2.1rem, 12vw, 3rem);
+  }
+  .waitlist-about-msg,
+  .waitlist-notify-msg {
+    font-size: 0.88rem;
+  }
   .waitlist-profile-btn { width: 100%; }
   .waitlist-intent-actions { grid-template-columns: 1fr; }
   .waitlist-leaderboard-header { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
@@ -10652,14 +10710,19 @@ html[data-theme="light"] .waitlist-member-number {
 }
 
 html[data-theme="light"] .waitlist-notify-msg {
-  color: #45666b;
+  border-color: rgba(18,91,97,0.10);
+  background: rgba(255,255,255,0.58);
+  color: #567176;
 }
 
 html[data-theme="light"] .waitlist-about-msg {
-  border-color: rgba(19,156,163,0.18);
-  background: rgba(255,255,255,0.68);
   color: #34565b;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+}
+
+html[data-theme="light"] .waitlist-status-pill {
+  border-color: rgba(19,156,163,0.26);
+  background: rgba(62,207,207,0.12);
+  color: #067b84;
 }
 
 html[data-theme="light"] .waitlist-intent-panel {
