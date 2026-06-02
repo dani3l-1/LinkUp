@@ -2301,6 +2301,11 @@ function normalizeSocialLinks(value = {}) {
   return { valid: true, links };
 }
 
+function normalizeWaitlistIntent(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['driver', 'rider', 'unsure'].includes(normalized) ? normalized : '';
+}
+
 function userNeedsRequiredSettings(user) {
   return getMissingRequiredSettings(user).length > 0;
 }
@@ -2345,6 +2350,7 @@ function publicUser(user, db = null) {
     universityDomain: user.universityDomain || getEmailDomain(user.email),
     serviceApproved: user.serviceApproved === true,
     waitlisted: user.serviceApproved !== true,
+    waitlistIntent: normalizeWaitlistIntent(user.waitlistIntent),
     emailVerified: user.emailVerified !== false,
     nameLastChangedAt: user.nameLastChangedAt || null,
     memberNumber: db ? getUserMemberNumber(db, user.id) : null,
@@ -3341,6 +3347,7 @@ app.post('/api/auth/signup', async (req, res) => {
     universityDomain,
     serviceApproved,
     waitlistedAt: serviceApproved ? null : new Date().toISOString(),
+    waitlistIntent: '',
     passwordHash: hashedPassword,
     emailVerified: false,
     themePreference: 'dark',
@@ -3977,6 +3984,25 @@ app.put('/api/profile/preferences', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'User not found' });
   }
   user.themePreference = normalizeThemePreference(req.body.themePreference);
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(publicUser(user, db));
+});
+
+app.put('/api/profile/waitlist-intent', requireAuth, sensitiveWriteRateLimit, (req, res) => {
+  const waitlistIntent = normalizeWaitlistIntent(req.body.waitlistIntent);
+  if (!waitlistIntent) {
+    return res.status(400).json({ error: 'Choose driver, rider, or not sure yet.' });
+  }
+
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  user.waitlistIntent = waitlistIntent;
+  user.waitlistIntentUpdatedAt = new Date().toISOString();
   user.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json(publicUser(user, db));
@@ -6028,6 +6054,51 @@ function summarizeAdminUser(user, db) {
   };
 }
 
+function summarizeAdminSchoolSignups(users) {
+  const schools = new Map();
+  (users || []).filter((user) => !isAdminUser(user)).forEach((user) => {
+    const domain = user.universityDomain || getEmailDomain(user.email);
+    const schoolInfo = getUniversityInfoFromDomain(domain);
+    const school = getUserUniversityDisplay(user) || schoolInfo.name || domain || 'Unknown school';
+    const key = domain || school;
+    if (!schools.has(key)) {
+      schools.set(key, {
+        school,
+        domain,
+        totalUsers: 0,
+        waitlistedUsers: 0,
+        approvedUsers: 0,
+        driverIntent: 0,
+        riderIntent: 0,
+        unsureIntent: 0,
+        unknownIntent: 0,
+        latestSignupAt: '',
+      });
+    }
+
+    const entry = schools.get(key);
+    entry.totalUsers += 1;
+    if (user.serviceApproved === true) entry.approvedUsers += 1;
+    else entry.waitlistedUsers += 1;
+
+    const intent = normalizeWaitlistIntent(user.waitlistIntent);
+    if (intent === 'driver') entry.driverIntent += 1;
+    else if (intent === 'rider') entry.riderIntent += 1;
+    else if (intent === 'unsure') entry.unsureIntent += 1;
+    else entry.unknownIntent += 1;
+
+    if (!entry.latestSignupAt || new Date(user.createdAt || 0) > new Date(entry.latestSignupAt || 0)) {
+      entry.latestSignupAt = user.createdAt || '';
+    }
+  });
+
+  return Array.from(schools.values()).sort((a, b) => {
+    if (b.waitlistedUsers !== a.waitlistedUsers) return b.waitlistedUsers - a.waitlistedUsers;
+    if (b.totalUsers !== a.totalUsers) return b.totalUsers - a.totalUsers;
+    return a.school.localeCompare(b.school);
+  });
+}
+
 function summarizeAdminRide(ride) {
   return {
     id: ride.id,
@@ -6188,6 +6259,7 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, adminDashboardRateLimi
       walletTransactions: walletTransactions.length,
     },
     users: users.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map((user) => summarizeAdminUser(user, db)),
+    schoolSignups: summarizeAdminSchoolSignups(users),
     rides: rides.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminRide),
     rideRequests: rideRequests.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminRequest),
     reports: reports.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminReport),

@@ -199,6 +199,16 @@ async function checkAuthSmoke() {
     if (!/^http:\/\/127\.0\.0\.1:\d+\/\?invite=/.test(me.data?.friendInviteUrl || '')) {
       fail(`Session smoke test returned unexpected friendInviteUrl: ${JSON.stringify(me.data?.friendInviteUrl)}`);
     }
+    const waitlistIntent = await requestJson({
+      port,
+      method: 'PUT',
+      pathname: '/api/profile/waitlist-intent',
+      cookie,
+      body: { waitlistIntent: 'driver' },
+    });
+    if (waitlistIntent.status !== 200 || waitlistIntent.data?.waitlistIntent !== 'driver') {
+      fail(`Waitlist intent smoke test failed with ${waitlistIntent.status}: ${waitlistIntent.text || JSON.stringify(waitlistIntent.data)}`);
+    }
     const inviteCode = new URL(me.data.friendInviteUrl).searchParams.get('invite');
     const inviteLookup = await requestJson({ port, pathname: '/api/invites/' + encodeURIComponent(inviteCode) });
     if (inviteLookup.status !== 200 || inviteLookup.data?.inviterFirstName !== 'Launch') {

@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260601-no-social-waitlist-profile" />
+    <link rel="stylesheet" href="styles.css?v=20260601-waitlist-intent" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -244,6 +244,15 @@
               <img class="waitlist-logo" src="assets/images/LinkUp-wordmark.png" alt="LinkUp" />
               <h2 id="waitlist-title" class="waitlist-member-number">Member #—</h2>
               <p id="waitlist-message" class="waitlist-notify-msg">We saved your account. We will notify you when your access is approved and you can ride with LinkUp.</p>
+              <div class="waitlist-intent-panel" aria-label="Waitlist ride preference">
+                <p class="waitlist-intent-title">What are you more likely to do first?</p>
+                <div class="waitlist-intent-actions">
+                  <button type="button" class="waitlist-intent-btn" data-waitlist-intent="rider" aria-pressed="false">Ride</button>
+                  <button type="button" class="waitlist-intent-btn" data-waitlist-intent="driver" aria-pressed="false">Drive</button>
+                  <button type="button" class="waitlist-intent-btn" data-waitlist-intent="unsure" aria-pressed="false">Not sure</button>
+                </div>
+                <p id="waitlist-intent-message" class="waitlist-intent-message" aria-live="polite"></p>
+              </div>
               <button id="waitlist-profile-button" type="button" class="waitlist-profile-btn">Edit profile</button>
             </div>
           </section>
@@ -1536,6 +1545,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260601-no-social-waitlist-profile"></script>
+    <script src="app.js?v=20260601-waitlist-intent"></script>
   </body>
 </html>

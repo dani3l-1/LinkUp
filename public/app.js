@@ -94,6 +94,8 @@ const waitlistPage = document.getElementById('waitlist-page');
 const waitlistTitle = document.getElementById('waitlist-title');
 const waitlistMessage = document.getElementById('waitlist-message');
 const waitlistProfileButton = document.getElementById('waitlist-profile-button');
+const waitlistIntentButtons = document.querySelectorAll('[data-waitlist-intent]');
+const waitlistIntentMessage = document.getElementById('waitlist-intent-message');
 const listRidePage = document.getElementById('list-ride-page');
 const requestRidePage = document.getElementById('request-ride-page');
 const cartPage = document.getElementById('cart-page');
@@ -2643,10 +2645,12 @@ function showAdminMessage(message, type = 'success') {
 function renderAdminMetrics(data) {
   if (!adminMetrics) return;
   const metrics = data.metrics || {};
+  const topSchool = (data.schoolSignups || [])[0];
   const items = [
     ['Users', metrics.users],
     ['Approved', metrics.serviceApprovedUsers],
     ['Waitlist', metrics.waitlistedUsers],
+    ['Top school', topSchool ? `${topSchool.waitlistedUsers} waitlist` : 0],
     ['Suspended', metrics.suspendedUsers],
     ['Rides', metrics.rides],
     ['Requests', metrics.rideRequests],
@@ -2677,6 +2681,17 @@ function renderAdminTable() {
   if (!adminTableWrap || !adminSnapshot) return;
   adminTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.adminTab === adminView));
   if (adminView === 'reports') {
+    const schoolRows = (adminSnapshot.schoolSignups || []).slice(0, 20).map((school, index) => `
+      <tr>
+        ${adminCell(index + 1)}
+        ${adminCell(school.school)}
+        ${adminCell(school.domain)}
+        ${adminCell(school.totalUsers)}
+        ${adminCell(school.waitlistedUsers)}
+        ${adminCell(school.approvedUsers)}
+        ${adminCell(`${school.riderIntent || 0} rider / ${school.driverIntent || 0} driver / ${school.unsureIntent || 0} unsure`)}
+      </tr>
+    `).join('');
     const rows = (adminSnapshot.reports || []).map((report) => `
       <tr>
         ${adminCell(report.status)}
@@ -2695,7 +2710,18 @@ function renderAdminTable() {
         </td>
       </tr>
     `).join('');
-    adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Status</th><th>Reason</th><th>Details</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No reports yet.</td></tr>'}</tbody></table>`;
+    adminTableWrap.innerHTML = `
+      <section class="admin-priority-block">
+        <div class="admin-priority-header">
+          <div>
+            <h3>School Signup Priority</h3>
+            <p>Sorted by waitlisted students first, then total signups.</p>
+          </div>
+        </div>
+        <table class="admin-table"><thead><tr><th>Rank</th><th>School</th><th>Email domain</th><th>Students</th><th>Waitlist</th><th>Approved</th><th>Intent</th></tr></thead><tbody>${schoolRows || '<tr><td colspan="7">No school signups yet.</td></tr>'}</tbody></table>
+      </section>
+      <table class="admin-table"><thead><tr><th>Status</th><th>Reason</th><th>Details</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No reports yet.</td></tr>'}</tbody></table>
+    `;
     return;
   }
   if (adminView === 'users') {
@@ -4195,6 +4221,14 @@ function returnFromLegalPage() {
   returnToBrowseRides();
 }
 
+function renderWaitlistIntent(intent = '') {
+  waitlistIntentButtons.forEach((button) => {
+    const selected = button.dataset.waitlistIntent === intent;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+}
+
 function showWaitlistPage(user) {
   setAppRoute('waitlist');
   hideDashboardPages();
@@ -4208,6 +4242,10 @@ function showWaitlistPage(user) {
 
   if (waitlistMessage) {
     waitlistMessage.textContent = 'We saved your account. We will notify you when your access is approved and you can ride with LinkUp.';
+  }
+  renderWaitlistIntent(user?.waitlistIntent || '');
+  if (waitlistIntentMessage) {
+    waitlistIntentMessage.textContent = user?.waitlistIntent ? 'Saved.' : '';
   }
 
   const profileBtn = document.getElementById('waitlist-profile-button');
@@ -8337,6 +8375,30 @@ leaderboardBackHomeButton.addEventListener('click', () => returnToBrowseRides())
 publicProfileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 profileButton.addEventListener('click', () => showProfilePage());
 waitlistProfileButton?.addEventListener('click', () => showProfilePage('info'));
+waitlistIntentButtons.forEach((button) => {
+  button.addEventListener('click', async () => {
+    const waitlistIntent = button.dataset.waitlistIntent || '';
+    const previousIntent = currentUser?.waitlistIntent || '';
+    renderWaitlistIntent(waitlistIntent);
+    if (waitlistIntentMessage) waitlistIntentMessage.textContent = 'Saving...';
+    waitlistIntentButtons.forEach((item) => { item.disabled = true; });
+    try {
+      const user = await fetchJson('/api/profile/waitlist-intent', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waitlistIntent }),
+      });
+      currentUser = user;
+      renderWaitlistIntent(user.waitlistIntent || '');
+      if (waitlistIntentMessage) waitlistIntentMessage.textContent = 'Saved.';
+    } catch (err) {
+      renderWaitlistIntent(previousIntent);
+      if (waitlistIntentMessage) waitlistIntentMessage.textContent = err.message || 'Unable to save right now.';
+    } finally {
+      waitlistIntentButtons.forEach((item) => { item.disabled = false; });
+    }
+  });
+});
 profileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 privacyLink.addEventListener('click', () => showLegalPage('privacy'));
 termsLink.addEventListener('click', () => showLegalPage('terms'));

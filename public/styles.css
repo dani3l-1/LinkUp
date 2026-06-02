@@ -4622,9 +4622,63 @@ article.card h3 {
   line-height: 1.5;
 }
 
+.waitlist-intent-panel {
+  width: min(440px, 100%);
+  margin-top: 0.1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(62,207,207,0.14);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.035);
+}
+
+.waitlist-intent-title {
+  margin: 0 0 0.65rem;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.waitlist-intent-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.waitlist-intent-btn {
+  min-height: 42px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(62,207,207,0.18);
+  border-radius: var(--radius-sm);
+  background: rgba(3,10,12,0.36);
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.waitlist-intent-btn.active {
+  border-color: rgba(62,207,207,0.5);
+  background: rgba(62,207,207,0.18);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(62,207,207,0.16);
+}
+
+.waitlist-intent-btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.waitlist-intent-message {
+  min-height: 1rem;
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 @media (max-width: 480px) {
   #waitlist-page { min-height: 420px; }
   .waitlist-profile-btn { width: 100%; }
+  .waitlist-intent-actions { grid-template-columns: 1fr; }
 }
 
 /* ─── Scrollbar global ──────────────────────────────────────── */
@@ -5864,6 +5918,33 @@ article.card h3 {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+.admin-priority-block {
+  min-width: 760px;
+  padding: 0.95rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(62,207,207,0.035);
+}
+
+.admin-priority-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-priority-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.admin-priority-header p {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
 }
 
 .admin-table {
@@ -10483,6 +10564,33 @@ html[data-theme="light"] .waitlist-member-number {
 
 html[data-theme="light"] .waitlist-notify-msg {
   color: #45666b;
+}
+
+html[data-theme="light"] .waitlist-intent-panel {
+  border-color: rgba(18,91,97,0.12);
+  background: rgba(255,255,255,0.64);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+}
+
+html[data-theme="light"] .waitlist-intent-title {
+  color: #34565b;
+}
+
+html[data-theme="light"] .waitlist-intent-btn {
+  border-color: rgba(18,91,97,0.13);
+  background: #ffffff;
+  color: #49686d;
+}
+
+html[data-theme="light"] .waitlist-intent-btn.active {
+  border-color: rgba(19,156,163,0.42);
+  background: rgba(62,207,207,0.13);
+  color: #067b84;
+  box-shadow: inset 0 0 0 1px rgba(19,156,163,0.12);
+}
+
+html[data-theme="light"] .waitlist-intent-message {
+  color: #667d82;
 }
 
 html[data-theme="light"] .waitlist-profile-btn {
