@@ -1899,9 +1899,6 @@ function fillProfileForm(user) {
   document.getElementById('profile-last-name').value = user.lastName || '';
   document.getElementById('profile-class-year').value = user.classYear || '';
   document.getElementById('profile-major').value = user.major || '';
-  document.getElementById('profile-interests').value = joinInterestTags(user.interests);
-  document.getElementById('profile-public-groups').value = joinCampusGroups(user.campusGroups, 'public');
-  document.getElementById('profile-private-groups').value = joinCampusGroups(user.campusGroups, 'private');
   birthdayInput.value = user.birthday || '';
   genderInput.value = user.gender || '';
   document.getElementById('profile-email').value = user.email || '';
@@ -9261,11 +9258,6 @@ profileForm.addEventListener('submit', async (event) => {
     lastName: document.getElementById('profile-last-name').value.trim(),
     classYear: document.getElementById('profile-class-year').value.trim(),
     major: document.getElementById('profile-major').value.trim(),
-    interests: parseInterestInput(document.getElementById('profile-interests').value),
-    campusGroups: [
-      ...parseCampusGroupInput(document.getElementById('profile-public-groups').value, 'public'),
-      ...parseCampusGroupInput(document.getElementById('profile-private-groups').value, 'private'),
-    ],
     birthday: document.getElementById('profile-birthday').value,
     gender: document.getElementById('profile-gender').value,
     profilePictureDataUrl: pendingProfilePictureDataUrl ?? currentUser?.profilePictureDataUrl ?? '',
