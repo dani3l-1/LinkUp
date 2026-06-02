@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LinkUp Invite Signup Preview</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: start center;
+        padding: 32px 16px;
+      }
+
+      .preview-shell {
+        width: min(480px, 100%);
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="main-content" class="preview-shell">
+      <section id="auth-section" class="card">
+        <div class="auth-brand">
+          <div class="auth-brand-badge">✦ University rides</div>
+          <h1 class="auth-headline">Rides for students,<br />by students.</h1>
+          <p class="auth-sub">Verified .edu emails only. Campus-to-campus, no strangers.</p>
+        </div>
+
+        <div id="invite-auth-banner" class="invite-auth-banner" aria-live="polite">
+          <span id="invite-auth-name">Daniel</span>
+          <strong>invited you to join LinkUp.</strong>
+        </div>
+
+        <div class="auth-tabs">
+          <button class="tab-button" data-tab="signin">Sign In</button>
+          <button class="tab-button active" data-tab="signup">Create Account</button>
+        </div>
+
+        <form id="signup-form" class="tab-content active">
+          <div class="form-row-2">
+            <div class="form-field">
+              <label for="signup-first-name">First Name</label>
+              <input type="text" id="signup-first-name" placeholder="First" autocomplete="given-name" required />
+            </div>
+            <div class="form-field">
+              <label for="signup-last-name">Last Name</label>
+              <input type="text" id="signup-last-name" placeholder="Last" autocomplete="family-name" required />
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="signup-middle-name">Middle Name <span class="label-optional">(optional)</span></label>
+            <input type="text" id="signup-middle-name" placeholder="Middle" autocomplete="additional-name" />
+          </div>
+          <div class="form-row-2">
+            <div class="form-field">
+              <label for="signup-birthday">Birthday</label>
+              <input type="date" id="signup-birthday" autocomplete="bday" required />
+            </div>
+            <div class="form-field">
+              <label for="signup-gender">Gender</label>
+              <select id="signup-gender" required>
+                <option value="">Select...</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="nonbinary">Non-binary</option>
+                <option value="prefer-not-to-say">Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="signup-email">University Email</label>
+            <input type="email" id="signup-email" placeholder="you@university.edu" autocomplete="email" required />
+          </div>
+          <div class="form-field">
+            <label for="signup-password">Password</label>
+            <input type="password" id="signup-password" placeholder="Create a strong password" minlength="8" autocomplete="new-password" required />
+          </div>
+          <div class="password-requirements">
+            <p>Must include</p>
+            <ul>
+              <li id="req-length"><span class="check-icon">✓</span> 8+ characters</li>
+              <li id="req-uppercase"><span class="check-icon">✓</span> Uppercase letter</li>
+              <li id="req-lowercase"><span class="check-icon">✓</span> Lowercase letter</li>
+              <li id="req-number"><span class="check-icon">✓</span> Number</li>
+              <li id="req-special"><span class="check-icon">✓</span> Special char (!@#$...)</li>
+            </ul>
+          </div>
+          <label class="checkbox-label terms-agreement signup-consent">
+            <input type="checkbox" id="signup-terms-agree" required />
+            I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button>.
+          </label>
+          <label class="checkbox-label terms-agreement signup-consent">
+            <input type="checkbox" id="signup-privacy-agree" required />
+            I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="privacy">Privacy Notice</button>.
+          </label>
+          <button type="button" class="btn-primary">Create Account →</button>
+          <div id="signup-error" class="error-message"></div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
