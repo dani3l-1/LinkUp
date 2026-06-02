@@ -158,6 +158,10 @@ const friendInviteJoinedCount = document.getElementById('friend-invite-joined-co
 const friendInviteLink = document.getElementById('friend-invite-link');
 const friendInviteCopyButton = document.getElementById('friend-invite-copy');
 const friendInviteLinkMessage = document.getElementById('friend-invite-link-message');
+const deleteAccountForm = document.getElementById('delete-account-form');
+const deleteAccountSubmit = document.getElementById('delete-account-submit');
+const deleteAccountMessage = document.getElementById('delete-account-message');
+const deleteAccountError = document.getElementById('delete-account-error');
 const profileSidebarButtons = document.querySelectorAll('.profile-sidebar-button');
 const profilePanels = document.querySelectorAll('[data-profile-panel]');
 const profilePictureInput = document.getElementById('profile-picture-input');
@@ -4545,6 +4549,7 @@ function restoreAppRoute() {
     else if (route === 'profile-policies') showProfilePage('policies');
     else if (route === 'profile-appearance') showProfilePage('appearance');
     else if (route === 'profile-release-notes') showProfilePage('release-notes');
+    else if (route === 'profile-delete-account') showProfilePage('delete-account');
     else if (route === 'profile-about') showProfilePage('about');
     else if (route === 'profile') showProfilePage('info');
     else if (route === 'browse') {
@@ -9314,6 +9319,42 @@ friendInviteForm?.addEventListener('submit', async (event) => {
     }
   } finally {
     setButtonLoading(friendInviteSubmit, false);
+  }
+});
+
+deleteAccountForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (deleteAccountMessage) {
+    deleteAccountMessage.textContent = '';
+    deleteAccountMessage.classList.remove('show');
+  }
+  if (deleteAccountError) {
+    deleteAccountError.textContent = '';
+    deleteAccountError.classList.remove('show');
+  }
+  const password = document.getElementById('delete-account-password')?.value || '';
+  const confirmText = document.getElementById('delete-account-confirm')?.value || '';
+  setButtonLoading(deleteAccountSubmit, true);
+  try {
+    const data = await fetchJson('/api/profile/account', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, confirmText }),
+    });
+    if (deleteAccountMessage) {
+      deleteAccountMessage.textContent = data.message || 'Your account has been deleted.';
+      deleteAccountMessage.classList.add('show');
+    }
+    currentUser = null;
+    clearAppRoute();
+    window.setTimeout(() => showAuthSection(), 450);
+  } catch (err) {
+    if (deleteAccountError) {
+      deleteAccountError.textContent = err.message || 'Unable to delete account.';
+      deleteAccountError.classList.add('show');
+    }
+  } finally {
+    setButtonLoading(deleteAccountSubmit, false);
   }
 });
 

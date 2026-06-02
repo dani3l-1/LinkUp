@@ -256,6 +256,25 @@ async function checkAuthSmoke() {
     if (!String(inviteEmail.text || inviteEmail.html || '').includes('?invite=')) {
       fail('Friend invite smoke test email did not include the personalized invite link.');
     }
+    const deleteAccount = await requestJson({
+      port,
+      method: 'DELETE',
+      pathname: '/api/profile/account',
+      cookie,
+      body: { password: 'Testpass1!', confirmText: 'DELETE' },
+    });
+    if (deleteAccount.status !== 200) {
+      fail(`Delete account smoke test failed with ${deleteAccount.status}: ${deleteAccount.text || JSON.stringify(deleteAccount.data)}`);
+    }
+    const deletedMe = await requestJson({ port, pathname: '/api/auth/me', cookie });
+    if (deletedMe.status !== 401) {
+      fail(`Deleted account session smoke test expected 401, got ${deletedMe.status}: ${deletedMe.text || JSON.stringify(deletedMe.data)}`);
+    }
+    const deletedDb = JSON.parse(fs.readFileSync(path.join(dataDir, 'db.json'), 'utf8'));
+    const deletedUser = (deletedDb.users || []).find((user) => user.id === me.data.id);
+    if (!deletedUser?.deletedAt || !String(deletedUser.email || '').endsWith('@deleted.linkup.local') || deletedUser.firstName !== 'Deleted') {
+      fail(`Delete account smoke test did not anonymize the user: ${JSON.stringify(deletedUser)}`);
+    }
     log('Auth smoke test passed.');
   } finally {
     child.kill('SIGTERM');

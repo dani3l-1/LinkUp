@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260601-waitlist-lowkey" />
+    <link rel="stylesheet" href="styles.css?v=20260601-delete-account" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -351,6 +351,7 @@
                 <button class="profile-sidebar-button" type="button" data-profile-tab="school-transfer">Transfer school</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="release-notes">Release notes</button>
+                <button class="profile-sidebar-button profile-sidebar-danger" type="button" data-profile-tab="delete-account">Delete account</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="about">About LinkUp</button>
               </aside>
               <div class="profile-content">
@@ -720,6 +721,29 @@
                       <p class="legal-loading">Loading release notes...</p>
                     </div>
                   </div>
+                </div>
+                <div id="profile-delete-account-panel" class="profile-panel hidden" data-profile-panel="delete-account">
+                  <form id="delete-account-form" class="profile-form delete-account-card">
+                    <div>
+                      <span class="delete-account-eyebrow">Account deletion</span>
+                      <h4>Delete your LinkUp account</h4>
+                      <p>This removes your profile from LinkUp, hides you from leaderboards and public profiles, removes active listings and requests, and signs you out.</p>
+                    </div>
+                    <div class="delete-account-warning">
+                      Some completed ride, payment, payout, dispute, fraud-prevention, and legal records may be retained as required.
+                    </div>
+                    <label>
+                      Password
+                      <input type="password" id="delete-account-password" autocomplete="current-password" placeholder="Enter your password" required />
+                    </label>
+                    <label>
+                      Type DELETE to confirm
+                      <input type="text" id="delete-account-confirm" autocomplete="off" placeholder="DELETE" required />
+                    </label>
+                    <button type="submit" id="delete-account-submit" class="delete-account-submit">Delete account</button>
+                    <div id="delete-account-message" class="success-message"></div>
+                    <div id="delete-account-error" class="error-message"></div>
+                  </form>
                 </div>
                 <div id="profile-about-panel" class="profile-panel hidden" data-profile-panel="about">
                   <div class="about-linkup-panel">
@@ -1560,6 +1584,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260601-waitlist-lowkey"></script>
+    <script src="app.js?v=20260601-delete-account"></script>
   </body>
 </html>

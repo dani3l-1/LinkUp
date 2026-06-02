@@ -868,7 +868,7 @@ function buildFriendInviteUrl(user) {
 function findUserByFriendInviteCode(db, inviteCode) {
   const normalizedCode = String(inviteCode || '').trim().toLowerCase();
   if (!normalizedCode) return null;
-  return asArray(db?.users).find((user) => getFriendInviteCode(user) === normalizedCode) || null;
+  return activeUsers(db).find((user) => getFriendInviteCode(user) === normalizedCode) || null;
 }
 
 function normalizeCheckoutSessions(sessions) {
@@ -1053,6 +1053,7 @@ function expireUnclaimedRideRequests(db) {
 function normalizeUserAccess(db) {
   let changed = false;
   (db.users || []).forEach((user) => {
+    if (user.deletedAt) return;
     if (!user.universityDomain) {
       user.universityDomain = getEmailDomain(user.email);
       changed = true;
@@ -2316,14 +2317,22 @@ function userNeedsRequiredSettings(user) {
 
 function getUserMemberNumber(db, userId) {
   const users = Array.isArray(db?.users) ? db.users : [];
-  const index = users.filter((entry) => !isAdminUser(entry)).findIndex((entry) => entry.id === userId);
+  const index = users.filter((entry) => !isAdminUser(entry) && !isDeletedUser(entry)).findIndex((entry) => entry.id === userId);
   return index >= 0 ? index + 1 : null;
 }
 
 function getAdminNumber(db, userId) {
   const users = Array.isArray(db?.users) ? db.users : [];
-  const index = users.filter((entry) => isAdminUser(entry)).findIndex((entry) => entry.id === userId);
+  const index = users.filter((entry) => isAdminUser(entry) && !isDeletedUser(entry)).findIndex((entry) => entry.id === userId);
   return index >= 0 ? index + 1 : null;
+}
+
+function isDeletedUser(user) {
+  return Boolean(user?.deletedAt);
+}
+
+function activeUsers(db) {
+  return asArray(db?.users).filter((user) => !isDeletedUser(user));
 }
 
 function isAdminUser(user) {
@@ -2385,11 +2394,73 @@ function publicUser(user, db = null) {
     twoFactorEnabled: Boolean(user.totpEnabled),
     emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
     friendInviteCount: normalizeFriendInvites(user.friendInvites).length,
-    friendInviteJoinedCount: db ? asArray(db.users).filter((entry) => entry.invitedByUserId === user.id).length : 0,
+    friendInviteJoinedCount: db ? activeUsers(db).filter((entry) => entry.invitedByUserId === user.id).length : 0,
     friendInviteCode: getFriendInviteCode(user),
     friendInviteUrl: buildFriendInviteUrl(user),
     wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
+}
+
+function anonymizeDeletedUser(db, user) {
+  const now = new Date().toISOString();
+  const anonymizedEmail = `deleted-${user.id}@deleted.linkup.local`;
+  user.deletedAt = now;
+  user.deletedEmailHash = hashToken(normalizeEmail(user.email || ''));
+  user.email = anonymizedEmail;
+  user.firstName = 'Deleted';
+  user.middleName = '';
+  user.lastName = 'User';
+  user.name = 'Deleted User';
+  user.profilePictureDataUrl = '';
+  user.classYear = '';
+  user.major = '';
+  user.socialLinks = {};
+  user.friendInvites = [];
+  user.friendInviteCode = '';
+  user.pendingSchoolTransfer = null;
+  user.emailVerified = false;
+  user.serviceApproved = false;
+  user.waitlistedAt = null;
+  user.manuallyWaitlistedAt = null;
+  user.waitlistIntent = '';
+  user.defaultPaymentMethod = null;
+  user.payoutInfo = null;
+  user.totpEnabled = false;
+  user.totpSecret = '';
+  user.emailTwoFactorEnabled = false;
+  user.passwordHash = null;
+  user.updatedAt = now;
+
+  db.carts = db.carts || {};
+  delete db.carts[user.id];
+  db.pushSubscriptions = (db.pushSubscriptions || []).filter((sub) => sub.userId !== user.id);
+  db.deviceTokens = (db.deviceTokens || []).filter((token) => token.userId !== user.id);
+  db.userBlocks = (db.userBlocks || []).filter((block) => block.blockerId !== user.id && block.blockedUserId !== user.id);
+
+  (db.rides || []).forEach((ride) => {
+    if (ride.driverId === user.id && !hasTripEnded(ride)) {
+      ride.status = 'removed';
+      ride.moderationNote = ride.moderationNote || 'Driver deleted account.';
+      ride.removedAt = ride.removedAt || now;
+    }
+    ride.passengers = (ride.passengers || []).filter((passenger) => passenger.studentId !== user.id || hasTripEnded(ride));
+  });
+
+  (db.rideRequests || []).forEach((request) => {
+    if (request.riderId === user.id && request.status === 'open') {
+      request.status = 'removed';
+      request.moderationNote = request.moderationNote || 'Rider deleted account.';
+      request.removedAt = request.removedAt || now;
+    }
+    request.driverOffers = (request.driverOffers || []).filter((offer) => offer.driverId !== user.id);
+  });
+
+  (db.trackingTrips || []).forEach((trip) => {
+    if (trip.ownerId === user.id) {
+      trip.status = 'stopped';
+      trip.stoppedAt = trip.stoppedAt || now;
+    }
+  });
 }
 
 function maskEmail(email) {
@@ -2939,6 +3010,11 @@ function requireAuth(req, res, next) {
   if (!req.session.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === req.session.userId);
+  if (!user || isDeletedUser(user)) {
+    return req.session.destroy(() => res.status(401).json({ error: 'Account is no longer active.' }));
+  }
   next();
 }
 
@@ -2991,7 +3067,7 @@ function saveSessionAndJson(req, res, payload, newUserId = null) {
 function requireServiceAccess(req, res, next) {
   const db = normalizeUserAccess(loadDb());
   const user = db.users.find((u) => u.id === req.session.userId);
-  if (!user) {
+  if (!user || isDeletedUser(user)) {
     return res.status(404).json({ error: 'User not found' });
   }
   if (user.suspendedAt) {
@@ -3400,7 +3476,7 @@ app.post('/api/auth/verify-email', (req, res) => {
 
   const db = normalizeUserAccess(loadDb());
   const user = db.users.find((u) => u.email === normalizeEmail(email));
-  if (!user) {
+  if (!user || isDeletedUser(user)) {
     return res.status(400).json({ error: 'Invalid verification code' });
   }
   if (user.emailVerified === true) {
@@ -3443,7 +3519,7 @@ app.post('/api/auth/resend-verification', (req, res) => {
 
   const db = normalizeUserAccess(loadDb());
   const user = db.users.find((u) => u.email === normalizeEmail(email));
-  if (!user) {
+  if (!user || isDeletedUser(user)) {
     return res.json({ message: 'If an unverified account exists for that email, we sent a new code.' });
   }
   if (user.emailVerified === true) {
@@ -3498,7 +3574,7 @@ app.post('/api/auth/signin', async (req, res) => {
     db.users.push(user);
     saveDb(db);
   }
-  if (!user) {
+  if (!user || isDeletedUser(user)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
@@ -3829,7 +3905,7 @@ app.get('/api/auth/me', (req, res) => {
 
   const db = normalizeUserAccess(loadDb());
   const user = db.users.find((u) => u.id === req.session.userId);
-  if (!user) {
+  if (!user || isDeletedUser(user)) {
     return res.status(404).json({ error: 'User not found' });
   }
 
@@ -4010,6 +4086,34 @@ app.put('/api/profile/waitlist-intent', requireAuth, sensitiveWriteRateLimit, (r
   user.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json(publicUser(user, db));
+});
+
+app.delete('/api/profile/account', requireAuth, sensitiveWriteRateLimit, async (req, res) => {
+  const password = String(req.body.password || '');
+  const confirmText = String(req.body.confirmText || '').trim().toUpperCase();
+  if (!password) {
+    return res.status(400).json({ error: 'Enter your password to delete your account.' });
+  }
+  if (confirmText !== 'DELETE') {
+    return res.status(400).json({ error: 'Type DELETE to confirm account deletion.' });
+  }
+
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user || isDeletedUser(user)) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (isAdminUser(user)) {
+    return res.status(400).json({ error: 'Admin accounts cannot be deleted from profile settings.' });
+  }
+  const passwordMatches = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
+  if (!passwordMatches) {
+    return res.status(401).json({ error: 'Password is incorrect.' });
+  }
+
+  anonymizeDeletedUser(db, user);
+  saveDb(db);
+  req.session.destroy(() => res.json({ message: 'Your LinkUp account has been deleted.' }));
 });
 
 app.put('/api/profile/policies', requireAuth, (req, res) => {
@@ -4420,7 +4524,7 @@ app.post('/api/auth/clear-session', (req, res) => {
 app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
   const db = normalizeUserAccess(loadDb());
   const schoolCounts = new Map();
-  const leaderboardUsers = (db.users || []).filter((user) => !isAdminUser(user));
+  const leaderboardUsers = activeUsers(db).filter((user) => !isAdminUser(user));
 
   leaderboardUsers.forEach((user) => {
     const domain = user.universityDomain || getEmailDomain(user.email);
@@ -4500,7 +4604,7 @@ app.get('/api/leaderboard/waitlist-schools', requireAuth, (req, res) => {
   const db = normalizeUserAccess(loadDb());
   const schoolCounts = new Map();
   const needsReviewSchools = new Map();
-  const leaderboardUsers = (db.users || []).filter((user) => !isAdminUser(user) && user.serviceApproved !== true);
+  const leaderboardUsers = activeUsers(db).filter((user) => !isAdminUser(user) && user.serviceApproved !== true);
 
   leaderboardUsers.forEach((user) => {
     const domain = user.universityDomain || getEmailDomain(user.email);
@@ -5981,7 +6085,7 @@ app.delete('/api/users/:userId/block', requireAuth, requireServiceAccess, (req, 
 app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, res) => {
   const db = expireUnclaimedRideRequests(loadDb());
   const user = (db.users || []).find((entry) => entry.id === req.params.userId);
-  if (!user) {
+  if (!user || isDeletedUser(user)) {
     return res.status(404).json({ error: 'User not found' });
   }
 
@@ -6109,7 +6213,7 @@ function summarizeAdminUser(user, db) {
 
 function summarizeAdminSchoolSignups(users) {
   const schools = new Map();
-  (users || []).filter((user) => !isAdminUser(user)).forEach((user) => {
+  (users || []).filter((user) => !isAdminUser(user) && !isDeletedUser(user)).forEach((user) => {
     const domain = user.universityDomain || getEmailDomain(user.email);
     const knownDomain = isKnownUniversityDomain(domain);
     const schoolInfo = getUniversityInfoFromDomain(domain);
@@ -6290,7 +6394,7 @@ function summarizeAdminActivity(db) {
 
 app.get('/api/admin/overview', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
   const db = expireUnclaimedRideRequests(req.adminDb || loadDb());
-  const users = Array.isArray(db.users) ? db.users : [];
+  const users = activeUsers(db);
   const rides = Array.isArray(db.rides) ? db.rides : [];
   const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
   const reports = Array.isArray(db.userReports) ? db.userReports : [];
