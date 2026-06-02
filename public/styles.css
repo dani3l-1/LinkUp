@@ -4675,10 +4675,87 @@ article.card h3 {
   font-size: 0.78rem;
 }
 
+.waitlist-leaderboard-panel {
+  width: min(520px, 100%);
+  margin-top: 0.2rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(62,207,207,0.14);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.025);
+  text-align: left;
+}
+
+.waitlist-leaderboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.55rem;
+}
+
+.waitlist-leaderboard-header span,
+.waitlist-leaderboard-header strong {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.waitlist-leaderboard-header span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.waitlist-leaderboard-header strong {
+  color: var(--accent);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.waitlist-leaderboard-summary,
+.waitlist-leaderboard-review {
+  margin: 0 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.waitlist-leaderboard-review {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.waitlist-leaderboard-chart {
+  gap: 0.5rem;
+}
+
+.waitlist-leaderboard-chart .leaderboard-row {
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.72rem 0.8rem;
+  border-radius: var(--radius-sm);
+}
+
+.waitlist-leaderboard-chart .leaderboard-rank {
+  width: 1.7rem;
+  height: 1.7rem;
+  font-size: 0.76rem;
+}
+
+.waitlist-leaderboard-chart .leaderboard-school-header {
+  margin-bottom: 0.45rem;
+}
+
+.waitlist-leaderboard-chart .leaderboard-school-header span,
+.waitlist-leaderboard-chart .leaderboard-school-header strong {
+  font-size: 0.76rem;
+}
+
 @media (max-width: 480px) {
   #waitlist-page { min-height: 420px; }
   .waitlist-profile-btn { width: 100%; }
   .waitlist-intent-actions { grid-template-columns: 1fr; }
+  .waitlist-leaderboard-header { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
 }
 
 /* ─── Scrollbar global ──────────────────────────────────────── */
@@ -10591,6 +10668,25 @@ html[data-theme="light"] .waitlist-intent-btn.active {
 
 html[data-theme="light"] .waitlist-intent-message {
   color: #667d82;
+}
+
+html[data-theme="light"] .waitlist-leaderboard-panel {
+  border-color: rgba(18,91,97,0.12);
+  background: rgba(255,255,255,0.62);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+}
+
+html[data-theme="light"] .waitlist-leaderboard-header span,
+html[data-theme="light"] .waitlist-leaderboard-review {
+  color: #667d82;
+}
+
+html[data-theme="light"] .waitlist-leaderboard-header strong {
+  color: #067b84;
+}
+
+html[data-theme="light"] .waitlist-leaderboard-summary {
+  color: #45666b;
 }
 
 html[data-theme="light"] .waitlist-profile-btn {

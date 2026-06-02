@@ -134,6 +134,21 @@ async function checkAuthSmoke() {
       passwordHash: 'unused',
       emailVerified: true,
       createdAt: new Date(Date.now() - 86400000).toISOString(),
+    }, {
+      id: 'unknown-waitlist-school-user',
+      firstName: 'Unknown',
+      lastName: 'School',
+      birthday: '2000-01-01',
+      gender: 'prefer-not-to-say',
+      email: 'unknown.student@unknownuniversity.edu',
+      university: 'unknownuniversity.edu',
+      universityDomain: 'unknownuniversity.edu',
+      serviceApproved: false,
+      waitlistedAt: new Date(Date.now() - 43200000).toISOString(),
+      waitlistIntent: 'rider',
+      passwordHash: 'unused',
+      emailVerified: true,
+      createdAt: new Date(Date.now() - 43200000).toISOString(),
     }],
     rides: [],
     rideRequests: [],
@@ -208,6 +223,11 @@ async function checkAuthSmoke() {
     });
     if (waitlistIntent.status !== 200 || waitlistIntent.data?.waitlistIntent !== 'driver') {
       fail(`Waitlist intent smoke test failed with ${waitlistIntent.status}: ${waitlistIntent.text || JSON.stringify(waitlistIntent.data)}`);
+    }
+    const waitlistLeaderboard = await requestJson({ port, pathname: '/api/leaderboard/waitlist-schools', cookie });
+    const unknownSchool = (waitlistLeaderboard.data?.schools || []).find((school) => school.domain === 'unknownuniversity.edu');
+    if (waitlistLeaderboard.status !== 200 || !unknownSchool || unknownSchool.school !== 'unknownuniversity.edu' || unknownSchool.needsReview !== true) {
+      fail(`Waitlist leaderboard smoke test failed with ${waitlistLeaderboard.status}: ${waitlistLeaderboard.text || JSON.stringify(waitlistLeaderboard.data)}`);
     }
     const inviteCode = new URL(me.data.friendInviteUrl).searchParams.get('invite');
     const inviteLookup = await requestJson({ port, pathname: '/api/invites/' + encodeURIComponent(inviteCode) });

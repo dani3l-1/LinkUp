@@ -320,6 +320,10 @@ function getUniversityInfoFromDomain(domain) {
   };
 }
 
+function isKnownUniversityDomain(domain) {
+  return Boolean(UNIVERSITY_DIRECTORY[String(domain || '').toLowerCase()]);
+}
+
 function getUniversityNameFromEmail(email) {
   return getUniversityInfoFromDomain(getEmailDomain(email)).name;
 }
@@ -4492,6 +4496,55 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
   res.json({ schools, mileageSchools, totalUsers: leaderboardUsers.length, totalMilesSaved });
 });
 
+app.get('/api/leaderboard/waitlist-schools', requireAuth, (req, res) => {
+  const db = normalizeUserAccess(loadDb());
+  const schoolCounts = new Map();
+  const needsReviewSchools = new Map();
+  const leaderboardUsers = (db.users || []).filter((user) => !isAdminUser(user) && user.serviceApproved !== true);
+
+  leaderboardUsers.forEach((user) => {
+    const domain = user.universityDomain || getEmailDomain(user.email);
+    const knownDomain = isKnownUniversityDomain(domain);
+    const schoolInfo = getUniversityInfoFromDomain(domain);
+    const school = knownDomain ? (user.university || schoolInfo.name || domain) : (domain || 'Unknown school');
+    const key = domain || school;
+
+    if (!schoolCounts.has(key)) {
+      schoolCounts.set(key, {
+        school,
+        domain,
+        city: knownDomain ? (schoolInfo?.city || '') : '',
+        state: knownDomain ? (schoolInfo?.state || '') : '',
+        location: knownDomain ? [schoolInfo.city, schoolInfo.state].filter(Boolean).join(', ') : '',
+        userCount: 0,
+        serviceApproved: false,
+        needsReview: !knownDomain,
+      });
+    }
+
+    const entry = schoolCounts.get(key);
+    entry.userCount += 1;
+    entry.needsReview = entry.needsReview || !knownDomain;
+    if (!knownDomain && domain) {
+      needsReviewSchools.set(domain, {
+        domain,
+        userCount: (needsReviewSchools.get(domain)?.userCount || 0) + 1,
+      });
+    }
+  });
+
+  const schools = Array.from(schoolCounts.values()).sort((a, b) => {
+    if (b.userCount !== a.userCount) return b.userCount - a.userCount;
+    return a.school.localeCompare(b.school);
+  });
+  const needsReview = Array.from(needsReviewSchools.values()).sort((a, b) => {
+    if (b.userCount !== a.userCount) return b.userCount - a.userCount;
+    return a.domain.localeCompare(b.domain);
+  });
+
+  res.json({ schools, totalUsers: leaderboardUsers.length, needsReviewSchools: needsReview });
+});
+
 // Get Google Maps API key — requires authentication to prevent key harvesting
 app.get('/api/config/google-maps-key', requireAuth, (req, res) => {
   if (!GOOGLE_MAPS_API_KEY) {
@@ -6058,13 +6111,15 @@ function summarizeAdminSchoolSignups(users) {
   const schools = new Map();
   (users || []).filter((user) => !isAdminUser(user)).forEach((user) => {
     const domain = user.universityDomain || getEmailDomain(user.email);
+    const knownDomain = isKnownUniversityDomain(domain);
     const schoolInfo = getUniversityInfoFromDomain(domain);
-    const school = getUserUniversityDisplay(user) || schoolInfo.name || domain || 'Unknown school';
+    const school = knownDomain ? (getUserUniversityDisplay(user) || schoolInfo.name || domain || 'Unknown school') : (domain || 'Unknown school');
     const key = domain || school;
     if (!schools.has(key)) {
       schools.set(key, {
         school,
         domain,
+        needsReview: !knownDomain,
         totalUsers: 0,
         waitlistedUsers: 0,
         approvedUsers: 0,
@@ -6078,6 +6133,7 @@ function summarizeAdminSchoolSignups(users) {
 
     const entry = schools.get(key);
     entry.totalUsers += 1;
+    entry.needsReview = entry.needsReview || !knownDomain;
     if (user.serviceApproved === true) entry.approvedUsers += 1;
     else entry.waitlistedUsers += 1;
 

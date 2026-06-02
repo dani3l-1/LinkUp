@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260601-waitlist-intent" />
+    <link rel="stylesheet" href="styles.css?v=20260601-waitlist-leaderboard" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -252,6 +252,15 @@
                   <button type="button" class="waitlist-intent-btn" data-waitlist-intent="unsure" aria-pressed="false">Not sure</button>
                 </div>
                 <p id="waitlist-intent-message" class="waitlist-intent-message" aria-live="polite"></p>
+              </div>
+              <div class="waitlist-leaderboard-panel" aria-label="Waitlist leaderboard">
+                <div class="waitlist-leaderboard-header">
+                  <span>Waitlist leaderboard</span>
+                  <strong id="waitlist-leaderboard-count">Loading...</strong>
+                </div>
+                <p id="waitlist-leaderboard-summary" class="waitlist-leaderboard-summary">Loading schools...</p>
+                <div id="waitlist-leaderboard-chart" class="leaderboard-chart waitlist-leaderboard-chart"></div>
+                <p id="waitlist-leaderboard-review" class="waitlist-leaderboard-review"></p>
               </div>
               <button id="waitlist-profile-button" type="button" class="waitlist-profile-btn">Edit profile</button>
             </div>
@@ -1545,6 +1554,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260601-waitlist-intent"></script>
+    <script src="app.js?v=20260601-waitlist-leaderboard"></script>
   </body>
 </html>

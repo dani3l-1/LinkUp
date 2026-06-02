@@ -96,6 +96,10 @@ const waitlistMessage = document.getElementById('waitlist-message');
 const waitlistProfileButton = document.getElementById('waitlist-profile-button');
 const waitlistIntentButtons = document.querySelectorAll('[data-waitlist-intent]');
 const waitlistIntentMessage = document.getElementById('waitlist-intent-message');
+const waitlistLeaderboardCount = document.getElementById('waitlist-leaderboard-count');
+const waitlistLeaderboardSummary = document.getElementById('waitlist-leaderboard-summary');
+const waitlistLeaderboardChart = document.getElementById('waitlist-leaderboard-chart');
+const waitlistLeaderboardReview = document.getElementById('waitlist-leaderboard-review');
 const listRidePage = document.getElementById('list-ride-page');
 const requestRidePage = document.getElementById('request-ride-page');
 const cartPage = document.getElementById('cart-page');
@@ -2558,7 +2562,7 @@ function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter) 
     const meta = document.createElement('div');
     meta.className = 'leaderboard-meta';
     const schoolLocation = item.location || [item.city, item.state].filter(Boolean).join(', ');
-    meta.textContent = [schoolLocation, item.domain, item.serviceApproved ? 'Service active' : 'Waitlist'].filter(Boolean).join(' - ');
+    meta.textContent = [schoolLocation, item.domain, item.needsReview ? 'Needs review' : '', item.serviceApproved ? 'Service active' : 'Waitlist'].filter(Boolean).join(' - ');
 
     content.append(header, track, meta);
     row.append(rank, content);
@@ -2590,6 +2594,39 @@ function renderSchoolLeaderboard(data) {
     ? formatMiles(totalMiles) + ' traveled across ' + mileageSchools.length + ' school' + (mileageSchools.length === 1 ? '' : 's') + '.'
     : 'No ride miles have been posted yet.';
   renderLeaderboardRows(mileageSchools, milesLeaderboardChart, 'miles', (school) => formatMiles(school.miles) + ' across ' + school.tripCount + ' trip' + (school.tripCount === 1 ? '' : 's'));
+}
+
+function renderWaitlistLeaderboard(data) {
+  if (!waitlistLeaderboardChart || !waitlistLeaderboardSummary || !waitlistLeaderboardCount) return;
+  const schools = data.schools || [];
+  waitlistLeaderboardChart.innerHTML = '';
+  waitlistLeaderboardCount.textContent = (data.totalUsers || 0) + ' student' + ((data.totalUsers || 0) === 1 ? '' : 's');
+  waitlistLeaderboardSummary.textContent = schools.length
+    ? `${data.totalUsers} waitlisted student${data.totalUsers === 1 ? '' : 's'} across ${schools.length} school${schools.length === 1 ? '' : 's'}.`
+    : 'You are one of the first students on the waitlist.';
+  renderLeaderboardRows(schools.slice(0, 5), waitlistLeaderboardChart, 'userCount', (school) => school.userCount + ' student' + (school.userCount === 1 ? '' : 's'));
+
+  if (waitlistLeaderboardReview) {
+    const reviewDomains = (data.needsReviewSchools || []).slice(0, 3).map((school) => school.domain).filter(Boolean);
+    waitlistLeaderboardReview.textContent = reviewDomains.length
+      ? 'School domain pending review: ' + reviewDomains.join(', ')
+      : '';
+  }
+}
+
+async function loadWaitlistLeaderboard() {
+  if (!waitlistLeaderboardChart || !waitlistLeaderboardSummary || !waitlistLeaderboardCount) return;
+  waitlistLeaderboardSummary.textContent = 'Loading schools...';
+  waitlistLeaderboardCount.textContent = 'Loading...';
+  waitlistLeaderboardChart.innerHTML = '';
+  if (waitlistLeaderboardReview) waitlistLeaderboardReview.textContent = '';
+  try {
+    const data = await fetchJson('/api/leaderboard/waitlist-schools');
+    renderWaitlistLeaderboard(data);
+  } catch (err) {
+    waitlistLeaderboardSummary.textContent = err.message || 'Unable to load waitlist leaderboard.';
+    waitlistLeaderboardCount.textContent = '--';
+  }
 }
 
 async function loadLeaderboard() {
@@ -2689,6 +2726,7 @@ function renderAdminTable() {
         ${adminCell(school.totalUsers)}
         ${adminCell(school.waitlistedUsers)}
         ${adminCell(school.approvedUsers)}
+        ${adminCell(school.needsReview ? 'Needs review' : 'Known')}
         ${adminCell(`${school.riderIntent || 0} rider / ${school.driverIntent || 0} driver / ${school.unsureIntent || 0} unsure`)}
       </tr>
     `).join('');
@@ -2718,7 +2756,7 @@ function renderAdminTable() {
             <p>Sorted by waitlisted students first, then total signups.</p>
           </div>
         </div>
-        <table class="admin-table"><thead><tr><th>Rank</th><th>School</th><th>Email domain</th><th>Students</th><th>Waitlist</th><th>Approved</th><th>Intent</th></tr></thead><tbody>${schoolRows || '<tr><td colspan="7">No school signups yet.</td></tr>'}</tbody></table>
+        <table class="admin-table"><thead><tr><th>Rank</th><th>School</th><th>Email domain</th><th>Students</th><th>Waitlist</th><th>Approved</th><th>Record</th><th>Intent</th></tr></thead><tbody>${schoolRows || '<tr><td colspan="8">No school signups yet.</td></tr>'}</tbody></table>
       </section>
       <table class="admin-table"><thead><tr><th>Status</th><th>Reason</th><th>Details</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No reports yet.</td></tr>'}</tbody></table>
     `;
@@ -4247,6 +4285,7 @@ function showWaitlistPage(user) {
   if (waitlistIntentMessage) {
     waitlistIntentMessage.textContent = user?.waitlistIntent ? 'Saved.' : '';
   }
+  loadWaitlistLeaderboard();
 
   const profileBtn = document.getElementById('waitlist-profile-button');
   if (profileBtn) profileBtn.onclick = () => showProfilePage('info');
