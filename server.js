@@ -1705,12 +1705,19 @@ function sendVerificationCode(user, code) {
 
 function sendSchoolTransferVerificationCode(user, newEmail, code, newUniversity) {
   const firstName = user.firstName || 'there';
+  const safeFirstName = escapeHtml(firstName);
+  const safeNewEmail = escapeHtml(newEmail);
+  const safeNewUniversity = escapeHtml(newUniversity || 'your new school');
   const textBody = [
     `Hi ${firstName},`,
     '',
-    `Use this code to verify your new LinkUp school email for ${newUniversity}:`,
+    `Use this code to verify your new LinkUp school email for ${newUniversity || 'your new school'}:`,
     '',
     code,
+    '',
+    `New email: ${newEmail}`,
+    '',
+    'Your ride history, wallet, profile, ratings, and member number stay with you after the transfer.',
     '',
     'This code expires in 10 minutes. If you did not request a school transfer, you can ignore this email and your account will stay unchanged.',
     '',
@@ -1725,26 +1732,71 @@ function sendSchoolTransferVerificationCode(user, newEmail, code, newUniversity)
       <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
       <body style="margin:0;padding:0;background:#071719;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#102326;">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071719;padding:40px 16px;">
-          <tr><td align="center">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;">
-              <tr><td style="background:linear-gradient(135deg,#082a2f 0%,#0a3840 100%);padding:32px 36px;border-radius:20px 20px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
-                <div style="font-size:32px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
-                <div style="margin-top:6px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">School transfer</div>
-              </td></tr>
-              <tr><td style="background:#ffffff;padding:36px 36px 28px;border:1px solid #d7fbfb;border-top:none;border-bottom:none;">
-                <h1 style="margin:0 0 10px;font-size:26px;line-height:1.25;font-weight:800;color:#082023;">Verify your new school</h1>
-                <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#54636a;">Hi ${escapeHtml(firstName)}, enter this code in LinkUp to move your account to ${escapeHtml(newUniversity)}.</p>
-                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;"><tr>${codeDigits}</tr></table>
-                <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:700;">School transfer code</p>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:10px;padding:14px 18px;">
-                  <p style="margin:0;font-size:13px;line-height:1.6;color:#7a6520;"><strong>Expires in 10 minutes.</strong> If you did not request this, ignore this email.</p>
-                </td></tr></table>
-              </td></tr>
-              <tr><td style="background:#f7fdfd;padding:20px 36px 24px;border-radius:0 0 20px 20px;border:1px solid #d7fbfb;border-top:1px solid #e8f8f8;">
-                <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">LinkUp keeps your ride history, wallet, and profile while updating your school network.</p>
-              </td></tr>
-            </table>
-          </td></tr>
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background:linear-gradient(135deg,#082a2f 0%,#0b3a40 100%);padding:34px 36px 30px;border-radius:22px 22px 0 0;text-align:center;border:1px solid #1a5560;border-bottom:none;">
+                    <div style="font-size:34px;font-weight:900;letter-spacing:-1px;color:#ffffff;">LinkUp</div>
+                    <div style="margin-top:8px;font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#3ecfcf;">School transfer</div>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="background:#ffffff;padding:38px 38px 30px;border:1px solid #d7fbfb;border-top:none;border-bottom:none;">
+                    <h1 style="margin:0 0 12px;font-size:27px;line-height:1.25;font-weight:900;color:#082023;">Verify your new school email</h1>
+                    <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#54636a;">Hi ${safeFirstName}, enter this code in LinkUp to move your account to ${safeNewUniversity}.</p>
+
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px;">
+                      <tr>
+                        <td style="background:#f4fbfb;border:1px solid #d8eeee;border-radius:14px;padding:16px 18px;">
+                          <p style="margin:0 0 4px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#6a898f;">New school email</p>
+                          <p style="margin:0;font-size:16px;font-weight:800;color:#082023;word-break:break-word;">${safeNewEmail}</p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Digit boxes -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 10px;">
+                      <tr>${codeDigits}</tr>
+                    </table>
+                    <p style="margin:0 0 28px;font-size:12px;text-align:center;color:#8fa8ad;letter-spacing:1px;text-transform:uppercase;font-weight:800;">School transfer code</p>
+
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 14px;">
+                      <tr>
+                        <td style="background:#eefbfa;border:1px solid #ccefee;border-radius:12px;padding:15px 18px;">
+                          <p style="margin:0;font-size:13px;line-height:1.65;color:#315a60;">
+                            Your ride history, wallet, profile, ratings, and member number stay with you. Only your school network, campus matching, and university email update after verification.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="background:#fdf8ec;border:1px solid #f0dfa0;border-radius:12px;padding:15px 18px;">
+                          <p style="margin:0;font-size:13px;line-height:1.6;color:#7a6520;">
+                            <strong>Expires in 10 minutes.</strong> If you did not request this school transfer, ignore this email and your account will stay unchanged.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background:#f7fdfd;padding:21px 36px 25px;border-radius:0 0 22px 22px;border:1px solid #d7fbfb;border-top:1px solid #e8f8f8;">
+                    <p style="margin:0;font-size:12px;line-height:1.6;color:#9aadb2;text-align:center;">Questions? Email ${escapeHtml(SUPPORT_EMAIL)}.</p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
         </table>
       </body>
     </html>
