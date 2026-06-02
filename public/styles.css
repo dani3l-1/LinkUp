@@ -4774,7 +4774,26 @@ article.card h3 {
 }
 
 .waitlist-leaderboard-chart {
+  max-height: 268px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
   gap: 0.5rem;
+  scrollbar-color: rgba(62,207,207,0.42) rgba(255,255,255,0.04);
+  scrollbar-width: thin;
+}
+
+.waitlist-leaderboard-chart::-webkit-scrollbar {
+  width: 7px;
+}
+
+.waitlist-leaderboard-chart::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.04);
+  border-radius: 999px;
+}
+
+.waitlist-leaderboard-chart::-webkit-scrollbar-thumb {
+  background: rgba(62,207,207,0.42);
+  border-radius: 999px;
 }
 
 .waitlist-leaderboard-chart .leaderboard-row {
@@ -4825,6 +4844,7 @@ article.card h3 {
   }
   .waitlist-profile-btn { width: 100%; }
   .waitlist-intent-actions { grid-template-columns: 1fr; }
+  .waitlist-leaderboard-chart { max-height: 232px; }
   .waitlist-leaderboard-header { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
 }
 
@@ -10756,6 +10776,18 @@ html[data-theme="light"] .waitlist-leaderboard-panel {
   border-color: rgba(18,91,97,0.12);
   background: rgba(255,255,255,0.62);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+}
+
+html[data-theme="light"] .waitlist-leaderboard-chart {
+  scrollbar-color: rgba(19,156,163,0.42) rgba(18,91,97,0.08);
+}
+
+html[data-theme="light"] .waitlist-leaderboard-chart::-webkit-scrollbar-track {
+  background: rgba(18,91,97,0.08);
+}
+
+html[data-theme="light"] .waitlist-leaderboard-chart::-webkit-scrollbar-thumb {
+  background: rgba(19,156,163,0.42);
 }
 
 html[data-theme="light"] .waitlist-leaderboard-header span,

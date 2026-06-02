@@ -2604,7 +2604,7 @@ function renderWaitlistLeaderboard(data) {
   waitlistLeaderboardSummary.textContent = schools.length
     ? `${data.totalUsers} waitlisted student${data.totalUsers === 1 ? '' : 's'} across ${schools.length} school${schools.length === 1 ? '' : 's'}.`
     : 'You are one of the first students on the waitlist.';
-  renderLeaderboardRows(schools.slice(0, 5), waitlistLeaderboardChart, 'userCount', (school) => school.userCount + ' student' + (school.userCount === 1 ? '' : 's'));
+  renderLeaderboardRows(schools, waitlistLeaderboardChart, 'userCount', (school) => school.userCount + ' student' + (school.userCount === 1 ? '' : 's'));
 
   if (waitlistLeaderboardReview) {
     const reviewDomains = (data.needsReviewSchools || []).slice(0, 3).map((school) => school.domain).filter(Boolean);
