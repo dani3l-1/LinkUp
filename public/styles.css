@@ -6270,17 +6270,6 @@ article.card h3 {
   transform: none;
 }
 
-.profile-sidebar-danger {
-  color: var(--text-muted);
-}
-
-.profile-sidebar-danger:hover,
-.profile-sidebar-danger.active {
-  color: var(--text-secondary);
-  background: rgba(255,111,111,0.035);
-  border-left-color: rgba(255,111,111,0.28);
-}
-
 .profile-panel {
   min-width: 0;
   animation: sweep-in 0.28s ease both;
@@ -11002,18 +10991,6 @@ html[data-theme="light"] body.dashboard-mode .profile-sidebar-button.active,
 html[data-theme="light"] body.dashboard-mode .profile-sidebar-button:hover {
   background: rgba(19,156,163,0.08);
   border-color: rgba(19,156,163,0.14);
-}
-
-html[data-theme="light"] body.dashboard-mode .profile-sidebar-danger {
-  color: var(--text-muted);
-}
-
-html[data-theme="light"] body.dashboard-mode .profile-sidebar-danger.active,
-html[data-theme="light"] body.dashboard-mode .profile-sidebar-danger:hover {
-  background: rgba(188,56,56,0.035);
-  border-color: transparent;
-  border-left-color: rgba(188,56,56,0.28);
-  color: var(--text-secondary);
 }
 
 html[data-theme="light"] body.dashboard-mode .profile-editor-hero {
