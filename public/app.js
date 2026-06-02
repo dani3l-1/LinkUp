@@ -37,6 +37,8 @@ function setButtonLoading(button, loading) {
 
 const rideTransition = document.getElementById('ride-transition');
 const authSection = document.getElementById('auth-section');
+const inviteAuthBanner = document.getElementById('invite-auth-banner');
+const inviteAuthName = document.getElementById('invite-auth-name');
 const dashboard = document.getElementById('dashboard');
 const siteLogo = document.querySelector('.site-logo');
 const headerActions = document.getElementById('header-actions');
@@ -1745,6 +1747,20 @@ function showAuthForm(formId) {
   const tabName = formId.replace('-form', '');
   const matchingTab = document.querySelector('[data-tab="' + tabName + '"]');
   if (matchingTab) matchingTab.classList.add('active');
+}
+
+async function loadFriendInviteBanner(inviteCode) {
+  if (!inviteAuthBanner || !inviteCode) return;
+  try {
+    const invite = await fetchJson('/api/invites/' + encodeURIComponent(inviteCode));
+    if (inviteAuthName) {
+      inviteAuthName.textContent = invite.inviterFirstName || invite.inviterName || 'A LinkUp member';
+    }
+    inviteAuthBanner.classList.remove('hidden');
+  } catch (_) {
+    if (inviteAuthName) inviteAuthName.textContent = 'A LinkUp member';
+    inviteAuthBanner.classList.remove('hidden');
+  }
 }
 
 function clearRecoveryMessages() {
@@ -9465,7 +9481,7 @@ if (trackingViewerToken) {
 } else if (connectTarget === 'payout') {
   refreshStripePayoutStatus(connectStatus).finally(finishAppBoot);
 } else if (friendInviteCode) {
-  checkAuth().then(() => {
+  Promise.all([checkAuth(), loadFriendInviteBanner(friendInviteCode)]).then(() => {
     if (!currentUser) showAuthForm('signup-form');
   }).finally(finishAppBoot);
 } else {

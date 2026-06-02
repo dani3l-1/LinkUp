@@ -3272,6 +3272,19 @@ function canStudentReserveRide(student, ride, seatId = '', db = null) {
   return null;
 }
 
+app.get('/api/invites/:inviteCode', (req, res) => {
+  const db = normalizeUserAccess(loadDb());
+  const inviter = findUserByFriendInviteCode(db, req.params.inviteCode);
+  if (!inviter) {
+    return res.status(404).json({ error: 'Invite link not found' });
+  }
+  const inviterName = getUserDisplayName(inviter);
+  res.json({
+    inviterName,
+    inviterFirstName: inviter.firstName || inviterName.split(/\s+/)[0] || 'A LinkUp member',
+  });
+});
+
 // Sign up endpoint
 app.post('/api/auth/signup', async (req, res) => {
   const { firstName, middleName, lastName, birthday, email, password } = req.body;

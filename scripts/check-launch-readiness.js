@@ -199,6 +199,11 @@ async function checkAuthSmoke() {
     if (!/^http:\/\/127\.0\.0\.1:\d+\/\?invite=/.test(me.data?.friendInviteUrl || '')) {
       fail(`Session smoke test returned unexpected friendInviteUrl: ${JSON.stringify(me.data?.friendInviteUrl)}`);
     }
+    const inviteCode = new URL(me.data.friendInviteUrl).searchParams.get('invite');
+    const inviteLookup = await requestJson({ port, pathname: '/api/invites/' + encodeURIComponent(inviteCode) });
+    if (inviteLookup.status !== 200 || inviteLookup.data?.inviterFirstName !== 'Launch') {
+      fail(`Friend invite lookup smoke test failed with ${inviteLookup.status}: ${inviteLookup.text || JSON.stringify(inviteLookup.data)}`);
+    }
     const invite = await requestJson({
       port,
       method: 'POST',

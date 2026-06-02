@@ -393,6 +393,32 @@ strong { font-weight: 600; color: var(--text-primary); }
   line-height: 1.55;
 }
 
+.invite-auth-banner {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(62,207,207,0.18);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(62,207,207,0.12), rgba(62,207,207,0.04));
+  color: var(--text-secondary);
+}
+
+.invite-auth-banner span {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.invite-auth-banner strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
 /* Auth tabs */
 .auth-tabs {
   display: flex;
