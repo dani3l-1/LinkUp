@@ -2,6 +2,17 @@
 
 ---
 
+## v2026.06.02 BETA
+
+### New
+- **Optional parking / airport fee for ride listings.** Drivers can now add a separate parking or airport fee when listing a ride. Riders see the seat price, fee, and total before checkout.
+
+### Improvements
+- **Clearer ride totals.** Browse, cart, payment, checkout, and reservation emails now use the full ride total when an optional parking / airport fee is included.
+- **Fairer driver earnings math.** Parking / airport fees are collected and paid through with the ride, while LinkUp commission is calculated from the seat price instead of the reimbursement fee.
+
+---
+
 ## v2026.05.28 BETA
 
 ### New

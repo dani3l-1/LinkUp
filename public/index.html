@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260602-delete-normal" />
+    <link rel="stylesheet" href="styles.css?v=20260602-parking-fee" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -1256,6 +1256,7 @@
                     <input type="hidden" id="seats" value="0" required />
                   </div>
                   <label id="price-field-label">Price per seat ($) <input type="number" id="ride-price" min="0.50" step="0.01" placeholder="5.00" required /></label>
+                  <label>Parking / airport fee ($) <input type="number" id="ride-parking-fee" min="0" step="0.01" placeholder="0.00" /></label>
                   <label>Notes <textarea id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." rows="3"></textarea></label>
                   <label class="checkbox-label terms-agreement">
                     <input type="checkbox" id="ride-terms-agree" required />
@@ -1571,6 +1572,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260602-delete-normal"></script>
+    <script src="app.js?v=20260602-parking-fee"></script>
   </body>
 </html>

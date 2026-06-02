@@ -5269,6 +5269,31 @@ function formatRidePrice(ride) {
   return formatCents(ride.priceCents != null ? ride.priceCents : 500);
 }
 
+function getRideParkingFeeCents(ride) {
+  return Math.max(0, Number(ride?.parkingFeeCents || 0));
+}
+
+function getRideTotalCents(ride) {
+  if (ride?.totalPriceCents !== undefined && ride?.totalPriceCents !== null) {
+    return Math.max(0, Number(ride.totalPriceCents || 0));
+  }
+  return Math.max(0, Number(ride?.priceCents || 0)) + getRideParkingFeeCents(ride);
+}
+
+function formatRideTotalPrice(ride) {
+  return formatCents(getRideTotalCents(ride));
+}
+
+function getRideFeeDetailMarkup(ride, { flatRate = false } = {}) {
+  const parkingFeeCents = getRideParkingFeeCents(ride);
+  if (!parkingFeeCents) return `<div><strong>Price:</strong> ${esc(formatRidePrice(ride))}${flatRate ? ' (flat rate)' : ''}</div>`;
+  return `
+    <div><strong>Seat price:</strong> ${esc(formatRidePrice(ride))}${flatRate ? ' (flat rate)' : ''}</div>
+    <div><strong>Parking / airport fee:</strong> ${esc(formatCents(parkingFeeCents))}</div>
+    <div><strong>Total:</strong> ${esc(formatRideTotalPrice(ride))}</div>
+  `;
+}
+
 function formatDriverRating(ride) {
   const count = Number(ride.driverRatingCount || 0);
   const average = Number(ride.driverRatingAverage);
@@ -5715,7 +5740,7 @@ function rideMatchesBrowseFilters(ride) {
   if (Number.isFinite(minSeats) && minSeats > 0 && Number(ride.seatsAvailable) < minSeats) return false;
 
   const maxPriceCents = Math.round(Number(rideFilterMaxPriceInput.value) * 100);
-  if (Number.isFinite(maxPriceCents) && maxPriceCents > 0 && Number(ride.priceCents || 0) > maxPriceCents) return false;
+  if (Number.isFinite(maxPriceCents) && maxPriceCents > 0 && getRideTotalCents(ride) > maxPriceCents) return false;
 
   return true;
 }
@@ -5723,10 +5748,10 @@ function rideMatchesBrowseFilters(ride) {
 function sortVisibleRides(rides) {
   const sorted = [...rides];
   if (rideSortSelect.value === 'price-low') {
-    return sorted.sort((a, b) => (a.priceCents || 0) - (b.priceCents || 0));
+    return sorted.sort((a, b) => getRideTotalCents(a) - getRideTotalCents(b));
   }
   if (rideSortSelect.value === 'price-high') {
-    return sorted.sort((a, b) => (b.priceCents || 0) - (a.priceCents || 0));
+    return sorted.sort((a, b) => getRideTotalCents(b) - getRideTotalCents(a));
   }
   if (rideSortSelect.value === 'seats-high') {
     return sorted.sort((a, b) => Number(b.seatsAvailable || 0) - Number(a.seatsAvailable || 0));
@@ -5883,7 +5908,7 @@ function renderRideCard(ride) {
     ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
     <div><strong>${isMovingCard ? 'Slots left' : 'Seats left'}:</strong> ${esc(ride.seatsAvailable)}</div>
     <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
-    <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}${isMovingCard ? ' (flat rate)' : ''}</div>
+    ${getRideFeeDetailMarkup(ride, { flatRate: isMovingCard })}
     ${getVehicleDetailMarkup(ride)}
     ${ride.notes ? `<div><strong>Notes:</strong> ${esc(ride.notes)}</div>` : ''}
   `;
@@ -6765,7 +6790,7 @@ function buildRideSummary(ride, options = {}) {
       }
       ${getRiderStopDetailMarkup(currentPassenger || ride)}
       <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
-      <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}${isMoving ? ' (flat rate)' : ''}</div>
+      ${getRideFeeDetailMarkup(ride, { flatRate: isMoving })}
       ${getVehicleDetailMarkup(ride)}
       ${!isMoving ? `<div><strong>Passengers:</strong> ${esc((ride.passengers || []).length)}</div>` : ''}
     </div>
@@ -6817,7 +6842,7 @@ function renderCartItem(ride) {
   const item = buildRideSummary(ride, { includeChat: false, includeReportDriver: false });
   item.classList.add('cart-item-card');
   item.dataset.rideId = ride.id;
-  item.dataset.priceCents = String(ride.priceCents || 0);
+  item.dataset.priceCents = String(getRideTotalCents(ride));
   item.dataset.cartTermsAccepted = ride.cartTermsAccepted ? 'true' : 'false';
   item.dataset.actualPickup = ride.actualPickup || '';
   item.dataset.actualDropoff = ride.actualDropoff || '';
@@ -6862,7 +6887,7 @@ function renderCartItem(ride) {
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
     ${getRiderStopDetailMarkup(ride)}
     <div><strong>Estimated ride time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
-    <div><strong>Price:</strong> ${esc(formatRidePrice(ride))}</div>
+    ${getRideFeeDetailMarkup(ride)}
   `;
   (routeRow || item.querySelector('h4'))?.after(detail);
 
@@ -8120,6 +8145,7 @@ offerForm.addEventListener('submit', async (event) => {
   const rideshareService = rideshareServiceSelect.value.trim();
   const rideshareSeatCount = Number(rideshareSeatCountInput.value);
   const price = document.getElementById('ride-price').value;
+  const parkingFee = document.getElementById('ride-parking-fee')?.value || '0';
   const carMaker = document.getElementById('car-maker').value.trim();
   const carModel = document.getElementById('car-model').value.trim();
   const carColor = document.getElementById('car-color').value.trim();
@@ -8151,6 +8177,10 @@ offerForm.addEventListener('submit', async (event) => {
   }
   if (Number(price) < 0.5) {
     showToast('Price must be at least $0.50.', 'error');
+    return;
+  }
+  if (parkingFee && Number(parkingFee) < 0) {
+    showToast('Parking / airport fee cannot be negative.', 'error');
     return;
   }
   if (sameGenderOnly && (!currentUser.gender || currentUser.gender === 'prefer-not-to-say')) {
@@ -8195,6 +8225,7 @@ offerForm.addEventListener('submit', async (event) => {
         seatsAvailable: Number(seats),
         availableSeatIds,
         price: Number(price),
+        parkingFee: Number(parkingFee || 0),
         carMaker,
         carModel,
         carColor,

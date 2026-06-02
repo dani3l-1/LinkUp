@@ -1273,6 +1273,18 @@ function getRideMilesSaved(ride) {
   return Math.round(getRideMiles(ride) * passengerCount * 10) / 10;
 }
 
+function getRideParkingFeeCents(ride) {
+  return Math.max(0, Number(ride?.parkingFeeCents || 0));
+}
+
+function getRideChargeCents(ride) {
+  return Math.max(0, Number(ride?.priceCents || 0)) + getRideParkingFeeCents(ride);
+}
+
+function getRideCommissionableCents(ride) {
+  return Math.max(0, Number(ride?.priceCents || 0));
+}
+
 function hasConfirmedRidePassenger(ride) {
   return Array.isArray(ride.passengers) && ride.passengers.length > 0;
 }
@@ -1297,6 +1309,8 @@ function withRideMiles(ride, db = null) {
     ...ride,
     distanceMiles,
     totalDistanceMiles: getRideMiles({ ...ride, distanceMiles }),
+    parkingFeeCents: getRideParkingFeeCents(ride),
+    totalPriceCents: getRideChargeCents(ride),
     vehicleSeatCount: ride.seatingChartUnavailable ? 0 : inferVehicleSeatCount(ride),
     seatMap: getRideSeatMap(ride),
     seatsAvailable: getAvailableOpenSeatIds(ride).length,
@@ -1918,7 +1932,10 @@ function buildReservationEmailRideDetails(db, reservation) {
       seat: getEmailSeatLabel(ride, seatId),
       pickup: actualPickup || ride.origin || 'Pickup location',
       dropoff: actualDropoff || ride.destination || 'Drop-off location',
-      price: formatEmailCurrency(ride.priceCents),
+      seatPrice: formatEmailCurrency(ride.priceCents),
+      parkingFee: formatEmailCurrency(getRideParkingFeeCents(ride)),
+      hasParkingFee: getRideParkingFeeCents(ride) > 0,
+      price: formatEmailCurrency(getRideChargeCents(ride)),
     };
   });
 }
@@ -1974,7 +1991,9 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
     `Seat: ${detail.seat}`,
     `Pickup: ${detail.pickup}`,
     `Drop-off: ${detail.dropoff}`,
-    `Price: ${detail.price}`,
+    detail.hasParkingFee ? `Seat price: ${detail.seatPrice}` : `Price: ${detail.price}`,
+    detail.hasParkingFee ? `Parking / airport fee: ${detail.parkingFee}` : '',
+    detail.hasParkingFee ? `Total: ${detail.price}` : '',
   ].filter(Boolean).join('\n')).join('\n\n');
   const textBody = [
     `Hi ${firstName},`,
@@ -2003,7 +2022,9 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
       detail.licensePlate ? ['Plate', detail.licensePlate] : null,
       detail.arrivalCode ? ['Arrival code', detail.arrivalCode] : null,
       ['Seat', detail.seat],
-      ['Price', detail.price],
+      detail.hasParkingFee ? ['Seat price', detail.seatPrice] : ['Price', detail.price],
+      detail.hasParkingFee ? ['Parking / airport fee', detail.parkingFee] : null,
+      detail.hasParkingFee ? ['Total', detail.price] : null,
     ].filter(Boolean);
     const arrivalCodeDigits = String(detail.arrivalCode || '').split('').map((digit) => `
       <td style="padding:0 3px;">
@@ -2741,9 +2762,10 @@ function calcStripeFee(grossCents) {
   return Math.round(grossCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED_CENTS;
 }
 
-function addWalletAmounts(target, grossCents) {
+function addWalletAmounts(target, grossCents, commissionableCents = grossCents) {
   const gross = Math.max(0, Number(grossCents || 0));
-  const commission = Math.round(gross * LINKUP_COMMISSION_RATE);
+  const commissionBase = Math.max(0, Math.min(gross, Number(commissionableCents || 0)));
+  const commission = Math.round(commissionBase * LINKUP_COMMISSION_RATE);
   const stripeFee = calcStripeFee(gross);
   const net = Math.max(0, gross - commission - stripeFee);
   target.grossCents += gross;
@@ -2842,9 +2864,9 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
   const sourcePaymentId = paymentRecord?.id || checkoutSession.providerPaymentId || checkoutSession.id;
   reservation.ridesToReserve.forEach(({ ride }) => {
     if (!ride?.driverId) return;
-    const grossCents = Math.max(0, Number(ride.priceCents || 0));
+    const grossCents = getRideChargeCents(ride);
     if (!grossCents) return;
-    const commissionCents = Math.round(grossCents * LINKUP_COMMISSION_RATE);
+    const commissionCents = Math.round(getRideCommissionableCents(ride) * LINKUP_COMMISSION_RATE);
     const stripeFeesCents = calcStripeFee(grossCents);
     const amountCents = Math.max(0, grossCents - commissionCents - stripeFeesCents);
     const exists = db.walletTransactions.some((transaction) => transaction.type === 'driver_earning_credit'
@@ -2858,6 +2880,8 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
       type: 'driver_earning_credit',
       amountCents,
       grossCents,
+      seatPriceCents: getRideCommissionableCents(ride),
+      parkingFeeCents: getRideParkingFeeCents(ride),
       commissionCents,
       stripeFeesCents,
       commissionRate: LINKUP_COMMISSION_RATE,
@@ -3007,17 +3031,18 @@ function buildDriverWalletSummary(db, driverId) {
       getDriverPaymentRideIds(payment).forEach((rideId) => {
         const ride = ridesById.get(rideId);
         if (!ride || ride.driverId !== driverId) return;
-        const grossCents = Number(ride.priceCents || 0);
+        const grossCents = getRideChargeCents(ride);
+        const commissionableCents = getRideCommissionableCents(ride);
         if (!grossCents) return;
-        addWalletAmounts(summary.allTime, grossCents);
+        addWalletAmounts(summary.allTime, grossCents, commissionableCents);
         summary.allTime.paidSeatCount += 1;
         if (paidThisWeek) {
-          addWalletAmounts(summary.thisWeek, grossCents);
+          addWalletAmounts(summary.thisWeek, grossCents, commissionableCents);
           summary.thisWeek.paidSeatCount += 1;
         }
         if (paidThisWeek) {
           const payoutBucket = hasTripEnded(ride) ? summary.readyForPayout : summary.pendingRideCompletion;
-          addWalletAmounts(payoutBucket, grossCents);
+          addWalletAmounts(payoutBucket, grossCents, commissionableCents);
           payoutBucket.paidSeatCount += 1;
         }
       });
@@ -5167,7 +5192,7 @@ app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 });
 
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
-  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, sameSchoolOnly, seatsAvailable, price, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, distanceMiles, notes } = req.body;
+  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, sameSchoolOnly, seatsAvailable, price, parkingFee, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, distanceMiles, notes } = req.body;
   const rideProviderType = ['personal_car', 'rideshare_service', 'moving_service'].includes(req.body.rideProviderType) ? req.body.rideProviderType : '';
   const isRideshareService = rideProviderType === 'rideshare_service';
   const isMovingService = rideProviderType === 'moving_service';
@@ -5223,6 +5248,13 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   if (!Number.isInteger(priceCents) || priceCents < 50) {
     return res.status(400).json({ error: 'Ride price must be at least $0.50' });
   }
+  const parkingFeeCents = Math.round(Number(parkingFee || 0) * 100);
+  if (!Number.isInteger(parkingFeeCents) || parkingFeeCents < 0) {
+    return res.status(400).json({ error: 'Parking / airport fee cannot be negative' });
+  }
+  if (parkingFeeCents > 50000) {
+    return res.status(400).json({ error: 'Parking / airport fee must be $500 or less' });
+  }
   if (hasReturnRide && (!returnDate || !returnTime)) {
     return res.status(400).json({ error: 'Return date and time are required for a return ride' });
   }
@@ -5273,6 +5305,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     availableSeatIds: (isRideshareService || isMovingService) ? [] : availableSeatIds,
     seatsAvailable: isRideshareService ? rideshareSeatCount : (isMovingService ? 1 : availableSeatIds.length),
     priceCents,
+    parkingFeeCents,
     carMaker: (isRideshareService || isMovingService) ? '' : String(carMaker).trim(),
     carModel: (isRideshareService || isMovingService) ? '' : String(carModel).trim(),
     carColor: (isRideshareService || isMovingService) ? '' : String(carColor).trim(),
@@ -5340,8 +5373,8 @@ app.post('/api/rides/:rideId/join', requireAuth, requireServiceAccess, (req, res
   sendReservationConfirmationEmail(db, student, {
     ridesToReserve: [{ ride, seatId, actualPickup, actualDropoff }],
   }, {
-    expectedAmountCents: ride.priceCents || 0,
-    stripeAmountTotal: ride.priceCents || 0,
+    expectedAmountCents: getRideChargeCents(ride),
+    stripeAmountTotal: getRideChargeCents(ride),
   });
   saveDb(db);
   res.json(rideForUser(ride, req.session.userId, db));
@@ -5730,7 +5763,7 @@ function getCheckoutLineItems(rides) {
         name: 'LinkUp ride: ' + (ride.origin || 'Pickup') + ' to ' + (ride.destination || 'Destination'),
         description: describeTripTime(ride).slice(0, 1000),
       },
-      unit_amount: Math.max(50, Number(ride.priceCents || 0)),
+      unit_amount: Math.max(50, getRideChargeCents(ride)),
     },
     quantity: 1,
   }));
@@ -5769,7 +5802,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
   }
 
   try {
-    const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + Number(ride.priceCents || 0), 0);
+    const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + getRideChargeCents(ride), 0);
     const walletCreditCents = getCheckoutWalletCreditCents(db, student.id, expectedAmountCents);
     const amountDueCents = Math.max(0, expectedAmountCents - walletCreditCents);
     if (amountDueCents === 0) {
@@ -5866,7 +5899,7 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
   }
 
   try {
-    const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + Number(ride.priceCents || 0), 0);
+    const expectedAmountCents = checkoutRides.reduce((sum, ride) => sum + getRideChargeCents(ride), 0);
     const applyWallet = req.body.applyWalletCredit !== false;
     const walletCreditCents = applyWallet ? getCheckoutWalletCreditCents(db, student.id, expectedAmountCents) : 0;
     const amountDueCents = Math.max(0, expectedAmountCents - walletCreditCents);

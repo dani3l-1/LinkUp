@@ -1,7 +1,7 @@
 {
   "app": "LinkUp",
-  "version": "v2026.05.27",
-  "updatedAt": "2026-05-27",
+  "version": "v2026.06.02",
+  "updatedAt": "2026-06-02",
   "source": "features.md",
   "intendedClients": ["web", "ios"],
   "notes": [
@@ -101,6 +101,7 @@
         "Post rideshare-service rides",
         "Post moving-service listings",
         "Interactive seat layout for personal car rides",
+        "Optional parking / airport fee shown separately from seat price",
         "Driver notes and terms agreement",
         "Current and past driver activity panel"
       ],
@@ -157,7 +158,7 @@
         "Multi-trip cart",
         "Seat and pickup/dropoff details per cart item",
         "Select/deselect trips",
-        "Subtotal and service fee",
+        "Subtotal, optional parking / airport fee, and service fee",
         "Wallet credit application",
         "Ride terms agreement"
       ],
@@ -174,6 +175,7 @@
       "features": [
         "Stripe Embedded Checkout",
         "Apple Pay, Google Pay, Link, and card support where available",
+        "Ride totals include optional parking / airport fees when listed by the driver",
         "Wallet credit display",
         "Checkout completion handling",
         "Payment details not stored by LinkUp"

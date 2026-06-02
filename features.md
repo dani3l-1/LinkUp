@@ -150,6 +150,7 @@ Checklist progress should persist per ride.
 - Same-gender riders only.
 - Same-school riders only.
 - Price per seat or moving flat rate.
+- Optional parking / airport fee shown separately from the seat price.
 - Multi-line notes.
 - Terms agreement checkbox.
 
@@ -182,7 +183,7 @@ Checklist progress should persist per ride.
 - Multi-trip basket.
 - Select/deselect individual trips or all trips.
 - Ride details and seat details for each cart item.
-- Order summary with subtotal and service fee.
+- Order summary with subtotal, optional parking / airport fees, and service fee.
 - Terms agreement before checkout.
 - 3-step checkout progress: Cart -> Payment -> Confirmed.
 - Cart should not own payment-method selection. Payment choice belongs on the Payment page.
@@ -217,6 +218,7 @@ Email requirements:
   - Route
   - Date/time
   - Seat/passenger details when available
+  - Seat price, optional parking / airport fee, and total paid
   - Driver name
   - Vehicle and license plate when available
   - Support email: `ridewlinkup@gmail.com`
