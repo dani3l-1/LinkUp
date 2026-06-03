@@ -5,13 +5,24 @@
 ## v2026.06.02 BETA
 
 ### New
-- **Optional parking / airport fee for ride listings.** Drivers can now add a separate parking or airport fee when listing a ride. Riders see the seat price, fee, and total before checkout.
-- **Pre-launch waitlist page.** Students whose school is not approved yet now see a focused waitlist page with their LinkUp member number, the LinkUp logo, and an Edit profile button while ride access stays locked.
+- **Rider Safety hub.** The Trip Tracking section has been redesigned as a dedicated Rider Safety feature with a shield icon and mission statement. Three tools are now clearly separated: Live Location sharing, Safety Recording ("Record this ride"), and Report to LinkUp. Each tool lives in its own card with a clear header, description, and actions.
+- **Safety recording without mid-ride consent prompts.** Drivers consent to safety recording when they list a ride — it is written into the Terms and Conditions at listing time. Riders no longer need to check a box mid-ride, so the feature works silently when they actually need it.
+- **Conduct strike system.** Admins can issue conduct strikes to any user for Terms of Service violations. Three severity levels: Level 1 (minor — rude behavior, no-show, late cancellation), Level 2 (serious — harassment, property damage, discrimination), Level 3 (severe — assault, illegal activity, sexual harassment, fraud). Accumulating three total strike points results in a permanent account ban. Users receive an email with the violation category, admin note, and remaining points when a strike is issued.
+- **Private conduct record.** Users can view their own conduct history from Profile → Conduct record — strike level, category, date, and any note from the moderator. Only you can see your own record.
+- **Admin safety recordings panel.** A new Recordings tab in the admin panel lists all safety recordings with metadata: rider name, ride route, duration, recorded date, expiry date, and whether a safety report was filed. Admins can load and play any recording directly in the browser. Every access is written to the audit log.
+- **Refreshed Browse, List, and Request ride pages.** All three pages now share a unified design language: icon-based role selection cards (I'm a Driver / I'm a Rider), icon-based ride provider cards (Personal Car / Rideshare / Moving Service), glass-panel filter sections, pill-style back buttons, and consistent uppercase section labels.
+- **Refreshed dashboard home.** Cleaner welcome bar with mixed-case greeting and university label, pill-style navigation tabs with active state highlighting per page, ride stats shown as metric cards instead of a flat divider, and proper SVG icons on the Find a Ride and List a Ride buttons.
 
 ### Improvements
-- **Clearer ride totals.** Browse, cart, payment, checkout, and reservation emails now use the full ride total when an optional parking / airport fee is included.
-- **Fairer driver earnings math.** Parking / airport fees are collected and paid through with the ride, while LinkUp commission is calculated from the seat price instead of the reimbursement fee.
-- **Cleaner waitlist profile access.** Waitlisted students can update basic profile information without seeing payment method or driver payout settings before their school is approved.
+- **Recording status visible in card header.** The recording status ("Off", "Uploading", "Saved") now appears as a compact pill badge in the Safety Recording card header instead of a separate element.
+- **Incident reporting card separated.** The "Report to LinkUp" form — safety note textarea and door issue button — is now its own card visually separated from the recording feature.
+
+### Security
+- **Driver consent to safety recording built into Terms of Service.** When a driver lists any ride on LinkUp, they acknowledge and consent that riders may silently record audio for personal safety purposes. This is the same legal approach used by Uber and Lyft. No mid-ride announcement is required from the rider.
+- **Conduct strike system with automatic permanent bans.** Three total strike points trigger a permanent ban with no manual admin step. Level 3 violations (assault, illegal activity, sexual harassment, fraud) are an immediate ban. Bans are communicated to the user by email with the reason clearly stated.
+- **Safety recording access audit trail.** Every time an admin loads and plays a safety recording, the access is recorded in the admin audit log with the admin's identity, timestamp, recording ID, and the linked ride.
+- **Updated Privacy Notice — recording access clause.** The Privacy Notice now explicitly states that LinkUp only accesses recordings when: a safety report is filed; moderators have reasonable cause; or access is required by law. Uploading a recording constitutes user authorization for LinkUp to review it for safety and legal purposes.
+- **Policy re-acceptance required for all users.** Both the Terms and Conditions (v2026.06.2) and Privacy Notice (v2026.06.2) were updated on June 2, 2026. All existing users are prompted to review and accept the updated documents before using ride services.
 
 ---
 
@@ -29,6 +40,10 @@
 - **Cleaner checkout flow.** The no-refund notice in the cart and payment panels is now a subtle footnote rather than a prominent warning box. The checkout button now reads "Reserve your seat →" to better reflect what's happening.
 - **Ride checklist removed as a separate page.** The standalone checklist page is gone — the checklist is now embedded in the dashboard where it's actually useful.
 
+### Security
+- **6-digit arrival code for in-person driver verification.** Every rider receives a unique 6-digit code in their confirmation email and on the ride card. Sharing it verbally with the driver at pickup confirms identity — drivers cannot claim a completed trip without it. Codes are never included in driver-facing data.
+- **Checklist step for driver verification.** The new ride checklist explicitly prompts riders to verify the driver's vehicle, plate, and name before getting in the car — reducing the risk of boarding the wrong vehicle.
+
 ---
 
 ## v2026.05.27 BETA
@@ -44,6 +59,10 @@
 
 ### Fixed
 - **Policy document buttons open correctly.** The Policy Agreement page now opens expanded Terms and Conditions or Privacy Notice views and loads the full markdown documents.
+
+### Security
+- **School transfer requires verified university email.** Transferring an account to a new school requires a 6-digit code sent to the new university address — preventing takeovers or false affiliation claims by entering any email.
+- **Community safety rules published.** Explicit prohibitions against fake listings, off-platform payment pressure, harassment, scams, and impersonation are now part of the Terms, giving LinkUp clear grounds to ban violators.
 
 ---
 
@@ -61,13 +80,17 @@
 - **Budget label for moving requests.** When posting a moving service request, the price field is now labeled "Budget for move" instead of the generic rider label.
 
 ### Fixed
-- **Trip completion form now appears for drivers.** After a rider pays and the trip departs, drivers can now see and submit the 6-digit completion code. This form was not appearing due to a missing payment status flag — earnings confirmation now works as intended.
+- **Trip completion form now appears for drivers.** After a rider pays and the trip departs, drivers can now see and submit the 6-digit completion code.
 - **Signup button no longer freezes.** If you tried to sign up without checking the terms checkboxes, the Create Account button would get stuck in a loading state. It now resets correctly.
 - **Offer submit button no longer freezes on route errors.** If the route estimate failed during posting, the Post Ride button would get stuck. It now always resets regardless of what goes wrong.
 - **Passenger data is no longer visible to other riders.** Email addresses and rating details stored on passenger records were included in API responses visible to other users on the same ride. Only the driver and each individual rider can now see their own details.
-- **Completion code no longer visible in profile data.** The 6-digit trip completion PIN was inadvertently included in profile responses for drivers. It is now correctly withheld from the driver — only the confirmed rider sees it after departure.
+- **Completion code no longer visible in profile data.** The 6-digit trip completion PIN was inadvertently included in profile responses for drivers. It is now correctly withheld.
 - **Browse no longer fetches ride data twice on load.** Navigating to Browse Rides was triggering two simultaneous API calls. Only one fetch now runs.
-- **Pick-up and drop-off fields now align correctly in the request form.** The hide-destination toggle was placed inside the drop-off field, making it taller than the pick-up field and causing them to appear at different heights. The toggle now sits below both fields and the two location inputs align flush.
+
+### Security
+- **Exact drop-off hidden by default.** Riders' precise destination addresses are not shown publicly — only a general area is visible until a driver is matched. This prevents a rider's home address or other sensitive destination from being broadcast to all browsing drivers.
+- **Passenger personal data scoped to authorized parties only.** A fix closed a data exposure issue where riders on the same trip could see each other's email addresses and rating details. Each rider's information is now only visible to themselves and the driver.
+- **Completion code withheld from driver-facing data.** The 6-digit trip completion PIN is no longer exposed in driver API responses. Only the confirmed rider sees it after departure.
 
 ---
 
@@ -75,24 +98,34 @@
 
 ### New
 - **Trip completion codes.** Every ride now has a 6-digit completion code. After the trip departs, the rider sees their code on the confirmed ride card and shares it verbally with the driver. The driver enters it in the app to confirm the trip — earnings unlock instantly. If the driver never claims it, earnings auto-release 48 hours after the ride ends. Wrong codes are locked out after 5 attempts.
-- **Apply wallet credit at checkout.** Riders with a LinkUp Wallet balance now see an "Apply $X credit" button on the payment page. Tapping it deducts the credit from the trip total and shows a breakdown of credit applied and remaining card charge. Credit can be removed before paying. When the wallet covers the full amount, no card is charged.
-- **Moving Service.** Drivers can now list a moving service — cargo only, no passengers. Choose your vehicle type (pickup truck, cargo van, box truck, SUV/minivan), cargo capacity (small/medium/large), and whether you offer loading/unloading help or can handle large furniture. Moving listings show a gold "Moving" badge in Browse and price is shown as a flat rate for the job.
-- **Photo required for moving requests.** When posting a moving request, riders must upload at least one photo of their items. Drivers see the photo on the request card so they can confirm everything will fit before offering.
-- **Two-factor authentication.** Protect your account with an authenticator app (Google Authenticator, Authy, etc.). Set up 2FA from Profile → Security. Once enabled, signing in requires your password and a 6-digit code from your app. You can disable 2FA at any time by verifying your current code.
-- **Redesigned verification email.** The email verification code now arrives in a clean, branded email with each digit displayed in its own highlighted box — easier to read at a glance.
+- **Apply wallet credit at checkout.** Riders with a LinkUp Wallet balance now see an "Apply $X credit" button on the payment page.
+- **Moving Service.** Drivers can now list a moving service — cargo only, no passengers.
+- **Photo required for moving requests.** When posting a moving request, riders must upload at least one photo of their items.
+- **Two-factor authentication.** Protect your account with an authenticator app (Google Authenticator, Authy, etc.). Set up 2FA from Profile → Security. Once enabled, signing in requires your password and a 6-digit code from your app.
+- **Redesigned verification email.** The email verification code now arrives in a clean, branded email with each digit displayed in its own highlighted box.
+
+### Security
+- **Two-factor authentication (TOTP).** Riders and drivers can now protect their accounts with an authenticator app. 2FA prevents account takeover even if a password is compromised.
+- **Completion code prevents earnings fraud.** Drivers cannot mark a trip complete without the rider's verbal 6-digit code. This closes a path where a driver could falsely claim a trip happened. Codes lock out after 5 wrong attempts to prevent brute-force guessing.
+- **Earnings auto-release after 48 hours.** Even if a completion code is never exchanged, earnings release automatically — preventing drivers from withholding a code to pressure riders.
 
 ---
 
 ## v2026.05.20 BETA
 
 ### New
-- **Stripe Embedded Checkout.** Checkout now uses Stripe's fully hosted payment form — Apple Pay, Google Pay, Link, and card are all supported without a redirect. Your card details never touch LinkUp servers.
-- **In-app Stripe payout onboarding.** Drivers can now complete their Stripe Connect setup without ever leaving LinkUp — the full onboarding flow renders inside the app. A new "View bank payout history" button also lets verified drivers see their Stripe payout ledger directly in-app.
-- **Auto theme.** A new Auto option in Appearance automatically switches between light and dark mode based on the time of day — light from 6 AM to 7 PM, dark outside those hours. The app updates live while it's open.
+- **Stripe Embedded Checkout.** Checkout now uses Stripe's fully hosted payment form — Apple Pay, Google Pay, Link, and card are all supported without a redirect.
+- **In-app Stripe payout onboarding.** Drivers can now complete their Stripe Connect setup without ever leaving LinkUp.
+- **Auto theme.** Automatically switches between light and dark mode based on the time of day.
 
 ### Improvements
-- **Redesigned Personal Info page.** Your profile photo now works like Instagram — hover over the avatar to see the edit overlay, then click to choose Upload photo or Remove photo. A profile tag next to the avatar shows your name, university, major, class year, and when you joined LinkUp. Locked fields (birthday, gender, email) now display a lock badge so it's clear they can't be changed.
-- **Sharper light mode.** Text throughout the app — labels, navigation items, subtitles, form fields, and placeholder text — is now noticeably darker and easier to read in light mode, meeting accessibility contrast standards.
+- **Redesigned Personal Info page.** Profile photo editing now works like Instagram — hover to see the edit overlay, then click to upload or remove.
+- **Sharper light mode.** Text throughout the app is noticeably darker and easier to read in light mode, meeting accessibility contrast standards.
+
+### Security
+- **Card details never touch LinkUp servers.** Stripe's Embedded Checkout means payment card data is entered directly into Stripe's hosted form. LinkUp receives only a payment summary — no raw card numbers, CVV, or full PANs are ever transmitted to or stored on LinkUp infrastructure.
+- **Apple Pay and Google Pay support.** Both use device-level tokenized payments — the actual card number is never transmitted, reducing fraud exposure for riders.
+- **Payout onboarding opened from a protected server action.** Stripe Connect onboarding now starts from a server-side protected route and opens in a separate tab, preventing CSRF or link-manipulation attacks on the payout setup flow.
 
 ---
 
@@ -103,6 +136,11 @@
 - **Light and dark mode.** Profile now has an Appearance section where users can switch LinkUp between dark mode and light mode.
 - **Security hardening.** API writes now reject untrusted origins, sensitive API responses avoid browser/CDN storage, and profile photo uploads verify real image data.
 - **Safer Stripe payout onboarding.** Stripe onboarding now starts from a protected action and opens in a separate tab instead of using a state-changing link.
+
+### Security
+- **API writes restricted to trusted origins.** Cross-origin POST/PUT/PATCH/DELETE requests from unrecognized domains are rejected at the server level, closing a class of cross-site request forgery (CSRF) attacks.
+- **Sensitive API responses are not cached.** Responses containing personal data, payment info, or session state now carry headers that prevent browsers and CDNs from storing them, reducing the risk of data leakage through shared devices or caches.
+- **Profile photo content verification.** Uploaded photos are validated as real image data before being accepted. This prevents injecting non-image payloads disguised as profile pictures.
 
 ---
 
@@ -119,6 +157,10 @@
 - **Cleaner checkout.** The card form is tidier and Apple Pay / Google Pay buttons only appear when your device supports them.
 - **Order summary layout.** Subtotal and service fee now display cleanly, like a receipt.
 
+### Security
+- **Branded emails help users identify legitimate LinkUp messages.** Consistent branding and formatting on verification and confirmation emails makes phishing attempts easier to spot — users can visually distinguish real LinkUp emails from impersonation attempts.
+- **Stale checkout blocked.** Checkout prevents a seat from being reserved on a ride that has already departed while the payment page was open — closing a race condition where a rider could pay for an expired seat.
+
 > **Note:** Browsing rides, making reservations, chat, tracking, and checkout are temporarily paused while payment setup is being finalized.
 
 ---
@@ -133,9 +175,13 @@
 - **Live chat notifications.** Riders and drivers can enable push notifications for new messages in a confirmed ride chat.
 
 ### Fixed
-- **Accurate leaderboard miles.** Miles now count only completed rides with confirmed riders — future or unused listings no longer inflate the total.
+- **Accurate leaderboard miles.** Miles now count only completed rides with confirmed riders.
 - **Cleaner activity view.** Departed rides and expired requests no longer appear in current activity.
 - **Real-time chat.** Messages and typing indicators now update live in confirmed ride chats.
+
+### Security
+- **Exact pickup and drop-off shared only after reservation.** Precise stop locations are collected at checkout and shared with the driver only after the reservation is confirmed — not visible to browsing drivers beforehand.
+- **Checkout recovery prevents reservation state loss.** When payment finalizes automatically after a browser close, there is no window where a seat could be held but unpaid — preventing scenarios where a seat was blocked without a completed payment.
 
 ---
 
@@ -150,19 +196,27 @@
 - **Browse shows only available rides.** Expired, full, and your own rides are no longer shown in Browse Rides.
 - **Stale pages blocked.** Checkout prevents reservations on rides that departed while the page was open.
 
+### Security
+- **Stale page protection at checkout.** If a ride departs while the checkout page is open, attempting to pay returns an error rather than completing a reservation for a trip that has already left.
+- **Your own rides excluded from Browse.** Drivers cannot accidentally add their own ride to a cart or interact with it as a rider, preventing self-booking exploits.
+
 ---
 
 ## v2026.05.13 BETA
 
 ### New
 - **Multi-trip cart.** Add multiple trips, select the ones you want, and review a subtotal before paying.
-- **Profile photos.** Upload, crop, and display a profile picture. It appears on your public profile.
-- **Academic details.** Optionally add your major and class year — both appear on your public profile.
+- **Profile photos.** Upload, crop, and display a profile picture.
+- **Academic details.** Optionally add your major and class year.
 - **In-context legal docs.** Tapping Terms or Privacy Notice opens the full document in a popup without leaving the page.
 
 ### Fixed
 - **Expired trips auto-removed.** Rides past their departure are cleared from your cart with a one-time notice.
-- **Password recovery improved.** Account recovery now focuses on password reset — no separate username step needed.
+- **Password recovery improved.** Account recovery now focuses on password reset.
+
+### Security
+- **Legal documents accessible in-app before acceptance.** Riders and drivers can read the full Terms and Privacy Notice without navigating away from the sign-up or policy agreement screen — ensuring informed consent is possible without friction.
+- **Expired cart items auto-cleared.** Rides that have already departed are automatically removed from the cart, preventing payment for a trip that can no longer happen.
 
 ---
 
@@ -173,6 +227,10 @@
 - **More private driver names.** Full driver names are only visible to riders with a confirmed reservation. Everyone else sees first name and last initial.
 - **Accurate driving distances.** Mileage now uses actual driving distance from route data, not straight-line estimates.
 
+### Security
+- **Driver full name hidden until reservation is confirmed.** Browsing riders see only a first name and last initial. The driver's full name is revealed only to riders who have successfully reserved a seat — limiting the personal information broadcast to unconfirmed strangers.
+- **Same-school filtering reduces exposure to unknown users.** Drivers and riders can choose to interact only with verified members of their own university, significantly narrowing the pool of strangers they share rides with.
+
 ---
 
 ## v2026.05.11 BETA
@@ -182,12 +240,19 @@
 - **Report a user.** Report a driver or rider directly from ride cards and assignment lists.
 - **Block a user.** Block or unblock someone from their public profile. Blocked users won't see each other's listings or requests.
 
+### Security
+- **In-app user reporting.** Riders and drivers can report unsafe, harassing, or fraudulent behavior directly from ride cards and chat — reports reach the LinkUp admin queue immediately without requiring an external email.
+- **User blocking with mutual content hiding.** Blocking a user removes their listings, requests, and profile from your view — and removes yours from theirs. This prevents a blocked person from monitoring your activity or continuing to message you.
+
 ---
 
 ## v2026.05.10 BETA
 
 ### New
 - **Personal Car and Rideshare Service.** Drivers choose a ride type when listing. Personal Car supports vehicle details and seat selection. Rideshare Service uses general spots.
+
+### Security
+- **Vehicle details required for Personal Car listings.** Drivers listing a personal car must provide the make, model, color, and license plate. License plate is shared only with riders who have a confirmed reservation — giving them the information needed to verify the correct vehicle at pickup.
 
 ---
 
@@ -197,13 +262,21 @@
 - **Live route in tracking.** Track My Trip now shares your location with full route context on one map.
 - **Add a trusted person mid-trip.** Invite or resend a trusted-person link while location sharing is already active.
 
+### Security
+- **Tracking links are time-limited and ride-scoped.** Tracking links expire when location sharing stops — there is no persistent link that could be used to monitor a user's location after a trip ends.
+- **Trusted person links can be updated mid-trip.** If a rider forgets to share their location before leaving, they can add or re-send a trusted contact while the trip is already in progress.
+
 ---
 
 ## v2026.05.8 BETA
 
 ### New
 - **Updated Terms and Privacy Notice.** LinkUp now shows the May 8, 2026 Terms and Privacy Notice. Existing users are prompted to review and accept before using ride services.
-- **Required profile fields.** Name, birthday, and gender must be completed before accessing ride services. Older accounts can fill these in once.
+- **Required profile fields.** Name, birthday, and gender must be completed before accessing ride services.
+
+### Security
+- **Mandatory policy re-acceptance gates service access.** Users cannot browse rides, list rides, or make reservations until they have read and accepted the current Terms and Privacy Notice — ensuring all active users are bound by the current rules.
+- **Required profile completion before service access.** Name, birthday, and gender are required before a user can interact with the ride marketplace, enabling consistent identification of all active users.
 
 ---
 
@@ -213,3 +286,7 @@
 - **Track My Trip.** Share your live location and route context together on one map with trusted people.
 - **Payment and payout in Profile.** Riders manage payment details. Drivers manage payout details. Each in a dedicated section.
 - **Full ride workflow.** Requested rides, ride history, chat, ratings, and seat reservations — the complete flow from request to review.
+
+### Security
+- **Track My Trip — opt-in location sharing with trusted contacts only.** Live location is never collected passively. Sharing is entirely user-initiated, transmitted only to a specific trusted person via a one-time link, and stops automatically when the user ends the session.
+- **University email required for all accounts.** Only verified `.edu` email addresses from supported universities can create accounts — preventing anonymous signups and limiting the platform to the intended campus community.

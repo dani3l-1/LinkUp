@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260602-parking-fee" />
+    <link rel="stylesheet" href="styles.css?v=20260602-light-mode-contrast" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -51,7 +51,6 @@
       <header>
         <div class="header-left-actions hidden" id="header-left-actions">
           <button id="chat-button" type="button">Chat</button>
-          <button id="social-button" type="button">Social</button>
         </div>
         <img class="site-logo" src="assets/images/LinkUp-header.png" alt="LinkUp — Ride Connect Save" />
         <div class="header-actions hidden" id="header-actions">
@@ -314,6 +313,7 @@
               <button type="button" class="admin-tab" data-admin-tab="rides">Rides</button>
               <button type="button" class="admin-tab" data-admin-tab="requests">Requests</button>
               <button type="button" class="admin-tab" data-admin-tab="activity">Activity</button>
+              <button type="button" class="admin-tab" data-admin-tab="recordings">Recordings</button>
               <button type="button" class="admin-tab" data-admin-tab="audit">Audit Log</button>
             </div>
             <div id="admin-table-wrap" class="admin-table-wrap">Loading admin dashboard...</div>
@@ -351,6 +351,7 @@
                 <button class="profile-sidebar-button" type="button" data-profile-tab="school-transfer">Transfer school</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="release-notes">Release notes</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="conduct">Conduct record</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="delete-account">Delete account</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="about">About LinkUp</button>
               </aside>
@@ -632,7 +633,7 @@
                         </section>
                         <section>
                           <h5>Location sharing</h5>
-                          <p>Track My Trip location sharing is for rider safety. Only share tracking links with trusted people, and stop tracking when the trip is complete.</p>
+                          <p>Track My Trip location sharing and Safety Mode are for rider safety. Only share tracking links with trusted people. Record audio only after everyone is notified and consent is handled where required.</p>
                         </section>
                         <section>
                           <h5>Privacy notice</h5>
@@ -664,7 +665,7 @@
                           <h5>Privacy Notice</h5>
                           <p>Effective Date: May 8, 2026. This notice explains how LinkUp collects, uses, and shares personal data.</p>
                           <h5>Data we collect</h5>
-                          <p>Account info, payment/payout summaries, ride data, communications, session data, and device/browser info. Passwords are stored as cryptographic hashes only.</p>
+                          <p>Account info, payment/payout summaries, ride data, communications, optional Safety Mode submissions, session data, and device/browser info. Passwords are stored as cryptographic hashes only.</p>
                           <h5>Data we do not collect</h5>
                           <p>We do not store full card numbers, CVV codes, bank account/routing numbers, GPS location, biometrics, or government-issued ID.</p>
                           <h5>How we use data</h5>
@@ -709,6 +710,16 @@
                     </div>
                   </div>
                 </div>
+                <div id="profile-conduct-panel" class="profile-panel hidden" data-profile-panel="conduct">
+                  <div class="profile-form">
+                    <h4>Conduct record</h4>
+                    <p class="profile-section-desc">Only you can see this page. Strikes are issued by LinkUp moderators for violations of our terms of service.</p>
+                    <div id="conduct-strikes-list" class="conduct-strikes-list">
+                      <p class="profile-loading">Loading…</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div id="profile-delete-account-panel" class="profile-panel hidden" data-profile-panel="delete-account">
                   <form id="delete-account-form" class="profile-form delete-account-card">
                     <div>
@@ -842,11 +853,11 @@
 
             <div class="dashboard-quick-actions">
               <button id="home-find-ride-btn" type="button" class="dashboard-action-btn dashboard-action-btn--primary">
-                <span class="dashboard-action-icon">&#9906;</span>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 <span>Find a Ride</span>
               </button>
               <button id="home-list-ride-btn" type="button" class="dashboard-action-btn dashboard-action-btn--secondary">
-                <span class="dashboard-action-icon">&#43;</span>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 <span>List a Ride</span>
               </button>
             </div>
@@ -868,28 +879,84 @@
             </div>
 
             <div class="dashboard-tracking-section">
-              <h3 class="dashboard-section-label">Trip tracking</h3>
-              <p class="dashboard-tracking-subtitle">Optional: share your live location with someone you trust during a ride.</p>
-              <div class="tracking-layout">
+
+              <div class="safety-mission-header">
+                <div class="safety-mission-icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
                 <div>
-                  <div class="tracking-status" id="tracking-status">Location sharing is off.</div>
-                  <div class="driver-info hidden" id="tracking-driver-info">
-                    <h4>Your info</h4>
-                    <div id="tracking-driver-details"></div>
+                  <h3 class="dashboard-section-label">Rider Safety</h3>
+                  <p class="dashboard-tracking-subtitle">Your safety is built into every ride — share your location, record audio if needed, and reach our team instantly.</p>
+                </div>
+              </div>
+
+              <div class="tracking-layout">
+                <div class="safety-cards-col">
+
+                  <!-- Live Location card -->
+                  <div class="safety-card">
+                    <div class="safety-card-header">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                      <span class="safety-card-title">Live Location</span>
+                      <span class="tracking-status" id="tracking-status">Off</span>
+                    </div>
+                    <div class="driver-info hidden" id="tracking-driver-info">
+                      <h4>Your info</h4>
+                      <div id="tracking-driver-details"></div>
+                    </div>
+                    <div class="safety-card-body">
+                      <label class="tracking-recipient-label">
+                        Trusted person's email
+                        <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" />
+                      </label>
+                      <div class="tracking-action-row">
+                        <button id="start-tracking" type="button">Start sharing</button>
+                        <button id="stop-tracking" type="button" disabled>End trip</button>
+                        <button id="send-tracking-invite" class="copy-tracking-link hidden" type="button">Send invite</button>
+                        <button id="copy-tracking-link" class="copy-tracking-link hidden" type="button">Copy link</button>
+                      </div>
+                      <p class="tracking-note">Expires when sharing stops. Only your trusted contact can view your location.</p>
+                    </div>
+                    <div id="tracking-message" class="success-message"></div>
+                    <div id="tracking-error" class="error-message"></div>
                   </div>
-                  <div class="button-row">
-                    <button id="start-tracking" type="button">Start sharing</button>
-                    <button id="stop-tracking" type="button" disabled>End trip</button>
+
+                  <!-- Safety Recording card -->
+                  <div class="safety-card safety-mode-panel">
+                    <div class="safety-card-header">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                      <span class="safety-card-title">Record this ride</span>
+                      <span id="safety-mode-status" class="safety-status-badge">Off</span>
+                    </div>
+                    <p class="safety-mode-copy">Secretly record audio if you feel unsafe. Recordings are stored for 30 days and only reviewed if you file a report.</p>
+                    <div class="safety-card-body">
+                      <div class="tracking-action-row">
+                        <button id="start-safety-recording" type="button">Start recording</button>
+                        <button id="stop-safety-recording" type="button" disabled>Stop &amp; upload</button>
+                      </div>
+                      <p class="safety-recording-consent-note">Drivers consent to safety recording when they list a ride on LinkUp.</p>
+                    </div>
+                    <input type="checkbox" id="safety-recording-consent" class="hidden" />
+                    <input type="checkbox" id="door-safety-confirmed" class="hidden" />
                   </div>
-                  <label class="tracking-recipient-label">
-                    Trusted person's email
-                    <input type="email" id="tracking-recipient-email" placeholder="friend@example.com" />
-                  </label>
-                  <button id="send-tracking-invite" class="copy-tracking-link hidden" type="button">Send invite</button>
-                  <p class="tracking-note">Share the link with someone you trust. It expires when sharing stops.</p>
-                  <button id="copy-tracking-link" class="copy-tracking-link hidden" type="button">Copy tracking link</button>
-                  <div id="tracking-message" class="success-message"></div>
-                  <div id="tracking-error" class="error-message"></div>
+
+                  <!-- Report to LinkUp card -->
+                  <div class="safety-card safety-incident-card">
+                    <div class="safety-card-header">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      <span class="safety-card-title">Report to LinkUp</span>
+                    </div>
+                    <div class="safety-card-body">
+                      <label class="safety-note-label">
+                        <textarea id="safety-incident-note" rows="3" placeholder="Describe anything our safety team should review…"></textarea>
+                      </label>
+                      <div class="tracking-action-row">
+                        <button id="send-safety-note" type="button">Send safety note</button>
+                        <button id="report-door-safety" type="button">Report door issue</button>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
                 <div>
                   <div id="tracking-map" class="tracking-map"></div>
@@ -898,58 +965,6 @@
               </div>
             </div>
           </div>
-
-          <section id="social-page" class="hidden">
-            <div class="cart-header">
-              <div>
-                <h3 id="social-page-title">Social</h3>
-                <p id="social-page-subtitle">Posts from your links, campus discovery, and trusted groups.</p>
-              </div>
-              <button id="social-back-home" type="button">← Home</button>
-            </div>
-
-            <div class="social-feed-section" id="social-feed-section">
-              <div class="dashboard-section-heading-row">
-                <h3 class="dashboard-section-label">Feed</h3>
-              </div>
-              <div id="social-home-feed" class="social-home-feed">Loading posts...</div>
-            </div>
-
-            <div class="dashboard-discovery-section" id="dashboard-discovery-section">
-              <div class="dashboard-section-heading-row">
-                <h3 class="dashboard-section-label">Campus discovery</h3>
-              </div>
-              <div id="dashboard-people-suggestions" class="dashboard-people-suggestions"></div>
-            </div>
-
-            <div class="dashboard-groups-section" id="dashboard-groups-section">
-              <div class="dashboard-section-heading-row">
-                <h3 class="dashboard-section-label">Groups and clubs</h3>
-              </div>
-              <div class="dashboard-group-forms">
-                <form id="campus-group-create-form" class="dashboard-group-form">
-                  <input type="text" id="campus-group-name" maxlength="48" placeholder="Create a group or club" required />
-                  <select id="campus-group-kind" aria-label="Type">
-                    <option value="group">Group</option>
-                    <option value="club">Official club</option>
-                  </select>
-                  <select id="campus-group-visibility" aria-label="Group visibility">
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
-                  </select>
-                  <button type="submit">Create</button>
-                </form>
-                <form id="campus-group-join-form" class="dashboard-group-form">
-                  <input type="text" id="campus-group-code" maxlength="32" placeholder="Invite code" />
-                  <button type="submit">Join</button>
-                </form>
-              </div>
-              <div id="dashboard-campus-groups" class="dashboard-campus-groups"></div>
-              <div id="dashboard-connection-requests" class="dashboard-connection-requests"></div>
-            </div>
-
-            <div id="social-detail-section" class="dashboard-groups-section hidden"></div>
-          </section>
 
           <!-- Browse rides page -->
           <section id="browse-page" class="hidden">
@@ -965,12 +980,12 @@
               <h3>What's your role?</h3>
               <div class="browse-role-actions">
                 <button id="browse-driver-button" type="button">
-                  <span>I'm a Driver</span>
-                  <small>See ride requests from students who need a lift</small>
+                  <svg class="role-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>
+                  <div class="btn-text"><span>I'm a Driver</span><small>See ride requests from students who need a lift</small></div>
                 </button>
                 <button id="browse-rider-button" type="button">
-                  <span>I'm a Rider</span>
-                  <small>Find available seats on posted rides</small>
+                  <svg class="role-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                  <div class="btn-text"><span>I'm a Rider</span><small>Find available seats on posted rides</small></div>
                 </button>
               </div>
             </section>
@@ -1112,15 +1127,10 @@
                 <div id="request-share-field">
                   <label class="checkbox-label"><input type="checkbox" id="request-share-ride" /> I am willing to share this ride with other riders</label>
                 </div>
-                <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
-                <label class="checkbox-label"><input type="checkbox" id="request-same-school-driver" /> Same school driver only</label>
-                  <div class="ride-audience-panel">
-                    <div class="ride-audience-header">
-                      <p>Share request</p>
-                    <span>Campus-wide by default, or post only inside selected groups and clubs.</span>
-                    </div>
-                  <label class="checkbox-label"><input type="checkbox" id="request-group-only" /> Post only to selected groups and clubs</label>
-                  <div id="request-group-options" class="ride-group-options hidden"></div>
+                <div class="request-preference-grid" id="request-preference-field">
+                  <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
+                  <label class="checkbox-label"><input type="checkbox" id="request-same-school-driver" /> Same school driver only</label>
+                  <label class="checkbox-label"><input type="checkbox" id="request-no-smoking" /> No smoking during ride</label>
                 </div>
                 <label>Notes <textarea id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." rows="3"></textarea></label>
                 <button type="submit" id="request-submit-btn">Post request</button>
@@ -1145,14 +1155,17 @@
                 <h3>Offer a ride</h3>
                 <div id="ride-provider-step" class="ride-provider-step">
                   <button class="ride-provider-choice" type="button" data-provider-type="personal_car">
+                    <svg class="provider-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>
                     <span>Personal Car</span>
                     <small>Use your own car, add vehicle details, and choose exact passenger seats.</small>
                   </button>
                   <button class="ride-provider-choice" type="button" data-provider-type="rideshare_service">
+                    <svg class="provider-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                     <span>Rideshare Service</span>
                     <small>Share an Uber, Lyft, or another rideshare. Riders reserve general spots.</small>
                   </button>
                   <button class="ride-provider-choice" type="button" data-provider-type="moving_service">
+                    <svg class="provider-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                     <span>Moving Service</span>
                     <small>Transport boxes, furniture, or other items. No passengers — cargo only.</small>
                   </button>
@@ -1197,14 +1210,6 @@
                   <label>Departure time <input type="time" id="ride-time" required /></label>
                   <label class="checkbox-label"><input type="checkbox" id="same-gender-only-ride" /> Same gender riders only</label>
                   <label class="checkbox-label"><input type="checkbox" id="same-school-only-ride" /> Same school riders only</label>
-                  <div class="ride-audience-panel">
-                    <div class="ride-audience-header">
-                      <p>Share ride</p>
-                      <span>Campus-wide by default, or post only inside selected groups and clubs.</span>
-                    </div>
-                    <label class="checkbox-label"><input type="checkbox" id="ride-group-only" /> Post only to selected groups and clubs</label>
-                    <div id="ride-group-options" class="ride-group-options hidden"></div>
-                  </div>
                   <div id="rideshare-service-fields" class="vehicle-grid hidden">
                     <label>Rideshare Service
                       <input type="text" id="rideshare-service" placeholder="Uber, Lyft, Alto..." />
@@ -1279,22 +1284,14 @@
             <div class="cart-header">
               <div>
                 <h3>Chat</h3>
-                <p>Ride conversations and social messages with your links.</p>
+                <p>Ride conversations with drivers and riders.</p>
               </div>
               <button id="chat-back-home" type="button">← Home</button>
-            </div>
-            <div class="chat-section-tabs" role="tablist" aria-label="Chat sections">
-              <button id="chat-ride-tab" type="button" class="active">Ride</button>
-              <button id="chat-social-tab" type="button">Social</button>
             </div>
             <div class="chat-page-layout">
               <div id="chat-ride-panel">
                 <h4>Your ride chats</h4>
                 <div id="chat-ride-list" class="chat-ride-list">Loading ride chats...</div>
-              </div>
-              <div id="chat-social-panel" class="hidden">
-                <h4>Your social chats</h4>
-                <div id="chat-social-list" class="chat-ride-list">Loading social chats...</div>
               </div>
               <div id="chat-conversation" class="chat-conversation">
                 <p>Select a ride to open its chat.</p>
@@ -1572,6 +1569,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260602-parking-fee"></script>
+    <script src="app.js?v=20260602-light-mode-contrast"></script>
   </body>
 </html>

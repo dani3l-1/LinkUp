@@ -58,6 +58,8 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || 'LinkUp <no-reply@linkup.local>';
 const LINKUP_COMMISSION_RATE = Number(process.env.LINKUP_COMMISSION_RATE || 0.15);
+const SAFETY_RECORDING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const SAFETY_RECORDING_MAX_BASE64_CHARS = 8 * 1024 * 1024;
 // Stripe charges 2.9% + $0.30 per successful card transaction (US).
 // This fee is deducted from driver earnings so LinkUp's 15% is a hard profit.
 const STRIPE_FEE_RATE = 0.029;
@@ -71,6 +73,7 @@ const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
 const WAITLIST_MODE = process.env.WAITLIST_MODE === 'true';
 // Email verification can be bypassed in local test mode via .env.local.
 const BYPASS_EMAIL_VERIFICATION = NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
+const LOCAL_TEST_BYPASS_WAITLIST = NODE_ENV !== 'production' && process.env.LOCAL_TEST_BYPASS_WAITLIST === 'true';
 const PAYMENT_PROVIDER = String(process.env.PAYMENT_PROVIDER || 'stripe').trim().toLowerCase();
 const PAYOUT_PROVIDER = String(process.env.PAYOUT_PROVIDER || PAYMENT_PROVIDER).trim().toLowerCase();
 // Stripe: use test keys locally and live keys only in production.
@@ -92,9 +95,34 @@ const stripe = process.env.STRIPE_SECRET_KEY
 if (!stripe) {
   console.warn(`WARNING: STRIPE_SECRET_KEY not set. Payment features are disabled (env: ${NODE_ENV}).`);
 }
-const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.05.27';
-const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.05.8';
+const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.06.3';
+const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.06.2';
 const TRACKING_VIEWER_TTL_MS = 1000 * 60 * 60 * 8;
+
+const STRIKE_CATEGORIES = {
+  1: [
+    { id: 'rude_behavior',       label: 'Rude or disrespectful behavior' },
+    { id: 'no_show',             label: 'No-show (rider or driver did not appear)' },
+    { id: 'late_cancellation',   label: 'Late cancellation without notice' },
+    { id: 'inaccurate_info',     label: 'Inaccurate ride information posted' },
+    { id: 'minor_policy',        label: 'Minor terms of service violation' },
+  ],
+  2: [
+    { id: 'harassment',          label: 'Harassment or threatening behavior' },
+    { id: 'property_damage',     label: 'Property damage' },
+    { id: 'discrimination',      label: 'Discrimination or hate speech' },
+    { id: 'repeated_violations', label: 'Repeated minor violations' },
+    { id: 'serious_policy',      label: 'Serious terms of service violation' },
+  ],
+  3: [
+    { id: 'assault',             label: 'Physical assault' },
+    { id: 'sexual_harassment',   label: 'Sexual harassment or assault' },
+    { id: 'illegal_activity',    label: 'Illegal activity during a ride' },
+    { id: 'fraud',               label: 'Fraud or intentional deception' },
+    { id: 'severe_policy',       label: 'Severe terms of service violation' },
+  ],
+};
+const STRIKE_BAN_THRESHOLD = 3;
 const PUSH_NOTIFICATIONS_ENABLED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
 if (PUSH_NOTIFICATIONS_ENABLED) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -541,7 +569,7 @@ async function handleStripeWebhookRequest(req, res) {
   }
 }
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookRequest);
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use('/api', rejectCrossSiteWrites);
 app.use('/api/auth', authRateLimit);
 app.use('/api/auth/forgot-password', forgotPasswordRateLimit);
@@ -769,6 +797,7 @@ function getEmptyDb() {
     payments: [],
     walletTransactions: [],
     trackingTrips: [],
+    safetyRecordings: [],
     rideMessages: {},
     userReports: [],
     adminAuditLog: [],
@@ -902,6 +931,7 @@ function normalizeDbShape(db) {
     ...user,
     pushSubscriptions: normalizePushSubscriptions(user.pushSubscriptions),
     friendInvites: normalizeFriendInvites(user.friendInvites),
+    strikes: asArray(user.strikes).filter(isPlainObject),
   }));
   normalized.carts = normalizeCartMap(normalized.carts);
   normalized.checkoutSessions = normalizeCheckoutSessions(normalized.checkoutSessions);
@@ -921,6 +951,12 @@ function normalizeDbShape(db) {
       locations: asArray(trip.locations).filter(isPlainObject),
     };
   });
+  normalized.safetyRecordings = uniqueById(normalized.safetyRecordings)
+    .filter(isPlainObject)
+    .filter((recording) => {
+      const expiresAt = Number(recording.expiresAt);
+      return Number.isFinite(expiresAt) && expiresAt > Date.now();
+    });
   normalized.rideMessages = normalizeRideMessages(normalized.rideMessages);
   normalized.userReports = uniqueById(normalized.userReports);
   normalized.adminAuditLog = uniqueById(normalized.adminAuditLog).filter(isPlainObject);
@@ -1900,8 +1936,16 @@ function getSuccessfulRideSteps() {
       helper: 'Confirm name, license plate, and car match.',
     },
     {
+      title: 'Check door safety',
+      helper: 'Before the ride starts, confirm your door opens from inside, child lock is off, and report it if that changes.',
+    },
+    {
       title: 'Share live tracking (optional)',
       helper: 'Send your live trip to a trusted contact if you want extra peace of mind.',
+    },
+    {
+      title: 'Use Safety Mode if needed (optional)',
+      helper: 'Record only after everyone is notified and consent is handled where required.',
     },
     {
       title: 'Give the arrival code',
@@ -1945,7 +1989,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
     '',
     `Total paid: ${formatEmailCurrency(totalCents)}`,
     '',
-    '5 steps to a successful ride:',
+    `${successSteps.length} steps to a successful ride:`,
     '',
     successSteps.map((step, index) => `${index + 1}. ${step.title}\n${step.helper}`).join('\n\n'),
     '',
@@ -2081,7 +2125,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
                       </tr>
                     </table>
                     <div style="margin-top:22px;padding:22px;border-radius:18px;background:#f7fdfd;border:1px solid #d7fbfb;">
-                      <h2 style="margin:0 0 6px;font-size:22px;line-height:1.3;color:#102326;">5 steps to a successful ride</h2>
+                      <h2 style="margin:0 0 6px;font-size:22px;line-height:1.3;color:#102326;">${successSteps.length} steps to a successful ride</h2>
                       <p style="margin:0 0 8px;font-size:14px;line-height:1.55;color:#54636a;">A quick checklist for pickup, safety, and closing out the trip.</p>
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${htmlSteps}</table>
                     </div>
@@ -2357,6 +2401,10 @@ function isAdminEmail(email) {
   return ADMIN_EMAILS.has(normalizeEmail(email));
 }
 
+function hasServiceAccess(user) {
+  return user?.serviceApproved === true || LOCAL_TEST_BYPASS_WAITLIST;
+}
+
 function publicUser(user, db = null) {
   const fallbackName = user.name || user.email.split('@')[0];
   const missingRequiredSettings = getMissingRequiredSettings(user);
@@ -2375,8 +2423,8 @@ function publicUser(user, db = null) {
     email: user.email,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
-    serviceApproved: user.serviceApproved === true,
-    waitlisted: user.serviceApproved !== true,
+    serviceApproved: hasServiceAccess(user),
+    waitlisted: !hasServiceAccess(user),
     waitlistIntent: normalizeWaitlistIntent(user.waitlistIntent),
     emailVerified: user.emailVerified !== false,
     nameLastChangedAt: user.nameLastChangedAt || null,
@@ -2404,7 +2452,7 @@ function publicUser(user, db = null) {
     requiresRequiredSettings: missingRequiredSettings.length > 0,
     createdAt: user.createdAt || null,
     rideServicesPaused: RIDE_SERVICES_PAUSED,
-    waitlistMode: WAITLIST_MODE,
+    waitlistMode: WAITLIST_MODE && !LOCAL_TEST_BYPASS_WAITLIST,
     twoFactorEnabled: Boolean(user.totpEnabled),
     emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
     friendInviteCount: normalizeFriendInvites(user.friendInvites).length,
@@ -3052,9 +3100,12 @@ function requireServiceAccess(req, res, next) {
     return res.status(404).json({ error: 'User not found' });
   }
   if (user.suspendedAt) {
-    return res.status(403).json({ error: 'This account has been suspended by LinkUp moderation.' });
+    const banMsg = user.bannedByStrikesAt
+      ? 'This account has been permanently banned due to repeated terms of service violations.'
+      : 'This account has been suspended by LinkUp moderation.';
+    return res.status(403).json({ error: banMsg });
   }
-  if (user.serviceApproved !== true) {
+  if (!hasServiceAccess(user)) {
     return res.status(403).json({ error: 'LinkUp has not launched at your university yet. Your account is on the waitlist, and we will notify you when access opens.' });
   }
   if (userNeedsPolicyConsent(user)) {
@@ -3297,6 +3348,27 @@ function refreshTrackingTripRoute(db, trip) {
   return true;
 }
 
+function getSafetyRideForUser(db, userId) {
+  const ride = findTrackableRideForUser(db, userId);
+  return ride && isRideTrackableForUser(ride, userId) ? ride : null;
+}
+
+function getSafetyRideCounterparty(db, ride, userId) {
+  if (!ride || !userId) return null;
+  if (ride.driverId && ride.driverId !== userId) {
+    return (db.users || []).find((user) => user.id === ride.driverId) || null;
+  }
+  const passenger = (ride.passengers || []).find((entry) => entry.studentId && entry.studentId !== userId);
+  return passenger
+    ? ((db.users || []).find((user) => user.id === passenger.studentId) || {
+      id: passenger.studentId,
+      firstName: passenger.studentFirstName,
+      lastName: passenger.studentLastName,
+      email: passenger.email || '',
+    })
+    : null;
+}
+
 function canStudentReserveRide(student, ride, seatId = '', db = null) {
   if (!ride) {
     return 'Ride not found';
@@ -3380,7 +3452,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
   const universityDomain = getEmailDomain(normalizedEmail);
   const supportedUniversity = extractUniversityFromEmail(normalizedEmail);
-  const serviceApproved = adminEmail || (!WAITLIST_MODE && Boolean(supportedUniversity));
+  const serviceApproved = LOCAL_TEST_BYPASS_WAITLIST || adminEmail || (!WAITLIST_MODE && Boolean(supportedUniversity));
   const university = supportedUniversity || (adminEmail ? 'LinkUp Admin' : getUniversityInfoFromDomain(universityDomain).name);
 
   const passwordValidation = validatePassword(password);
@@ -3540,8 +3612,8 @@ app.post('/api/auth/signin', async (req, res) => {
       email: normalizedEmail,
       university: supportedUniversity || getUniversityInfoFromDomain(universityDomain).name,
       universityDomain,
-      serviceApproved: !WAITLIST_MODE && Boolean(supportedUniversity),
-      waitlistedAt: !WAITLIST_MODE && supportedUniversity ? null : new Date().toISOString(),
+      serviceApproved: LOCAL_TEST_BYPASS_WAITLIST || (!WAITLIST_MODE && Boolean(supportedUniversity)),
+      waitlistedAt: (LOCAL_TEST_BYPASS_WAITLIST || (!WAITLIST_MODE && supportedUniversity)) ? null : new Date().toISOString(),
       passwordHash: await bcrypt.hash(password, 10),
       emailVerified: true,
       themePreference: 'dark',
@@ -3893,6 +3965,26 @@ app.get('/api/auth/me', (req, res) => {
   }
 
   res.json(publicUser(user, db));
+});
+
+app.get('/api/me/conduct', requireAuth, (req, res) => {
+  const db = loadDb();
+  const user = (db.users || []).find((u) => u.id === req.session.userId);
+  if (!user || isDeletedUser(user)) return res.status(404).json({ error: 'User not found' });
+  const strikes = asArray(user.strikes).filter(isPlainObject).map((s) => ({
+    id: s.id,
+    level: s.level,
+    category: s.category,
+    categoryLabel: (STRIKE_CATEGORIES[s.level] || []).find((c) => c.id === s.category)?.label || s.category,
+    reason: s.reason || '',
+    issuedAt: s.issuedAt || '',
+  }));
+  res.json({
+    strikes,
+    strikeTotal: getStrikeTotal(user),
+    strikeBanThreshold: STRIKE_BAN_THRESHOLD,
+    banned: Boolean(user.bannedByStrikesAt),
+  });
 });
 
 app.put('/api/profile', requireAuth, (req, res) => {
@@ -4838,6 +4930,115 @@ app.get('/api/track/:viewerToken', (req, res) => {
   res.json(publicTrackingTrip(trip));
 });
 
+app.post('/api/safety/recordings', requireAuth, requireServiceAccess, (req, res) => {
+  const audioBase64 = String(req.body.audioBase64 || '').trim();
+  const mimeType = String(req.body.mimeType || '').trim().slice(0, 80);
+  const durationMs = Math.max(0, Math.min(30 * 60 * 1000, Number(req.body.durationMs || 0)));
+  const consentAcknowledged = req.body.consentAcknowledged === true;
+  const noticeShown = req.body.noticeShown === true;
+
+  // Consent is now given upfront when drivers agree to T&C at listing time.
+  if (!audioBase64 || audioBase64.length > SAFETY_RECORDING_MAX_BASE64_CHARS || !/^[A-Za-z0-9+/=]+$/.test(audioBase64)) {
+    return res.status(400).json({ error: 'Safety recording is missing or too large' });
+  }
+  if (!/^audio\//.test(mimeType)) {
+    return res.status(400).json({ error: 'Upload an audio recording file' });
+  }
+
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const ride = getSafetyRideForUser(db, user.id);
+  if (!ride) {
+    return res.status(400).json({ error: 'Safety recordings must be connected to an active or upcoming ride' });
+  }
+
+  db.safetyRecordings = db.safetyRecordings || [];
+  const createdAtMs = Date.now();
+  const recording = {
+    id: uuidv4(),
+    ownerId: user.id,
+    ownerName: getUserDisplayName(user),
+    ownerEmail: user.email || '',
+    rideId: ride.id,
+    rideOrigin: ride.origin || '',
+    rideDestination: ride.destination || '',
+    rideDate: ride.date || '',
+    rideTime: ride.time || '',
+    mimeType,
+    audioBase64,
+    durationMs,
+    consentAcknowledged,
+    noticeShown,
+    status: 'stored',
+    createdAt: new Date(createdAtMs).toISOString(),
+    expiresAt: createdAtMs + SAFETY_RECORDING_RETENTION_MS,
+  };
+  db.safetyRecordings.push(recording);
+  saveDb(db);
+  res.status(201).json({
+    message: 'Safety recording saved. LinkUp will retain it for 30 days and then automatically delete it.',
+    recordingId: recording.id,
+    expiresAt: recording.expiresAt,
+  });
+});
+
+app.post('/api/safety/incidents', requireAuth, requireServiceAccess, (req, res) => {
+  const reason = String(req.body.reason || '').trim().slice(0, 80);
+  const details = String(req.body.details || '').trim().slice(0, 1000);
+  const doorSafetyConfirmed = req.body.doorSafetyConfirmed === true;
+  const doorSafetyIssue = req.body.doorSafetyIssue === true;
+  const safetyRecordingId = String(req.body.safetyRecordingId || '').trim();
+
+  if (!reason) {
+    return res.status(400).json({ error: 'Add a short reason for the safety note' });
+  }
+
+  const db = loadDb();
+  const reporter = (db.users || []).find((user) => user.id === req.session.userId);
+  if (!reporter) return res.status(404).json({ error: 'Reporter not found' });
+  const ride = getSafetyRideForUser(db, reporter.id);
+  if (!ride) {
+    return res.status(400).json({ error: 'Safety notes must be connected to an active or upcoming ride' });
+  }
+  const reportedUser = getSafetyRideCounterparty(db, ride, reporter.id);
+  if (!reportedUser?.id) {
+    return res.status(400).json({ error: 'No other ride participant is available for this safety note yet' });
+  }
+
+  db.userReports = db.userReports || [];
+  const safetyDetails = [
+    details,
+    doorSafetyIssue ? 'Door safety issue reported: rider could not confirm the door opens from inside or child lock is off.' : '',
+    doorSafetyConfirmed ? 'Door safety check confirmed by rider.' : '',
+    safetyRecordingId ? `Safety recording ID: ${safetyRecordingId}` : '',
+  ].filter(Boolean).join('\n\n');
+  const report = {
+    id: uuidv4(),
+    type: 'safety_incident',
+    reporterId: reporter.id,
+    reporterName: getUserDisplayName(reporter),
+    reporterEmail: reporter.email || '',
+    reportedUserId: reportedUser.id,
+    reportedUserName: getUserDisplayName(reportedUser),
+    reportedUserEmail: reportedUser.email || '',
+    rideId: ride.id,
+    rideOrigin: ride.origin,
+    rideDestination: ride.destination,
+    rideDate: ride.date,
+    rideTime: ride.time,
+    reason,
+    details: safetyDetails,
+    safetyRecordingId,
+    doorSafetyIssue,
+    status: 'open',
+    createdAt: new Date().toISOString(),
+  };
+  db.userReports.push(report);
+  saveDb(db);
+  res.status(201).json({ message: 'Safety note sent to LinkUp for review.', reportId: report.id });
+});
+
 
 app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
   const db = expireUnclaimedRideRequests(loadDb());
@@ -4848,7 +5049,7 @@ app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
 });
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
-  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, estimatedDurationMinutes, distanceMiles, notes, hideDestination } = req.body;
+  const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, noSmoking, estimatedDurationMinutes, distanceMiles, notes, hideDestination } = req.body;
   const requestType = req.body.requestType === 'moving' ? 'moving' : 'ride';
   const isMovingRequest = requestType === 'moving';
   const movingSize = isMovingRequest ? String(req.body.movingSize || 'Small').trim() : '';
@@ -4958,6 +5159,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     shareRideWithOthers: isMovingRequest ? false : Boolean(shareRideWithOthers),
     sameGenderDriverOnly: Boolean(sameGenderDriverOnly),
     sameSchoolDriverOnly: Boolean(sameSchoolDriverOnly),
+    noSmoking: isMovingRequest ? false : Boolean(noSmoking),
     notes: notes || '',
     driverOffers: [],
     status: 'open',
@@ -5065,6 +5267,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
     driverGender: driver.gender || '',
     sameGenderOnly: false,
     sameSchoolOnly: Boolean(request.sameSchoolDriverOnly),
+    noSmoking: Boolean(request.noSmoking),
     university: driver.university,
     origin: request.origin,
     destination: request.destination,
@@ -6199,7 +6402,36 @@ app.get('/api/version', (req, res) => {
   });
 });
 
+function getStrikeTotal(user) {
+  return asArray(user?.strikes).reduce((sum, s) => sum + (Number(s?.level) || 0), 0);
+}
+
+function applyStrikeBanIfNeeded(user) {
+  if (getStrikeTotal(user) >= STRIKE_BAN_THRESHOLD && !user.bannedByStrikesAt) {
+    user.bannedByStrikesAt = new Date().toISOString();
+    user.suspendedAt = user.suspendedAt || new Date().toISOString();
+    user.serviceApproved = false;
+    user.waitlistedAt = user.waitlistedAt || new Date().toISOString();
+    user.manuallyWaitlistedAt = user.manuallyWaitlistedAt || new Date().toISOString();
+    return true;
+  }
+  return false;
+}
+
+function liftStrikeBanIfNeeded(user) {
+  if (user.bannedByStrikesAt && getStrikeTotal(user) < STRIKE_BAN_THRESHOLD) {
+    user.bannedByStrikesAt = null;
+    user.suspendedAt = null;
+    user.serviceApproved = !WAITLIST_MODE;
+    user.waitlistedAt = WAITLIST_MODE ? (user.waitlistedAt || new Date().toISOString()) : null;
+    user.manuallyWaitlistedAt = WAITLIST_MODE ? (user.manuallyWaitlistedAt || new Date().toISOString()) : null;
+    return true;
+  }
+  return false;
+}
+
 function summarizeAdminUser(user, db) {
+  const strikes = asArray(user.strikes).filter(isPlainObject);
   return {
     id: user.id,
     memberNumber: getUserMemberNumber(db, user.id),
@@ -6212,9 +6444,12 @@ function summarizeAdminUser(user, db) {
     isAdmin: isAdminUser(user),
     suspended: Boolean(user.suspendedAt),
     suspendedAt: user.suspendedAt || '',
+    bannedByStrikes: Boolean(user.bannedByStrikesAt),
     moderationNote: user.moderationNote || '',
     joinedAt: user.createdAt || '',
     lastUpdatedAt: user.updatedAt || '',
+    strikes,
+    strikeTotal: getStrikeTotal(user),
   };
 }
 
@@ -6303,6 +6538,7 @@ function summarizeAdminRequest(request) {
 function summarizeAdminReport(report) {
   return {
     id: report.id,
+    type: report.type || 'Report',
     status: report.status || 'open',
     reason: report.reason || '',
     details: report.details || '',
@@ -6313,6 +6549,8 @@ function summarizeAdminReport(report) {
     rideId: report.rideId || '',
     rideRoute: [report.rideOrigin, report.rideDestination].filter(Boolean).join(' -> '),
     rideDate: report.rideDate || '',
+    safetyRecordingId: report.safetyRecordingId || '',
+    doorSafetyIssue: Boolean(report.doorSafetyIssue),
     adminNote: report.adminNote || '',
     createdAt: report.createdAt || '',
     resolvedAt: report.resolvedAt || '',
@@ -6432,6 +6670,8 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, adminDashboardRateLimi
     reports: reports.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 80).map(summarizeAdminReport),
     activity: summarizeAdminActivity(db),
     auditLog: (db.adminAuditLog || []).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 120).map(summarizeAdminAuditEntry),
+    strikeCategories: STRIKE_CATEGORIES,
+    strikeBanThreshold: STRIKE_BAN_THRESHOLD,
   });
 });
 
@@ -6498,6 +6738,66 @@ app.patch('/api/admin/users/:userId', requireAuth, requireAdmin, adminDashboardR
   user.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json({ message: 'User updated.', user: summarizeAdminUser(user, db) });
+});
+
+app.post('/api/admin/users/:userId/strikes', requireAuth, requireAdmin, adminDashboardRateLimit, async (req, res) => {
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === String(req.params.userId || ''));
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (isAdminUser(user)) return res.status(400).json({ error: 'Cannot issue strikes to admin accounts' });
+  const level = Number(req.body.level);
+  if (![1, 2, 3].includes(level)) return res.status(400).json({ error: 'Strike level must be 1, 2, or 3' });
+  const validCategories = (STRIKE_CATEGORIES[level] || []).map((c) => c.id);
+  const category = String(req.body.category || '').trim();
+  if (category && !validCategories.includes(category)) return res.status(400).json({ error: 'Invalid category for this strike level' });
+  const reason = String(req.body.reason || '').trim().slice(0, 500);
+  const strike = {
+    id: 'strike_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    level,
+    category: category || validCategories[0],
+    reason,
+    issuedAt: new Date().toISOString(),
+    issuedByAdminId: req.adminUser.id,
+    issuedByAdminEmail: req.adminUser.email,
+  };
+  if (!Array.isArray(user.strikes)) user.strikes = [];
+  user.strikes.push(strike);
+  user.updatedAt = new Date().toISOString();
+  const autoBanned = applyStrikeBanIfNeeded(user);
+  addAdminAuditEntry(db, req.adminUser, 'issued_strike', 'user', user, {
+    targetLabel: user.email || getUserDisplayName(user),
+    strikeLevel: level,
+    strikeCategory: strike.category,
+    autoBanned,
+  });
+  saveDb(db);
+  const levelLabels = { 1: 'Level 1 (minor)', 2: 'Level 2 (serious)', 3: 'Level 3 (severe)' };
+  const categoryLabel = (STRIKE_CATEGORIES[level] || []).find((c) => c.id === strike.category)?.label || strike.category;
+  const strikesLeft = Math.max(0, STRIKE_BAN_THRESHOLD - getStrikeTotal(user));
+  await sendEmail(
+    user.email,
+    `Your LinkUp account has received a ${levelLabels[level]} violation`,
+    `Hi ${escapeHtml(user.firstName || 'there')},\n\nYour LinkUp account has received a conduct strike.\n\nViolation: ${escapeHtml(categoryLabel)}\n${reason ? 'Note: ' + escapeHtml(reason) + '\n' : ''}\n${autoBanned ? 'Your account has been permanently banned due to repeated violations.' : `Strikes remaining before ban: ${strikesLeft}`}\n\nIf you believe this is an error, contact us at ridewlinkup@gmail.com.`,
+    `<p>Hi ${escapeHtml(user.firstName || 'there')},</p><p>Your LinkUp account has received a conduct strike.</p><p><strong>Violation:</strong> ${escapeHtml(categoryLabel)}</p>${reason ? `<p><strong>Note:</strong> ${escapeHtml(reason)}</p>` : ''}<p>${autoBanned ? '<strong>Your account has been permanently banned due to repeated violations.</strong>' : `Strikes remaining before ban: <strong>${strikesLeft}</strong>`}</p><p>If you believe this is an error, contact us at <a href="mailto:ridewlinkup@gmail.com">ridewlinkup@gmail.com</a>.</p>`
+  ).catch(() => {});
+  res.json({ message: autoBanned ? 'Strike issued. Account permanently banned.' : 'Strike issued.', autoBanned, user: summarizeAdminUser(user, db) });
+});
+
+app.delete('/api/admin/users/:userId/strikes/:strikeId', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = loadDb();
+  const user = (db.users || []).find((entry) => entry.id === String(req.params.userId || ''));
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const strikeId = String(req.params.strikeId || '');
+  const beforeLen = (user.strikes || []).length;
+  user.strikes = (user.strikes || []).filter((s) => s.id !== strikeId);
+  if (user.strikes.length === beforeLen) return res.status(404).json({ error: 'Strike not found' });
+  user.updatedAt = new Date().toISOString();
+  liftStrikeBanIfNeeded(user);
+  addAdminAuditEntry(db, req.adminUser, 'removed_strike', 'user', user, {
+    targetLabel: user.email || getUserDisplayName(user),
+  });
+  saveDb(db);
+  res.json({ message: 'Strike removed.', user: summarizeAdminUser(user, db) });
 });
 
 app.patch('/api/admin/reports/:reportId', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
@@ -6587,6 +6887,42 @@ app.post('/api/admin/wallets/weekly-payouts', adminRateLimit, async (req, res) =
     console.error('Weekly Stripe payout error:', err);
     res.status(502).json({ error: err.message || 'Unable to run weekly Stripe payouts.' });
   }
+});
+
+app.get('/api/admin/safety/recordings', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = loadDb();
+  const reports = asArray(db.userReports);
+  const recordings = asArray(db.safetyRecordings)
+    .filter(isPlainObject)
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .map((r) => ({
+      id: r.id,
+      ownerId: r.ownerId,
+      ownerName: r.ownerName || '',
+      ownerEmail: r.ownerEmail || '',
+      rideId: r.rideId || '',
+      rideOrigin: r.rideOrigin || '',
+      rideDestination: r.rideDestination || '',
+      rideDate: r.rideDate || '',
+      mimeType: r.mimeType || 'audio/webm',
+      durationMs: r.durationMs || 0,
+      createdAt: r.createdAt || '',
+      expiresAt: r.expiresAt || 0,
+      linkedReport: reports.find((rep) => rep.safetyRecordingId === r.id) || null,
+    }));
+  res.json({ recordings });
+});
+
+app.get('/api/admin/safety/recordings/:id', requireAuth, requireAdmin, adminDashboardRateLimit, (req, res) => {
+  const db = loadDb();
+  const recording = asArray(db.safetyRecordings).find((r) => r.id === String(req.params.id || ''));
+  if (!recording) return res.status(404).json({ error: 'Recording not found' });
+  addAdminAuditEntry(db, req.adminUser, 'accessed_safety_recording', 'safety_recording', { id: recording.id }, {
+    targetLabel: recording.ownerEmail || recording.ownerName,
+    rideId: recording.rideId,
+  });
+  saveDb(db);
+  res.json(recording);
 });
 
 app.post('/api/admin/db/restore', adminRateLimit, async (req, res) => {

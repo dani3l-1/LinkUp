@@ -1,7 +1,7 @@
 # Privacy Notice
 
 **Effective Date:** May 15, 2026
-**Last Updated:** May 15, 2026
+**Last Updated:** June 2, 2026
 
 This Privacy Notice explains how LinkUp ("we," "us," or "our") collects, uses, stores, and shares your personal information when you use the LinkUp application and related services ("the Service"). Please read it carefully.
 
@@ -59,6 +59,14 @@ We collect the following categories of personal information:
 - Live location data shared voluntarily during a trip, transmitted to invited trusted persons only
 - We do not collect real-time GPS location from your device passively or in the background
 
+**Safety Recording data**
+- Optional ride safety notes you submit to LinkUp
+- Optional audio recordings you choose to upload using the "Record this ride" feature during an active ride
+- Safety recordings are stored securely, retained for 30 days, and then automatically and permanently deleted
+- Recordings are only accessed by authorized LinkUp personnel when: (1) you or another party submits a safety report or complaint linked to that recording; (2) LinkUp moderators have reasonable cause to believe a safety, harassment, or legal violation occurred during the ride; or (3) access is required by applicable law or valid legal process
+- By uploading a recording, you authorize LinkUp to access and review it for the purposes of safety moderation, incident investigation, and legal compliance
+- Drivers consent to being recorded when they list a ride on LinkUp, as described in our Terms and Conditions
+
 ---
 
 ## 3. Information We Do Not Collect
@@ -71,6 +79,7 @@ We do not collect or store:
 - Biometric data
 - Social Security Numbers
 - Real-time GPS location outside of an active, user-initiated Track My Trip session
+- Audio recordings outside of an active, user-initiated Safety Mode upload
 - Sensitive personal information under GDPR Article 9 (racial origin, health data, political opinions, religious beliefs, etc.)
 - Data from children under 18 (users must be 18 or older to register)
 
@@ -80,7 +89,7 @@ We do not collect or store:
 
 We collect information:
 
-- **Directly from you** when you register, complete your profile, post or reserve rides, use Track My Trip, send messages, or contact us
+- **Directly from you** when you register, complete your profile, post or reserve rides, use Track My Trip, use Safety Mode, send messages, or contact us
 - **Automatically** through your use of the Service (session data, usage patterns, device/browser info)
 - **From third-party processors** such as Stripe, which may share transaction summaries with us after payment processing
 
@@ -96,6 +105,7 @@ We use your personal information to:
 - Process payments and facilitate driver payouts
 - Display your public profile and ride statistics to other verified users
 - Operate the Track My Trip location-sharing feature
+- Review safety notes and safety recordings when a report is filed, a safety concern is escalated, or access is otherwise authorized under this Notice
 - Calculate and display leaderboard statistics
 - Detect and prevent fraud, abuse, and security threats
 - Rate-limit and protect the Service from misuse
@@ -198,7 +208,7 @@ If you are a California resident, you have the following rights under the Califo
 
 **Authorized agents.** You may designate an authorized agent to make a request on your behalf. We will require written proof of authorization and may verify your identity directly.
 
-**Categories of personal information collected in the past 12 months:** identity information, contact information, usage data, device/browser data, payment summaries, ride and trip data, communications, and voluntarily shared location data (Track My Trip only).
+**Categories of personal information collected in the past 12 months:** identity information, contact information, usage data, device/browser data, payment summaries, ride and trip data, communications, voluntarily shared location data (Track My Trip only), and optional Safety Mode submissions.
 
 **Categories of personal information disclosed for a business purpose:** identity and profile data (to other verified users), payment summaries (to Stripe), usage and device data (to hosting and security providers).
 

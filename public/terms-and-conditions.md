@@ -1,7 +1,7 @@
 # Terms and Conditions
 
 **Effective Date:** May 15, 2026
-**Last Updated:** May 27, 2026
+**Last Updated:** June 3, 2026
 
 By accessing or using LinkUp ("the Service," "the App"), you agree to be bound by these Terms and Conditions ("Terms"). If you do not agree, you may not access or use the Service. Please read them carefully.
 
@@ -65,8 +65,11 @@ If you list a ride as a driver, you represent, warrant, and agree that you:
 - Will provide accurate vehicle, route, timing, seat, and pricing information
 - Will treat all passengers with respect and professionalism
 - Will not accept payment beyond the per-seat cost-sharing price set in your listing
+- **Consent to safety recording:** By listing a ride, you acknowledge and consent that any rider in your vehicle may use LinkUp's built-in safety recording feature to record audio during the ride for their personal safety. This consent is given at the time of listing and applies to all rides you post on LinkUp. Recordings are stored by LinkUp for up to 30 days and are only reviewed if a safety complaint or legal request is made.
 
 **Insurance notice:** Most standard personal auto insurance policies exclude commercial or for-hire driving. It is your sole responsibility to verify your coverage with your insurer before listing any ride. LinkUp does not provide any insurance coverage to drivers or riders.
+
+**Payout forfeiture notice:** Driver payouts for a ride may be withheld, reversed, or permanently forfeited if you are found to have violated these Terms, engaged in misconduct during the ride, or caused a safety incident that results in a refund being issued to a rider. See Section 8 for full details.
 
 ---
 
@@ -114,6 +117,15 @@ Payments made through LinkUp are voluntary cost-sharing contributions between ri
 - All payment disputes are between the user and the payment processor; LinkUp is not liable for payment processing errors
 
 Refunds, cancellations, and disputes are governed by the payment processor's terms and LinkUp's cancellation policies in effect at the time of the ride.
+
+**Driver payout forfeiture.** LinkUp reserves the right to withhold, reverse, or permanently forfeit driver payouts — in whole or in part — under any of the following circumstances:
+
+- The driver is found to have violated these Terms or engaged in misconduct during the ride (including but not limited to harassment, unsafe driving, discrimination, or fraud)
+- A safety incident involving the driver results in a full or partial refund being issued to a rider
+- The driver's account is suspended or banned, including under the conduct strike system, before or after the payout would otherwise be released
+- A dispute, chargeback, or legal hold is placed on funds related to the ride
+
+Withheld payouts are held pending investigation. If a violation is confirmed, the payout is forfeited in full. If no violation is found, the payout is released. LinkUp's determination of whether a violation occurred is final. Drivers who believe a withholding is in error may contact ridewlinkup@gmail.com.
 
 ---
 

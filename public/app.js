@@ -235,6 +235,14 @@ const trackingMessage = document.getElementById('tracking-message');
 const trackingError = document.getElementById('tracking-error');
 const trackingLastUpdate = document.getElementById('tracking-last-update');
 const trackingMapDiv = document.getElementById('tracking-map');
+const safetyModeStatus = document.getElementById('safety-mode-status');
+const safetyRecordingConsent = document.getElementById('safety-recording-consent');
+const doorSafetyConfirmedInput = document.getElementById('door-safety-confirmed');
+const startSafetyRecordingButton = document.getElementById('start-safety-recording');
+const stopSafetyRecordingButton = document.getElementById('stop-safety-recording');
+const safetyIncidentNote = document.getElementById('safety-incident-note');
+const sendSafetyNoteButton = document.getElementById('send-safety-note');
+const reportDoorSafetyButton = document.getElementById('report-door-safety');
 const sharedTrackPage = document.getElementById('shared-track-page');
 const sharedTrackTitle = document.getElementById('shared-track-title');
 const sharedTrackStatus = document.getElementById('shared-track-status');
@@ -324,6 +332,11 @@ let trackingRouteLine = null;
 let trackingRouteKey = '';
 let trackingOriginMarker = null;
 let trackingDestinationMarker = null;
+let safetyRecorder = null;
+let safetyRecordingStream = null;
+let safetyRecordingChunks = [];
+let safetyRecordingStartedAt = 0;
+let lastSafetyRecordingId = '';
 let lastTrackingLocation = null;
 let lastTrackingLocations = [];
 let lastTrackingRideRoute = null;
@@ -424,9 +437,9 @@ function getAppRoute() {
 }
 
 function isSocialPreviewEnabled() {
-  return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
-    || window.location.hostname.endsWith('.local')
-    || window.localStorage?.getItem('LINKUP_ENABLE_SOCIAL') === 'true';
+  const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+    || window.location.hostname.endsWith('.local');
+  return isLocalHost && window.localStorage?.getItem('LINKUP_ENABLE_SOCIAL') === 'true';
 }
 
 function setAppRoute(route) {
@@ -437,6 +450,14 @@ function setAppRoute(route) {
 
 function clearAppRoute() {
   window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+}
+
+const NAV_BUTTON_IDS = ['browse-rides-button', 'request-ride-button', 'list-ride-button', 'your-rides-button', 'leaderboard-button'];
+function setActiveNavButton(activeId) {
+  NAV_BUTTON_IDS.forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('active', id === activeId);
+  });
 }
 
 function finishAppBoot() {
@@ -481,9 +502,7 @@ function interestTagRoute(tag) {
 function groupWelcomeRoute(groupName) {
   return 'group-' + encodeURIComponent(String(groupName || '').trim());
 }
-if (!isSocialPreviewEnabled()) {
-  socialButton?.classList.add('hidden');
-}
+socialButton?.classList.toggle('hidden', !isSocialPreviewEnabled());
 let browseRole = null;
 let yourRidesView = 'current';
 let adminView = 'reports';
@@ -518,8 +537,13 @@ document.addEventListener('click', async (event) => {
     'browse-rider-button': () => showRiderBrowse(),
     'browse-rides-button': () => showBrowsePage(),
     'browse-back-home': () => returnToBrowseRides(),
-    'social-button': () => showSocialPage(),
-    'social-back-home': () => handleSocialBackButton(),
+    'social-button': () => {
+      if (isSocialPreviewEnabled()) showSocialPage();
+    },
+    'social-back-home': () => {
+      if (isSocialPreviewEnabled()) handleSocialBackButton();
+      else returnToBrowseRides();
+    },
     'request-ride-button': () => showRequestRidePage(),
     'list-ride-button': () => showListRidePage(),
     'your-rides-button': () => showYourRidesPage(),
@@ -1617,6 +1641,37 @@ function renderReleaseNotesMarkdown(markdown, target) {
   });
 }
 
+async function loadConductRecord() {
+  const container = document.getElementById('conduct-strikes-list');
+  if (!container) return;
+  container.innerHTML = '<p class="profile-loading">Loading…</p>';
+  try {
+    const data = await fetchJson('/api/me/conduct');
+    const { strikes, strikeTotal, strikeBanThreshold, banned } = data;
+    if (banned) {
+      container.innerHTML = `<div class="conduct-banned-notice">Your account has been permanently banned due to accumulated conduct violations. Contact <a href="mailto:ridewlinkup@gmail.com">ridewlinkup@gmail.com</a> if you believe this is an error.</div>`;
+      return;
+    }
+    const remaining = Math.max(0, strikeBanThreshold - strikeTotal);
+    const levelLabels = { 1: 'Level 1 — Minor', 2: 'Level 2 — Serious', 3: 'Level 3 — Severe' };
+    const statusHtml = strikeTotal === 0
+      ? `<div class="conduct-clean"><span class="conduct-clean-icon">✓</span><span>No strikes on your account.</span></div>`
+      : `<div class="conduct-warning"><strong>${strikeTotal} strike point${strikeTotal !== 1 ? 's' : ''}</strong> — ${remaining} more point${remaining !== 1 ? 's' : ''} until permanent ban.</div>`;
+    const strikeItems = strikes.map((s) => `
+      <div class="conduct-strike-item conduct-strike-item--level${s.level}">
+        <div class="conduct-strike-meta">
+          <span class="conduct-strike-level">${esc(levelLabels[s.level] || 'Level ' + s.level)}</span>
+          <span class="conduct-strike-date">${s.issuedAt ? new Date(s.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : ''}</span>
+        </div>
+        <div class="conduct-strike-category">${esc(s.categoryLabel || s.category)}</div>
+        ${s.reason ? `<div class="conduct-strike-reason">${esc(s.reason)}</div>` : ''}
+      </div>`).join('');
+    container.innerHTML = statusHtml + (strikeItems || '') + `<p class="conduct-footer-note">Strikes are issued by LinkUp moderators. Contact <a href="mailto:ridewlinkup@gmail.com">ridewlinkup@gmail.com</a> to appeal.</p>`;
+  } catch (err) {
+    container.innerHTML = '<p class="error-inline">Could not load conduct record.</p>';
+  }
+}
+
 async function loadReleaseNotes() {
   if (!releaseNoteFeed) return;
   try {
@@ -1841,6 +1896,12 @@ function clearTrackingMessages() {
   trackingMessage.classList.remove('show');
   trackingError.textContent = '';
   trackingError.classList.remove('show');
+}
+
+function setSafetyModeStatus(text, active = false) {
+  if (!safetyModeStatus) return;
+  safetyModeStatus.textContent = text;
+  safetyModeStatus.classList.toggle('active', Boolean(active));
 }
 
 function hideDashboardPages() {
@@ -2123,6 +2184,7 @@ function showProfileTab(tabName) {
   if (tabName === 'appearance') applyThemePreference(currentUser?.themePreference || getStoredThemePreference() || 'dark');
   if (tabName === 'security') render2FAPanel(currentUser);
   if (tabName === 'release-notes') loadReleaseNotes();
+  if (tabName === 'conduct') loadConductRecord();
 }
 
 function clearDefaultPaymentMessages() {
@@ -2663,6 +2725,7 @@ async function loadLeaderboard() {
 
 function showLeaderboardPage() {
   setAppRoute('leaderboard');
+  setActiveNavButton('leaderboard-button');
   clearCartMessages();
   hideDashboardPages();
   leaderboardPage.classList.remove('hidden');
@@ -2741,8 +2804,9 @@ function renderAdminTable() {
     const rows = (adminSnapshot.reports || []).map((report) => `
       <tr>
         ${adminCell(report.status)}
+        ${adminCell(report.type === 'safety_incident' ? 'Safety Mode' : 'Report')}
         ${adminCell(report.reason)}
-        ${adminCell(report.details)}
+        ${adminCell([report.details, report.safetyRecordingId ? 'Safety recording: ' + report.safetyRecordingId : ''].filter(Boolean).join('\n'))}
         ${adminCell(report.reportedUserName)}
         ${adminCell(report.reporterName)}
         ${adminCell(report.rideRoute)}
@@ -2766,28 +2830,100 @@ function renderAdminTable() {
         </div>
         <table class="admin-table"><thead><tr><th>Rank</th><th>School</th><th>Email domain</th><th>Students</th><th>Waitlist</th><th>Approved</th><th>Record</th><th>Intent</th></tr></thead><tbody>${schoolRows || '<tr><td colspan="8">No school signups yet.</td></tr>'}</tbody></table>
       </section>
-      <table class="admin-table"><thead><tr><th>Status</th><th>Reason</th><th>Details</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No reports yet.</td></tr>'}</tbody></table>
+      <table class="admin-table"><thead><tr><th>Status</th><th>Type</th><th>Reason</th><th>Details</th><th>Reported</th><th>Reporter</th><th>Ride</th><th>Created</th><th>Update</th></tr></thead><tbody>${rows || '<tr><td colspan="9">No reports yet.</td></tr>'}</tbody></table>
     `;
     return;
   }
   if (adminView === 'users') {
-    const rows = (adminSnapshot.users || []).map((user) => `
+    const strikeCategories = adminSnapshot.strikeCategories || {};
+    const strikeBanThreshold = adminSnapshot.strikeBanThreshold || 3;
+    const rows = (adminSnapshot.users || []).map((user) => {
+      const strikeTotal = user.strikeTotal || 0;
+      const strikeBadge = strikeTotal > 0
+        ? `<span class="admin-strike-badge admin-strike-badge--${user.bannedByStrikes ? 'banned' : strikeTotal >= strikeBanThreshold - 1 ? 'warn' : 'low'}" title="${strikeTotal} strike point${strikeTotal !== 1 ? 's' : ''}">${strikeTotal}⚠</span>`
+        : '';
+      const strikesHtml = (user.strikes || []).map((s) => `
+        <div class="admin-strike-row">
+          <span class="admin-strike-level admin-strike-level--${s.level}">L${s.level}</span>
+          <span class="admin-strike-category">${esc(s.categoryLabel || s.category)}</span>
+          ${s.reason ? `<span class="admin-strike-reason">${esc(s.reason)}</span>` : ''}
+          <span class="admin-strike-date">${s.issuedAt ? new Date(s.issuedAt).toLocaleDateString() : ''}</span>
+          <button type="button" class="admin-strike-remove danger" data-user-id="${esc(user.id)}" data-strike-id="${esc(s.id)}">×</button>
+        </div>`).join('');
+      const catOptions = (level) => (strikeCategories[level] || []).map((c) => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
+      return `
       <tr>
         ${adminCell(formatProfileNumberLabel(user))}
-        ${adminCell(user.name)}
+        ${adminCell(user.name + (strikeBadge ? ' ' + strikeBadge : ''))}
         ${adminCell(user.email)}
         ${adminCell(user.university)}
-        ${adminCell(user.suspended ? 'Suspended' : user.serviceApproved ? 'Approved' : 'Waitlist')}
+        ${adminCell(user.bannedByStrikes ? 'Banned (strikes)' : user.suspended ? 'Suspended' : user.serviceApproved ? 'Approved' : 'Waitlist')}
         ${adminCell(user.emailVerified ? 'Verified' : 'Unverified')}
         <td>
           <button type="button" class="admin-user-toggle" data-user-id="${esc(user.id)}" data-approved="${user.serviceApproved ? 'false' : 'true'}">${user.serviceApproved ? 'Move to waitlist' : 'Approve'}</button>
           <button type="button" class="admin-user-suspend danger" data-user-id="${esc(user.id)}" data-suspended="${user.suspended ? 'false' : 'true'}">${user.suspended ? 'Restore' : 'Suspend'}</button>
+          <details class="admin-strike-details">
+            <summary>Strikes (${strikeTotal})</summary>
+            ${strikesHtml || '<p class="admin-strike-empty">No strikes.</p>'}
+            <form class="admin-issue-strike-form" data-user-id="${esc(user.id)}">
+              <select class="admin-strike-level-select" name="level">
+                <option value="1">Level 1 — Minor</option>
+                <option value="2">Level 2 — Serious</option>
+                <option value="3">Level 3 — Severe (instant ban)</option>
+              </select>
+              <select class="admin-strike-cat-select" name="category">
+                <optgroup label="Level 1 — Minor">${catOptions(1)}</optgroup>
+                <optgroup label="Level 2 — Serious">${catOptions(2)}</optgroup>
+                <optgroup label="Level 3 — Severe">${catOptions(3)}</optgroup>
+              </select>
+              <input type="text" name="reason" placeholder="Optional note for user (max 500 chars)" maxlength="500" />
+              <button type="submit" class="danger">Issue strike</button>
+            </form>
+          </details>
           <input class="admin-user-note" data-user-id="${esc(user.id)}" value="${esc(user.moderationNote || '')}" placeholder="Moderation note" />
           <button type="button" class="admin-user-save-note" data-user-id="${esc(user.id)}">Save note</button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
     adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>#</th><th>Name</th><th>Email</th><th>University</th><th>Access</th><th>Email</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No users yet.</td></tr>'}</tbody></table>`;
+
+    adminTableWrap.querySelectorAll('.admin-issue-strike-form').forEach((form) => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userId = form.dataset.userId;
+        const levelSelect = form.querySelector('[name="level"]');
+        const catSelect = form.querySelector('[name="category"]');
+        const reasonInput = form.querySelector('[name="reason"]');
+        const level = Number(levelSelect?.value || 1);
+        const category = catSelect?.value || '';
+        const reason = reasonInput?.value.trim() || '';
+        try {
+          const result = await fetchJson(`/api/admin/users/${userId}/strikes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ level, category, reason }),
+          });
+          showAdminMessage(result.autoBanned ? `Strike issued — account permanently banned.` : `Strike issued.`);
+          loadAdminData();
+        } catch (err) {
+          showAdminMessage(err.message || 'Failed to issue strike.', 'error');
+        }
+      });
+    });
+
+    adminTableWrap.querySelectorAll('.admin-strike-remove').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const { userId, strikeId } = btn.dataset;
+        if (!confirm('Remove this strike?')) return;
+        try {
+          await fetchJson(`/api/admin/users/${userId}/strikes/${strikeId}`, { method: 'DELETE' });
+          showAdminMessage('Strike removed.');
+          loadAdminData();
+        } catch (err) {
+          showAdminMessage(err.message || 'Failed to remove strike.', 'error');
+        }
+      });
+    });
     return;
   }
   if (adminView === 'rides') {
@@ -2817,6 +2953,64 @@ function renderAdminTable() {
       </tr>
     `).join('');
     adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>Type</th><th>What</th><th>Detail</th><th>Status</th><th>When</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No activity yet.</td></tr>'}</tbody></table>`;
+    return;
+  }
+  if (adminView === 'recordings') {
+    adminTableWrap.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">Loading recordings…</p>';
+    fetchJson('/api/admin/safety/recordings').then(({ recordings }) => {
+      if (!recordings.length) {
+        adminTableWrap.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">No safety recordings on file.</p>';
+        return;
+      }
+      const rows = recordings.map((r) => {
+        const durationSec = Math.round((r.durationMs || 0) / 1000);
+        const duration = durationSec >= 60 ? Math.floor(durationSec / 60) + 'm ' + (durationSec % 60) + 's' : durationSec + 's';
+        const expires = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString() : '—';
+        const reportBadge = r.linkedReport
+          ? `<span style="color:var(--danger);font-weight:700">⚠ Report filed</span>`
+          : '<span style="color:var(--text-muted)">No report</span>';
+        return `
+          <tr>
+            ${adminCell(r.ownerName + '\n' + r.ownerEmail)}
+            ${adminCell(r.rideOrigin + ' → ' + r.rideDestination + '\n' + r.rideDate)}
+            ${adminCell(duration)}
+            ${adminCell(formatPublicProfileDate(r.createdAt))}
+            ${adminCell('Expires ' + expires)}
+            <td>${reportBadge}</td>
+            <td><button type="button" class="admin-load-recording" data-recording-id="${esc(r.id)}" data-mime="${esc(r.mimeType)}">▶ Load &amp; play</button></td>
+          </tr>
+          <tr class="admin-recording-player-row hidden" id="player-row-${esc(r.id)}">
+            <td colspan="7"><audio controls style="width:100%;margin:0.5rem 0" id="audio-${esc(r.id)}"></audio></td>
+          </tr>`;
+      }).join('');
+      adminTableWrap.innerHTML = `<table class="admin-table"><thead><tr><th>User</th><th>Ride</th><th>Duration</th><th>Recorded</th><th>Expires</th><th>Report</th><th>Play</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+      adminTableWrap.querySelectorAll('.admin-load-recording').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const { recordingId, mime } = btn.dataset;
+          btn.disabled = true;
+          btn.textContent = 'Loading…';
+          try {
+            const data = await fetchJson(`/api/admin/safety/recordings/${recordingId}`);
+            const binary = atob(data.audioBase64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: mime || 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            const audio = document.getElementById(`audio-${recordingId}`);
+            if (audio) { audio.src = url; audio.play(); }
+            const playerRow = document.getElementById(`player-row-${recordingId}`);
+            if (playerRow) playerRow.classList.remove('hidden');
+            btn.textContent = '▶ Playing';
+          } catch (err) {
+            btn.textContent = 'Error';
+            showAdminMessage(err.message || 'Could not load recording.', 'error');
+          }
+        });
+      });
+    }).catch(() => {
+      adminTableWrap.innerHTML = '<p style="padding:1rem;color:var(--danger)">Failed to load recordings.</p>';
+    });
     return;
   }
   if (adminView === 'audit') {
@@ -3008,21 +3202,11 @@ function renderPublicProfileSharedContext(profile) {
 }
 
 function renderPublicProfileTagSection(profile) {
-  const interestTags = renderInterestTags(profile.interests);
-  const groupTags = renderCampusGroupTags(profile.campusGroups);
-  if (!interestTags && !groupTags) return '';
-  return `
-    <section class="public-profile-section-card">
-      <div class="public-profile-section-title">Clubs and interests</div>
-      ${groupTags}
-      ${interestTags}
-    </section>
-  `;
+  return '';
 }
 
 function renderRideAudienceMarkup(item) {
-  if (item?.audienceType !== 'groups' || !item.audienceGroups?.length) return '';
-  return `<div><strong>Audience:</strong> ${item.audienceGroups.map((group) => `<span class="ride-audience-tag">${esc(group)}</span>`).join(' ')}</div>`;
+  return '';
 }
 
 function getCurrentCampusGroups() {
@@ -3063,19 +3247,13 @@ function renderRideGroupOptions(containerId) {
 }
 
 function refreshRideAudienceControls() {
-  renderRideGroupOptions('ride-group-options');
-  renderRideGroupOptions('request-group-options');
+  return;
 }
 
 function getSelectedRideAudience(prefix) {
-  const groupOnly = document.getElementById(prefix + '-group-only')?.checked;
-  const options = document.getElementById(prefix + '-group-options');
-  const groups = groupOnly && options
-    ? [...(options.querySelector('select')?.selectedOptions || [])].map((option) => option.value).filter(Boolean)
-    : [];
   return {
-    audienceType: groupOnly ? 'groups' : 'school',
-    audienceGroups: groups,
+    audienceType: 'school',
+    audienceGroups: [],
   };
 }
 
@@ -3148,12 +3326,6 @@ function renderPublicProfile(profile) {
        </span>`
     : '';
   const memberLabel = formatProfileNumberLabel(profile);
-  const linkupStatusText = profile.connectionStatus === 'requested'
-    ? 'LinkUp request sent.'
-    : profile.connectionStatus === 'pending'
-      ? 'They sent you a LinkUp request. Accept it from Social.'
-      : '';
-  const linksLabel = `${profile.connectionCount || 0} link${profile.connectionCount === 1 ? '' : 's'}`;
   const heroMeta = [
     profile.university || profile.universityDomain || '',
     academicParts.join(' · '),
@@ -3177,15 +3349,6 @@ function renderPublicProfile(profile) {
           ${verifiedBadge}
         </div>
         <p class="public-profile-university">${esc(heroMeta.join(' · '))}</p>
-        ${profile.isCurrentUser ? '' : `
-          <div class="public-profile-hero-actions">
-            <button id="public-profile-connect-button" type="button" class="primary-action-button" ${profile.connectionStatus && profile.connectionStatus !== 'none' ? 'disabled' : ''}>
-              ${profile.connectionStatus === 'connected' ? 'Linked' : 'LinkUp'}
-            </button>
-            <span class="public-profile-link-count">${esc(linksLabel)}</span>
-            ${linkupStatusText ? `<span>${esc(linkupStatusText)}</span>` : ''}
-          </div>
-        `}
       </div>
     </div>
 
@@ -3234,14 +3397,7 @@ function renderPublicProfile(profile) {
       </div>
     `}
   `;
-  document.getElementById('public-profile-connect-button')?.addEventListener('click', () => requestUserConnection(profile));
   document.getElementById('public-profile-block-button')?.addEventListener('click', () => toggleUserBlock(profile));
-  publicProfileContent.querySelectorAll('[data-interest-tag]').forEach((button) => {
-    button.addEventListener('click', () => showInterestTagPage(button.dataset.interestTag));
-  });
-  publicProfileContent.querySelectorAll('[data-group-name]').forEach((button) => {
-    button.addEventListener('click', () => showGroupWelcomePage(button.dataset.groupName));
-  });
 }
 
 async function showPublicProfilePage(userId) {
@@ -3305,6 +3461,7 @@ function showRequiredSettingsRequired(prefixMessage = '') {
 
 function showDashboardHome() {
   setAppRoute('home');
+  setActiveNavButton(null);
   clearCartMessages();
   if (currentUser && !currentUser.serviceApproved) {
     showWaitlistPage(currentUser);
@@ -3952,7 +4109,7 @@ async function loadCampusGroupsPanel() {
     refreshRideAudienceControls();
     container.innerHTML = '';
     if (!currentCampusGroups.length) {
-      container.innerHTML = '<div class="dashboard-discovery-empty">Create or join a group to unlock group-only rides and announcements.</div>';
+      container.innerHTML = '<div class="dashboard-discovery-empty">Create or join a group to see campus announcements.</div>';
       return;
     }
     currentCampusGroups.forEach((group) => {
@@ -4085,7 +4242,9 @@ function buildDashboardChecklist(ride) {
   const STEPS = [
     { title: 'Seat reserved', desc: "You've got a confirmed spot on this ride.", optional: false },
     { title: 'Verify the driver', desc: 'At pickup, confirm the name, car, and plate match your booking.', optional: false },
+    { title: 'Check door safety', desc: 'Before the ride starts, confirm your door opens from inside, child lock is off, and report it if that changes.', optional: false },
     { title: 'Share live tracking', desc: 'Optional — send your trip link to someone you trust for extra safety.', optional: true },
+    { title: 'Use Safety Mode if needed', desc: 'Optional — record only after everyone is notified and consent is handled where required.', optional: true },
     { title: 'Give your arrival code', desc: 'Share your 6-digit code with the driver so they can confirm the trip.', optional: false },
     { title: 'Rate the driver', desc: 'After arrival, leave a quick rating to help the community.', optional: false },
   ];
@@ -4230,6 +4389,7 @@ function returnToBrowseRides() {
 
 function showBrowsePage() {
   setAppRoute('browse');
+  setActiveNavButton('browse-rides-button');
   clearCartMessages();
   if (currentUser && !currentUser.serviceApproved) {
     showWaitlistPage(currentUser);
@@ -4311,6 +4471,7 @@ function showCartPage() {
 function showYourRidesPage() {
   if (!ensureServiceAccess()) return;
   setAppRoute('your-rides');
+  setActiveNavButton('your-rides-button');
   clearCartMessages();
   hideDashboardPages();
   yourRidesPage.classList.remove('hidden');
@@ -4329,6 +4490,7 @@ function showChatPage() {
 function showRequestRidePage() {
   if (!ensureServiceAccess()) return;
   setAppRoute('request-ride');
+  setActiveNavButton('request-ride-button');
   clearCartMessages();
   clearRequestRideMessages();
   hideDashboardPages();
@@ -4340,6 +4502,7 @@ function showRequestRidePage() {
 function showListRidePage() {
   if (!ensureServiceAccess()) return;
   setAppRoute('list-ride');
+  setActiveNavButton('list-ride-button');
   clearCartMessages();
   hideDashboardPages();
   refreshRideAudienceControls();
@@ -4532,9 +4695,9 @@ function restoreAppRoute() {
     else if (route === 'your-rides') showYourRidesPage();
     else if (route === 'admin') showAdminPage();
     else if (route === 'chat') showChatPage();
-    else if (route === 'social') showSocialPage();
-    else if (route.startsWith('interest-tag-')) showInterestTagPage(decodeURIComponent(route.replace(/^interest-tag-/, '')));
-    else if (route.startsWith('group-')) showGroupWelcomePage(decodeURIComponent(route.replace(/^group-/, '')));
+    else if (route === 'social' && isSocialPreviewEnabled()) showSocialPage();
+    else if (route.startsWith('interest-tag-') && isSocialPreviewEnabled()) showInterestTagPage(decodeURIComponent(route.replace(/^interest-tag-/, '')));
+    else if (route.startsWith('group-') && isSocialPreviewEnabled()) showGroupWelcomePage(decodeURIComponent(route.replace(/^group-/, '')));
     else if (route === 'request-ride') showRequestRidePage();
     else if (route === 'list-ride') showListRidePage();
     else if (route === 'leaderboard') showLeaderboardPage();
@@ -4613,6 +4776,17 @@ function updateTrackingDriverInfo() {
 }
 
 function resetTrackingPage() {
+  if (safetyRecorder && safetyRecorder.state !== 'inactive') {
+    safetyRecorder.stop();
+  }
+  safetyRecordingStream?.getTracks().forEach((track) => track.stop());
+  safetyRecordingStream = null;
+  safetyRecorder = null;
+  safetyRecordingChunks = [];
+  safetyRecordingStartedAt = 0;
+  if (startSafetyRecordingButton) startSafetyRecordingButton.disabled = false;
+  if (stopSafetyRecordingButton) stopSafetyRecordingButton.disabled = true;
+  setSafetyModeStatus('Off', false);
   activeTrackingTripId = null;
   trackingRecipientEmail.disabled = false;
   trackingRecipientEmail.value = '';
@@ -5013,6 +5187,118 @@ function setTrackingActive(isActive) {
   trackingStatus.textContent = isActive ? 'Sharing live location.' : 'Location sharing is off.';
   trackingRecipientEmail.disabled = false;
   sendTrackingInviteButton?.classList.toggle('hidden', !isActive);
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || '').split(',')[1] || '');
+    reader.onerror = () => reject(reader.error || new Error('Unable to read recording'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function startSafetyRecording() {
+  clearTrackingMessages();
+  if (!window.MediaRecorder || !navigator.mediaDevices?.getUserMedia) {
+    trackingError.textContent = 'Safety recording is not supported in this browser.';
+    trackingError.classList.add('show');
+    return;
+  }
+  try {
+    safetyRecordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    safetyRecorder = new MediaRecorder(safetyRecordingStream, mimeType ? { mimeType } : undefined);
+    safetyRecordingChunks = [];
+    safetyRecordingStartedAt = Date.now();
+    safetyRecorder.addEventListener('dataavailable', (event) => {
+      if (event.data?.size) safetyRecordingChunks.push(event.data);
+    });
+    safetyRecorder.addEventListener('stop', () => {
+      safetyRecordingStream?.getTracks().forEach((track) => track.stop());
+      safetyRecordingStream = null;
+    });
+    safetyRecorder.start();
+    startSafetyRecordingButton.disabled = true;
+    stopSafetyRecordingButton.disabled = false;
+    safetyRecordingConsent.disabled = true;
+    setSafetyModeStatus('Recording', true);
+    trackingMessage.textContent = 'Safety recording started. Make sure everyone in the car knows recording is active.';
+    trackingMessage.classList.add('show');
+  } catch (err) {
+    trackingError.textContent = err.message || 'Unable to start safety recording.';
+    trackingError.classList.add('show');
+  }
+}
+
+async function stopSafetyRecording() {
+  clearTrackingMessages();
+  if (!safetyRecorder || safetyRecorder.state === 'inactive') return;
+  const stopped = new Promise((resolve) => safetyRecorder.addEventListener('stop', resolve, { once: true }));
+  safetyRecorder.stop();
+  await stopped;
+  startSafetyRecordingButton.disabled = false;
+  stopSafetyRecordingButton.disabled = true;
+  setSafetyModeStatus('Uploading', true);
+
+  try {
+    const mimeType = safetyRecorder.mimeType || 'audio/webm';
+    const blob = new Blob(safetyRecordingChunks, { type: mimeType });
+    const audioBase64 = await blobToBase64(blob);
+    const response = await fetchJson('/api/safety/recordings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audioBase64,
+        mimeType,
+        durationMs: Date.now() - safetyRecordingStartedAt,
+        consentAcknowledged: true,
+        noticeShown: true,
+      }),
+    });
+    lastSafetyRecordingId = response.recordingId || '';
+    setSafetyModeStatus('Saved', false);
+    trackingMessage.textContent = response.message || 'Safety recording uploaded to LinkUp.';
+    trackingMessage.classList.add('show');
+  } catch (err) {
+    setSafetyModeStatus('Upload failed', false);
+    trackingError.textContent = err.message || 'Unable to upload safety recording.';
+    trackingError.classList.add('show');
+  } finally {
+    safetyRecorder = null;
+    safetyRecordingChunks = [];
+    safetyRecordingStartedAt = 0;
+  }
+}
+
+async function sendSafetyIncident({ doorIssue = false } = {}) {
+  clearTrackingMessages();
+  const note = safetyIncidentNote?.value.trim() || '';
+  const reason = doorIssue ? 'Vehicle door safety issue' : 'Ride safety note';
+  if (!doorIssue && !note && !lastSafetyRecordingId) {
+    trackingError.textContent = 'Add a safety note or attach a recording before sending.';
+    trackingError.classList.add('show');
+    return;
+  }
+  try {
+    const response = await fetchJson('/api/safety/incidents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reason,
+        details: note,
+        doorSafetyConfirmed: true,
+        doorSafetyIssue: doorIssue,
+        safetyRecordingId: lastSafetyRecordingId,
+      }),
+    });
+    if (safetyIncidentNote) safetyIncidentNote.value = '';
+    trackingMessage.textContent = response.message || 'Safety note sent to LinkUp.';
+    trackingMessage.classList.add('show');
+  } catch (err) {
+    trackingError.textContent = err.message || 'Unable to send safety note.';
+    trackingError.classList.add('show');
+  }
 }
 
 async function sendTrackingLocation(position) {
@@ -5901,6 +6187,7 @@ function renderRideCard(ride) {
     <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
     ${!isMovingCard ? `<div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>` : ''}
     ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school only</div>' : ''}
+    ${ride.noSmoking ? '<div><strong>Smoking:</strong> No smoking during ride</div>' : ''}
     ${renderRideAudienceMarkup(ride)}
     ${getFlexRadiusMarkup(ride, 'driver')}
     <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
@@ -5931,12 +6218,14 @@ function renderRideCard(ride) {
       readonlyPicker.appendChild(createSeatLayout({ seatMap: ride.seatMap || [], ride }));
       card.appendChild(readonlyPicker);
     }
+    card.appendChild(buildBrowseSeatManifest(ride));
   } else {
     const cartActionButton = document.createElement('button');
     const isInCart = cartRideIds.has(ride.id);
     const selectedSeatId = selectedSeatByRide.get(ride.id) || '';
     const cardError = document.createElement('div');
     cardError.className = 'error-message';
+    card.appendChild(buildBrowseSeatManifest(ride));
     if (ride.seatingChartUnavailable) {
       cartActionButton.textContent = isInCart ? 'In cart' : 'Reserve shared spot';
       cartActionButton.disabled = isInCart || ride.seatsAvailable <= 0;
@@ -6210,9 +6499,10 @@ function createRideChat(ride, options = {}) {
 }
 
 function setChatSection(section) {
-  activeChatSection = section === 'social' ? 'social' : 'ride';
+  activeChatSection = section === 'social' && isSocialPreviewEnabled() ? 'social' : 'ride';
   chatRideTab?.classList.toggle('active', activeChatSection === 'ride');
   chatSocialTab?.classList.toggle('active', activeChatSection === 'social');
+  chatSocialTab?.classList.toggle('hidden', !isSocialPreviewEnabled());
   chatRidePanel?.classList.toggle('hidden', activeChatSection !== 'ride');
   chatSocialPanel?.classList.toggle('hidden', activeChatSection !== 'social');
   chatConversation.innerHTML = `<p>Select a ${activeChatSection === 'social' ? 'social chat' : 'ride'} to open its chat.</p>`;
@@ -6522,6 +6812,110 @@ function buildDriverSeatManifest(ride) {
   return manifest;
 }
 
+function buildBrowseSeatManifest(ride) {
+  const manifest = document.createElement('div');
+  manifest.className = 'seat-manifest browse-seat-manifest';
+
+  const title = document.createElement('div');
+  title.className = 'seat-manifest-title';
+  title.textContent = ride.seatingChartUnavailable ? 'People in this ride' : 'People in this car';
+  manifest.appendChild(title);
+
+  const list = document.createElement('div');
+  list.className = 'seat-manifest-list';
+  const passengers = ride.passengers || [];
+
+  const driverRow = document.createElement('div');
+  driverRow.className = 'seat-manifest-row';
+
+  const driverSeat = document.createElement('span');
+  driverSeat.className = 'seat-manifest-seat';
+  driverSeat.textContent = 'Driver';
+
+  const driver = document.createElement('span');
+  driver.className = 'seat-manifest-rider';
+  const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
+  driver.appendChild(createPublicProfileLink(ride.driverId, driverName));
+
+  driverRow.append(driverSeat, driver);
+  list.appendChild(driverRow);
+
+  if (!passengers.length) {
+    const row = document.createElement('div');
+    row.className = 'seat-manifest-row';
+    row.innerHTML = '<span class="seat-manifest-seat">Riders</span><span class="seat-manifest-empty">No booked seats yet</span>';
+    list.appendChild(row);
+    manifest.appendChild(list);
+    return manifest;
+  }
+
+  if (ride.seatingChartUnavailable) {
+    passengers.forEach((passenger, index) => {
+      const row = document.createElement('div');
+      row.className = 'seat-manifest-row';
+
+      const spot = document.createElement('span');
+      spot.className = 'seat-manifest-seat';
+      spot.textContent = 'Spot ' + (index + 1);
+
+      const rider = document.createElement('span');
+      rider.className = 'seat-manifest-rider';
+      const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
+      rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
+
+      row.append(spot, rider);
+      list.appendChild(row);
+    });
+    manifest.appendChild(list);
+    return manifest;
+  }
+
+  const passengerBySeat = new Map(passengers
+    .filter((passenger) => passenger.seatId)
+    .map((passenger) => [passenger.seatId, passenger]));
+  const passengersWithoutSeat = passengers.filter((passenger) => !passenger.seatId);
+
+  getVehicleSeatIds(getSeatLayoutCountForRide(ride)).forEach((seatId) => {
+    const passenger = passengerBySeat.get(seatId);
+    if (!passenger) return;
+
+    const row = document.createElement('div');
+    row.className = 'seat-manifest-row';
+
+    const seat = document.createElement('span');
+    seat.className = 'seat-manifest-seat';
+    seat.textContent = getSeatLabel(seatId);
+
+    const rider = document.createElement('span');
+    rider.className = 'seat-manifest-rider';
+    const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
+    rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
+
+    row.append(seat, rider);
+    list.appendChild(row);
+  });
+
+  passengersWithoutSeat.forEach((passenger) => {
+    const row = document.createElement('div');
+    row.className = 'seat-manifest-row';
+
+    const seat = document.createElement('span');
+    seat.className = 'seat-manifest-seat';
+    seat.textContent = 'Seat pending';
+
+    const rider = document.createElement('span');
+    rider.className = 'seat-manifest-rider';
+    const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
+    rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
+
+    row.append(seat, rider);
+    list.appendChild(row);
+  });
+
+  manifest.appendChild(list);
+  return manifest;
+}
+
 function buildRequestSummary(request) {
   const container = document.createElement('div');
   container.className = 'ride-card request-summary-card';
@@ -6557,6 +6951,7 @@ function buildRequestSummary(request) {
     <div><strong>School:</strong> ${esc(request.university || 'Unknown school')}</div>
     <div><strong>Preference:</strong> ${request.sameGenderDriverOnly ? 'Same gender driver only' : 'Open to all drivers'}</div>
     ${request.sameSchoolDriverOnly ? '<div><strong>School restriction:</strong> Same school drivers only</div>' : ''}
+    ${request.noSmoking ? '<div><strong>Smoking:</strong> No smoking during ride</div>' : ''}
     ${renderRideAudienceMarkup(request)}
     ${getFlexRadiusMarkup(request, 'rider')}
     <div><strong>Requested time:</strong> ${esc(requestTime)}</div>
@@ -7979,11 +8374,6 @@ rideProviderChoices.forEach((button) => {
   button.addEventListener('click', () => chooseOfferProviderType(button.dataset.providerType));
 });
 changeRideProviderButton?.addEventListener('click', () => resetOfferProviderSelection());
-['ride', 'request'].forEach((prefix) => {
-  document.getElementById(prefix + '-group-only')?.addEventListener('change', (event) => {
-    document.getElementById(prefix + '-group-options')?.classList.toggle('hidden', !event.target.checked);
-  });
-});
 try {
   renderDriverSeatLayout();
   updateOfferProviderFields();
@@ -8137,7 +8527,6 @@ offerForm.addEventListener('submit', async (event) => {
   const time = document.getElementById('ride-time').value;
   const sameGenderOnly = sameGenderOnlyRideCheckbox.checked;
   const sameSchoolOnly = sameSchoolOnlyRideCheckbox.checked;
-  const rideAudience = getSelectedRideAudience('ride');
   const rideProviderType = rideProviderTypeSelect.value;
   const seats = document.getElementById('seats').value;
   const vehicleSeatCount = Number(vehicleSeatCountSelect.value);
@@ -8187,10 +8576,6 @@ offerForm.addEventListener('submit', async (event) => {
     showToast('Set a visible gender on your profile before offering same-gender rides.', 'error');
     return;
   }
-  if (rideAudience.audienceType === 'groups' && !rideAudience.audienceGroups.length) {
-    showToast('Choose at least one group or club, or post to the marketplace.', 'error');
-    return;
-  }
   // All validation passed — now estimate route metrics
   setButtonLoading(offerSubmitButton, true);
   try {
@@ -8216,8 +8601,6 @@ offerForm.addEventListener('submit', async (event) => {
         time,
         sameGenderOnly,
         sameSchoolOnly,
-        audienceType: rideAudience.audienceType,
-        audienceGroups: rideAudience.audienceGroups,
         rideProviderType,
         rideshareService,
         rideshareSeatCount,
@@ -8241,7 +8624,6 @@ offerForm.addEventListener('submit', async (event) => {
       }),
     });
     offerForm.reset();
-    document.getElementById('ride-group-options')?.classList.add('hidden');
     offerPickupRadiusCircle = drawMapFlexCircle(offerPickupRadiusCircle, originMap, null, 0, '#3ecfcf');
     offerDropoffRadiusCircle = drawMapFlexCircle(offerDropoffRadiusCircle, originMap, null, 0, '#4d9ef5');
     currentVehicleSeatCount = 5;
@@ -8294,12 +8676,6 @@ requestRideForm.addEventListener('submit', async (event) => {
     document.getElementById('request-date').value,
     document.getElementById('request-time').value
   );
-  const requestAudience = getSelectedRideAudience('request');
-  if (requestAudience.audienceType === 'groups' && !requestAudience.audienceGroups.length) {
-    requestRideError.textContent = 'Choose at least one group or club, or post to the marketplace.';
-    requestRideError.classList.add('show');
-    return;
-  }
   const payload = {
     origin: document.getElementById('request-origin').value.trim(),
     destination: document.getElementById('request-destination').value.trim(),
@@ -8322,8 +8698,7 @@ requestRideForm.addEventListener('submit', async (event) => {
     shareRideWithOthers: document.getElementById('request-share-ride').checked,
     sameGenderDriverOnly: document.getElementById('request-same-gender-driver').checked,
     sameSchoolDriverOnly: document.getElementById('request-same-school-driver').checked,
-    audienceType: requestAudience.audienceType,
-    audienceGroups: requestAudience.audienceGroups,
+    noSmoking: submittingRequestType !== 'moving' && document.getElementById('request-no-smoking')?.checked === true,
     notes: document.getElementById('request-notes').value.trim(),
   };
   setButtonLoading(requestSubmitButton, true);
@@ -8331,7 +8706,6 @@ requestRideForm.addEventListener('submit', async (event) => {
     await fetchJson('/api/ride-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     setButtonLoading(requestSubmitButton, false);
     requestRideForm.reset();
-    document.getElementById('request-group-options')?.classList.add('hidden');
     const destHint = document.getElementById('request-destination-hint');
     if (destHint) destHint.textContent = 'Only a general area is shown to drivers until one accepts your request.';
     resetMovingPhoto();
@@ -8340,6 +8714,7 @@ requestRideForm.addEventListener('submit', async (event) => {
     document.getElementById('request-riders-field')?.classList.remove('hidden');
     document.getElementById('request-moving-fields')?.classList.add('hidden');
     document.getElementById('request-share-field')?.classList.remove('hidden');
+    document.getElementById('request-preference-field')?.classList.remove('hidden');
     document.getElementById('request-notes').placeholder = 'Luggage, timing flexibility, pickup details…';
     document.getElementById('request-submit-btn').textContent = 'Post request';
     requestPickupRadiusCircle = drawMapFlexCircle(requestPickupRadiusCircle, requestOriginMap, null, 0, '#3ecfcf');
@@ -8419,6 +8794,7 @@ document.querySelectorAll('.request-type-btn').forEach((btn) => {
     document.getElementById('request-riders-field')?.classList.toggle('hidden', isMoving);
     document.getElementById('request-moving-fields')?.classList.toggle('hidden', !isMoving);
     document.getElementById('request-share-field')?.classList.toggle('hidden', isMoving);
+    document.getElementById('request-preference-field')?.classList.toggle('hidden', isMoving);
     const priceLabel = document.getElementById('request-price-label');
     if (priceLabel?.firstChild?.nodeType === Node.TEXT_NODE) {
       priceLabel.firstChild.textContent = isMoving ? 'Budget for move ($) ' : 'Price willing to pay ($) ';
@@ -8439,10 +8815,14 @@ document.querySelectorAll('.request-type-btn').forEach((btn) => {
 listRideButton.addEventListener('click', () => showListRidePage());
 listRideBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 chatButton.addEventListener('click', () => showChatPage());
-socialButton?.addEventListener('click', () => showSocialPage());
+socialButton?.addEventListener('click', () => {
+  if (isSocialPreviewEnabled()) showSocialPage();
+});
 chatBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 chatRideTab?.addEventListener('click', () => setChatSection('ride'));
-chatSocialTab?.addEventListener('click', () => setChatSection('social'));
+chatSocialTab?.addEventListener('click', () => {
+  if (isSocialPreviewEnabled()) setChatSection('social');
+});
 cartButton.addEventListener('click', () => showCartPage());
 yourRidesButton.addEventListener('click', () => showYourRidesPage());
 yourRidesCurrentTab.addEventListener('click', () => { setYourRidesView('current'); loadYourRides(); });
@@ -9256,6 +9636,10 @@ copyTrackingLinkButton?.addEventListener('click', () => copyTrackingLink());
 sendTrackingInviteButton?.addEventListener('click', () => sendTrackingInvite());
 startTrackingButton.addEventListener('click', () => startTripTracking());
 stopTrackingButton.addEventListener('click', () => stopTripTracking());
+startSafetyRecordingButton?.addEventListener('click', () => startSafetyRecording());
+stopSafetyRecordingButton?.addEventListener('click', () => stopSafetyRecording());
+sendSafetyNoteButton?.addEventListener('click', () => sendSafetyIncident());
+reportDoorSafetyButton?.addEventListener('click', () => sendSafetyIncident({ doorIssue: true }));
 continueShoppingButton.addEventListener('click', () => returnToBrowseRides());
 cartSelectAllCheckbox?.addEventListener('change', () => {
   const checked = cartSelectAllCheckbox.checked;
