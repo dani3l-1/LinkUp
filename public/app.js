@@ -3260,11 +3260,11 @@ function getSelectedRideAudience(prefix) {
 async function requestUserConnection(profile) {
   if (!profile?.id || profile.isCurrentUser) return;
   try {
-    const response = await fetchJson('/api/users/' + encodeURIComponent(profile.id) + '/linkup', { method: 'POST' });
-    showToast(response.message || 'LinkUp request sent.', 'success');
+    const response = await fetchJson('/api/users/' + encodeURIComponent(profile.id) + '/ride-alerts', { method: 'POST' });
+    showToast(response.message || 'You will be notified when this student posts a ride or request.', 'success');
     await showPublicProfilePage(profile.id);
   } catch (err) {
-    showToast(err.message || 'Unable to send LinkUp request.', 'error');
+    showToast(err.message || 'Unable to turn on ride alerts.', 'error');
   }
 }
 
@@ -3349,6 +3349,14 @@ function renderPublicProfile(profile) {
           ${verifiedBadge}
         </div>
         <p class="public-profile-university">${esc(heroMeta.join(' · '))}</p>
+        ${profile.isCurrentUser ? '' : `
+          <div class="public-profile-hero-actions">
+            <button id="public-profile-connect-button" type="button" class="primary-action-button" ${profile.rideAlertSubscribed ? 'disabled' : ''}>
+              ${profile.rideAlertSubscribed ? 'Linked' : 'LinkUp'}
+            </button>
+            <span class="public-profile-link-count">${profile.rideAlertSubscribed ? 'Ride alerts on' : 'Get notified when they post rides or requests'}</span>
+          </div>
+        `}
       </div>
     </div>
 
@@ -3397,6 +3405,7 @@ function renderPublicProfile(profile) {
       </div>
     `}
   `;
+  document.getElementById('public-profile-connect-button')?.addEventListener('click', () => requestUserConnection(profile));
   document.getElementById('public-profile-block-button')?.addEventListener('click', () => toggleUserBlock(profile));
 }
 

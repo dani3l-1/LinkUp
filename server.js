@@ -1659,6 +1659,54 @@ function notifyRideChatParticipants(db, ride, sender, message) {
     .forEach((user) => sendPushNotification(user, payload));
 }
 
+function normalizeRideAlertUserIds(value) {
+  return [...new Set(asArray(value).map((id) => String(id || '').trim()).filter(Boolean))];
+}
+
+function isRideAlertSubscribed(viewer, targetUserId) {
+  return normalizeRideAlertUserIds(viewer?.rideAlertUserIds).includes(String(targetUserId || '').trim());
+}
+
+function notifyRideAlertSubscribers(db, actor, item, itemType = 'ride') {
+  if (!actor?.id) return;
+  const actorName = getUserDisplayName(actor);
+  const isRequest = itemType === 'request';
+  const route = [item?.origin, item?.destination].filter(Boolean).join(' to ');
+  const when = item?.date && item?.time ? describeTripTime(item) : '';
+  const title = `${actorName} ${isRequest ? 'requested a ride' : 'posted a ride'}`;
+  const body = route ? `${route}${when ? ' · ' + when : ''}` : `Open LinkUp to view the ${isRequest ? 'request' : 'ride'}.`;
+  const url = isRequest ? '/#browse' : '/#browse';
+  const subscribers = activeUsers(db)
+    .filter((user) => user.id !== actor.id)
+    .filter((user) => isRideAlertSubscribed(user, actor.id))
+    .filter((user) => !areUsersBlocked(db, user.id, actor.id));
+
+  subscribers.forEach((subscriber) => {
+    sendPushNotification(subscriber, {
+      title,
+      body,
+      url,
+      tag: `${isRequest ? 'ride-request' : 'ride'}-alert-${item?.id || actor.id}`,
+      data: {
+        type: isRequest ? 'ride-request-alert' : 'ride-alert',
+        userId: actor.id,
+        rideId: isRequest ? '' : (item?.id || ''),
+        requestId: isRequest ? (item?.id || '') : '',
+      },
+    });
+    const textBody = `Hi ${subscriber.firstName || 'there'},\n\n${title}${route ? `:\n${route}` : ''}${when ? `\nTime: ${when}` : ''}\n\nOpen LinkUp to view it:\n${APP_BASE_URL}\n\nYou are receiving this because you tapped LinkUp on ${actorName}'s profile.\n\n- LinkUp`;
+    const htmlBody = renderLinkUpEmail({
+      eyebrow: 'Ride alert',
+      title,
+      intro: `Hi ${escapeHtml(subscriber.firstName || 'there')}, ${escapeHtml(actorName)} ${isRequest ? 'requested a ride' : 'posted a ride'}.`,
+      bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.65;color:#54636a;">${escapeHtml(route || 'Open LinkUp to view the latest ride activity.')}${when ? `<br><strong>Time:</strong> ${escapeHtml(when)}` : ''}</p>`,
+      cta: { href: APP_BASE_URL, label: 'Open LinkUp' },
+      footer: 'You are receiving this because you tapped LinkUp on this student profile.',
+    });
+    sendAuthEmail(subscriber.email, title, textBody, htmlBody);
+  });
+}
+
 function generateVerificationCode() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
@@ -5172,6 +5220,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
   }
 
   db.rideRequests.push(request);
+  notifyRideAlertSubscribers(db, rider, request, 'request');
   saveDb(db);
   res.json(publicRideRequest(request, rider.id));
 });
@@ -5305,6 +5354,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
   }
 
   db.rides.push(ride);
+  notifyRideAlertSubscribers(db, driver, ride, 'ride');
   saveDb(db);
   res.json(rideForUser(ride, req.session.userId, db));
 });
@@ -6292,6 +6342,35 @@ app.delete('/api/users/:userId/block', requireAuth, requireServiceAccess, (req, 
   res.json({ message: 'User unblocked.', blocked: false });
 });
 
+app.post('/api/users/:userId/ride-alerts', requireAuth, requireServiceAccess, (req, res) => {
+  const targetUserId = String(req.params.userId || '').trim();
+  const db = loadDb();
+  const subscriber = (db.users || []).find((user) => user.id === req.session.userId);
+  const targetUser = (db.users || []).find((user) => user.id === targetUserId && !isDeletedUser(user));
+  if (!subscriber) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (!targetUser) {
+    return res.status(404).json({ error: 'User to LinkUp with not found' });
+  }
+  if (subscriber.id === targetUser.id) {
+    return res.status(400).json({ error: 'You already receive your own ride activity.' });
+  }
+  if (areUsersBlocked(db, subscriber.id, targetUser.id)) {
+    return res.status(403).json({ error: 'Ride alerts are unavailable for blocked users.' });
+  }
+
+  subscriber.rideAlertUserIds = normalizeRideAlertUserIds(subscriber.rideAlertUserIds);
+  if (!subscriber.rideAlertUserIds.includes(targetUser.id)) {
+    subscriber.rideAlertUserIds.push(targetUser.id);
+    saveDb(db);
+  }
+  res.json({
+    message: `You will be notified when ${getUserDisplayName(targetUser)} posts a ride or request.`,
+    rideAlertSubscribed: true,
+  });
+});
+
 app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, res) => {
   const db = expireUnclaimedRideRequests(loadDb());
   const user = (db.users || []).find((entry) => entry.id === req.params.userId);
@@ -6334,6 +6413,7 @@ app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, r
     adminNumber: getAdminNumber(db, user.id),
     serviceApproved: user.serviceApproved === true,
     isCurrentUser: user.id === req.session.userId,
+    rideAlertSubscribed: isRideAlertSubscribed((db.users || []).find((entry) => entry.id === req.session.userId), user.id),
     isBlockedByCurrentUser: isUserBlocked(db, req.session.userId, user.id),
     hasBlockedCurrentUser: isUserBlocked(db, user.id, req.session.userId),
     stats: {
