@@ -533,13 +533,16 @@ label {
   text-transform: uppercase;
 }
 
-label input,
-label select {
+label input:not([type="checkbox"]):not([type="radio"]),
+label select,
+label textarea {
   display: block;
   margin-top: 0.45rem;
 }
 
-input, select {
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
   width: 100%;
   padding: 0.85rem 1.1rem;
   font-family: var(--font-body);
@@ -550,6 +553,8 @@ input, select {
   border-radius: var(--radius-md);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   outline: none;
+  box-sizing: border-box;
+  resize: vertical;
 }
 
 input[type="checkbox"] {
@@ -2259,7 +2264,7 @@ button:disabled::before { display: none; }
 @media (min-width: 720px) {
   .tracking-layout {
     grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
-    align-items: start;
+    align-items: stretch;
   }
 }
 
@@ -2268,6 +2273,13 @@ button:disabled::before { display: none; }
   flex-direction: column;
   gap: 0.65rem;
 }
+
+.tracking-map-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.tracking-map-col .tracking-map { flex: 1; }
 
 /* ─── Safety cards ────────────────────────────────────────────── */
 .safety-card {
@@ -2420,6 +2432,7 @@ button:disabled::before { display: none; }
   display: grid;
   place-items: center;
   min-height: 420px;
+  height: 100%;
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-lg);
   background: #1a1a2e;
@@ -7020,8 +7033,8 @@ article.card h3 {
 .payout-flow {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 1rem 0 1.5rem;
+  gap: 0.5rem;
+  padding: 0.75rem 0 1.5rem;
   flex-wrap: wrap;
 }
 
@@ -7029,11 +7042,13 @@ article.card h3 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
-  font-size: 0.75rem;
+  gap: 0.35rem;
+  font-size: 0.72rem;
   font-weight: 600;
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  letter-spacing: 0.02em;
   min-width: 4.5rem;
   text-align: center;
 }
@@ -7047,24 +7062,42 @@ article.card h3 {
 }
 
 .payout-flow-icon {
-  font-size: 1.15rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
 }
 
-.payout-flow-step--active .payout-flow-icon { color: var(--accent); }
-.payout-flow-step--bank-active .payout-flow-icon { color: var(--success); }
+.payout-flow-step--active .payout-flow-icon {
+  background: rgba(62,207,207,0.08);
+  border-color: rgba(62,207,207,0.25);
+  color: var(--accent);
+}
+
+.payout-flow-step--bank-active .payout-flow-icon {
+  background: rgba(78,201,148,0.08);
+  border-color: rgba(78,201,148,0.25);
+  color: var(--success);
+}
 
 .payout-flow-step small {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   color: var(--text-muted);
   font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .payout-flow-arrow {
+  display: flex;
+  align-items: center;
   color: var(--border-hover);
-  font-size: 1rem;
   flex-shrink: 0;
-  margin-top: -0.5rem;
 }
 
 /* ─── Payout sections ─────────────────────────────────────────── */
@@ -7082,14 +7115,17 @@ article.card h3 {
 }
 
 .payout-section-title {
-  font-size: 0.98rem;
+  font-size: 0.72rem;
+  font-family: var(--font-display);
   font-weight: 700;
-  color: var(--text-primary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
   margin: 0 0 0.3rem;
 }
 
 .payout-section-desc {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--text-muted);
   margin: 0;
   line-height: 1.55;
@@ -7253,6 +7289,27 @@ article.card h3 {
   padding: 0.9rem 1rem;
 }
 
+.payout-trust-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.015);
+}
+
+.payout-trust-note svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
 .driver-wallet-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7260,16 +7317,16 @@ article.card h3 {
 }
 
 .wallet-card {
-  border: 1px solid rgba(62,207,207,0.2);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: rgba(255,255,255,0.035);
-  padding: 1rem;
+  background: rgba(255,255,255,0.02);
+  padding: 1rem 1.1rem;
   min-width: 0;
 }
 
 .wallet-card-primary {
-  background: linear-gradient(135deg, rgba(62,207,207,0.2), rgba(90,180,120,0.12));
-  border-color: rgba(62,207,207,0.42);
+  background: rgba(62,207,207,0.06);
+  border-color: rgba(62,207,207,0.28);
 }
 
 .wallet-card-wide {
@@ -7385,12 +7442,14 @@ article.card h3 {
 
 
 .payment-method-summary {
-  border: 1px solid rgba(62,207,207,0.22);
-  background: rgba(62,207,207,0.08);
-  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  color: var(--text-primary);
   border-radius: var(--radius-md);
   padding: 0.9rem 1rem;
-  font-weight: 700;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 /* ─── Stripe payout panel ─────────────────────────────────────── */
@@ -9183,10 +9242,10 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
 
 .cart-page-title {
   font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
   color: var(--text-primary);
   margin: 0;
 }
@@ -9253,18 +9312,18 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
   padding: 1.75rem 1.5rem 2rem;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 0.75rem;
 }
 
 .cart-summary-title {
   font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-primary);
-  margin: 0 0 1.25rem;
-  padding-bottom: 1rem;
+  color: var(--text-muted);
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border);
 }
 
@@ -9739,13 +9798,14 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
 
 .cart-disclaimer {
   margin: 0.25rem 0 0.95rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(255, 214, 128, 0.25);
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: rgba(255, 214, 128, 0.06);
-  color: var(--text-secondary);
-  font-size: 0.9rem;
+  background: rgba(255,255,255,0.018);
+  color: var(--text-muted);
+  font-size: 0.8rem;
   line-height: 1.45;
+  letter-spacing: 0.01em;
 }
 
 .cart-select-all {
@@ -9929,25 +9989,25 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
 #checkout-cart,
 #pay-cart {
   display: block;
-  width: min(280px, 100%);
-  margin: 1.25rem auto 0;
-  padding: 0.95rem 1.5rem;
-  font-size: 0.88rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.9rem 1.5rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  background: linear-gradient(135deg, var(--accent) 0%, #2eb5b5 100%);
+  letter-spacing: 0.1em;
+  background: var(--accent);
   color: #041414;
   border: none;
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 24px rgba(62,207,207,0.3), 0 1px 0 rgba(255,255,255,0.08) inset;
-  animation: pulse-glow 4s ease-in-out infinite;
+  box-shadow: 0 4px 20px rgba(62,207,207,0.25);
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
 #checkout-cart:hover,
 #pay-cart:hover {
-  background: linear-gradient(135deg, #5cdede 0%, #3ecfcf 100%);
-  box-shadow: 0 6px 32px rgba(62,207,207,0.48);
-  animation: none;
+  filter: brightness(1.08);
+  box-shadow: 0 6px 28px rgba(62,207,207,0.38);
+  transform: translateY(-1px);
 }
 
 /* ── Mobile ─────────────────────────────────────────────────── */
@@ -12405,3 +12465,181 @@ html[data-theme="light"] .checkout-summary-note,
 html[data-theme="light"] .field-help {
   color: #456a72 !important;
 }
+
+
+/* ── Boarding pass ─────────────────────────────────────────────────────────── */
+.boarding-pass {
+  background: #0f1e21;
+  border: 1px solid rgba(62,207,207,0.18);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  font-family: var(--font-body);
+  width: 100%;
+}
+
+.bp-header {
+  background: linear-gradient(135deg, #0c747a 0%, #0a5f65 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+}
+
+.bp-brand {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.9);
+}
+
+.bp-role-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.35);
+  color: #fff;
+}
+.bp-role-badge--driver { background: rgba(255,255,255,0.15); }
+.bp-role-badge--rider  { background: rgba(255,255,255,0.1); }
+
+.bp-route {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 24px 16px;
+  gap: 12px;
+}
+
+.bp-route-stop {
+  flex: 1;
+  min-width: 0;
+}
+.bp-route-stop--dest { text-align: right; }
+
+.bp-stop-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--text-muted, #7faab3);
+  margin-bottom: 5px;
+}
+
+.bp-stop-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #edf6f7);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.bp-route-arrow {
+  flex-shrink: 0;
+  padding: 0 14px;
+  color: var(--accent, #3ecfcf);
+  opacity: 0.7;
+  padding-top: 18px;
+}
+
+.bp-fields {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 4px 24px 18px;
+  border-top: 1px solid rgba(62,207,207,0.08);
+}
+
+.bp-field {
+  flex: 1;
+  padding: 10px 16px 10px 0;
+  border-right: 1px solid rgba(62,207,207,0.08);
+}
+.bp-field:first-child { padding-left: 0; }
+.bp-field:last-child { border-right: none; padding-right: 0; }
+
+.bp-field--wide { flex: 2; }
+.bp-field--widest { flex: 3; }
+
+.bp-field-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--text-muted, #7faab3);
+  margin-bottom: 4px;
+}
+
+.bp-field-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #edf6f7);
+  word-break: break-word;
+}
+
+/* Tear line */
+.bp-tear {
+  position: relative;
+  height: 0;
+  border-top: 2px dashed rgba(62,207,207,0.2);
+  margin: 0 -1px;
+}
+.bp-tear::before,
+.bp-tear::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  background: var(--bg, #0d1517);
+  border-radius: 50%;
+  border: 1px solid rgba(62,207,207,0.18);
+}
+.bp-tear::before { left: -9px; }
+.bp-tear::after  { right: -9px; }
+
+/* Stub (below tear) */
+.bp-stub {
+  padding: 14px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bp-fields--stub {
+  padding: 0;
+  border-top: none;
+}
+.bp-fields--stub .bp-field {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.bp-barcode {
+  color: rgba(62,207,207,0.25);
+  margin-top: 6px;
+}
+
+.bp-barcode-svg {
+  width: 100%;
+  height: 32px;
+  display: block;
+}
+
+/* Light mode */
+html[data-theme="light"] .boarding-pass {
+  background: #fff;
+  border-color: #c5d8dc;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+html[data-theme="light"] .bp-city-code  { color: #0c747a; }
+html[data-theme="light"] .bp-field-value { color: #1a2628; }
+html[data-theme="light"] .bp-field-label { color: #6b9aa3; }
+html[data-theme="light"] .bp-fields      { border-top-color: #e0ecee; }
+html[data-theme="light"] .bp-field       { border-right-color: #e0ecee; }
+html[data-theme="light"] .bp-tear        { border-top-color: #c5d8dc; }
+html[data-theme="light"] .bp-tear::before,
+html[data-theme="light"] .bp-tear::after { background: #f4fbfb; border-color: #c5d8dc; }
+html[data-theme="light"] .bp-barcode     { color: rgba(12,116,122,0.2); }

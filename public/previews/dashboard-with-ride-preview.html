@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LinkUp Dashboard Preview</title>
+    <link rel="stylesheet" href="../styles.css?v=preview-3" />
+    <style>
+      body {
+        min-height: 100vh;
+        padding: 2rem;
+        background: var(--bg);
+        font-family: var(--font-body);
+        color: var(--text-primary);
+      }
+
+      .preview-shell {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+
+      /* ── Fake header bar ── */
+      .fake-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1.5rem;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .fake-header-left h2 {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        color: var(--text-primary);
+      }
+      .fake-header-left p {
+        margin: 0;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .fake-nav {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .fake-nav button {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        font-family: var(--font-display);
+        letter-spacing: 0.05em;
+        padding: 0.35rem 0.85rem;
+        cursor: pointer;
+        width: auto;
+      }
+
+      /* ── Dashboard container ── */
+      #dashboard-home {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-top: none;
+        border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+      }
+
+      /* ── Meta pills ── */
+      .ride-meta-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.7rem;
+        margin-top: 1rem;
+      }
+      .meta-pill {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1rem;
+        background: rgba(255,255,255,0.03);
+      }
+      .meta-pill-label {
+        font-size: 0.68rem;
+        font-family: var(--font-display);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        display: block;
+      }
+      .meta-pill-value {
+        display: block;
+        margin-top: 0.2rem;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      /* ── Quick actions ── */
+      .quick-actions {
+        display: flex;
+        gap: 0.65rem;
+      }
+      .quick-actions button {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+        padding: 0.9rem 1rem;
+        border-radius: var(--radius-md);
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.88rem;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        border: none;
+        width: auto;
+      }
+      .btn-primary { background: var(--accent); color: #000; }
+      .btn-secondary { background: rgba(255,255,255,0.06); color: var(--text-primary); border: 1px solid var(--border) !important; }
+
+      /* ── Fake map ── */
+      .fake-map {
+        min-height: 280px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        background:
+          linear-gradient(90deg, rgba(62,207,207,0.08) 1px, transparent 1px),
+          linear-gradient(0deg, rgba(62,207,207,0.08) 1px, transparent 1px),
+          radial-gradient(circle at 35% 55%, rgba(62,207,207,0.2), transparent 40%),
+          linear-gradient(135deg, rgba(18,91,97,0.5), rgba(2,9,11,0.92));
+        background-size: 34px 34px, 34px 34px, auto, auto;
+        display: grid;
+        place-items: center;
+        color: var(--text-muted);
+        font-family: var(--font-display);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+      }
+
+      /* override checklist margin since we're using flex gap */
+      .dashboard-checklist-widget { margin-top: 0; }
+
+      /* Fix: keep checkbox in grid flow so circle+body land in correct columns */
+      .checklist-step-checkbox {
+        position: static !important;
+        appearance: none;
+        -webkit-appearance: none;
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-shell">
+
+      <!-- Header -->
+      <div class="fake-header">
+        <div class="fake-header-left">
+          <h2>Welcome, Daniel</h2>
+          <p>University of California, Irvine Ride Network</p>
+        </div>
+        <nav class="fake-nav">
+          <button>Browse rides</button>
+          <button>Request ride</button>
+          <button>+ List ride</button>
+          <button>Your rides</button>
+          <button>Leaderboard</button>
+        </nav>
+      </div>
+
+      <!-- Dashboard home -->
+      <section id="dashboard-home">
+
+        <!-- 1. Boarding pass -->
+        <div>
+          <h3 class="dashboard-section-label">Your next ride</h3>
+
+          <div class="boarding-pass">
+            <div class="bp-header">
+              <span class="bp-brand">LINKUP</span>
+              <span class="bp-role-badge bp-role-badge--rider">PASSENGER</span>
+            </div>
+
+            <div class="bp-route">
+              <div class="bp-route-stop">
+                <div class="bp-stop-label">FROM</div>
+                <div class="bp-stop-name">UCI Student Center, Irvine, CA</div>
+              </div>
+              <div class="bp-route-arrow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>
+              </div>
+              <div class="bp-route-stop bp-route-stop--dest">
+                <div class="bp-stop-label">TO</div>
+                <div class="bp-stop-name">LAX Terminal 1, Los Angeles, CA</div>
+              </div>
+            </div>
+
+            <div class="bp-fields">
+              <div class="bp-field bp-field--wide">
+                <div class="bp-field-label">PASSENGER</div>
+                <div class="bp-field-value">Daniel Xu</div>
+              </div>
+              <div class="bp-field">
+                <div class="bp-field-label">DATE</div>
+                <div class="bp-field-value">Jun 6</div>
+              </div>
+              <div class="bp-field">
+                <div class="bp-field-label">DEPARTS</div>
+                <div class="bp-field-value">8:30 AM</div>
+              </div>
+              <div class="bp-field bp-field--wide">
+                <div class="bp-field-label">DRIVER</div>
+                <div class="bp-field-value">Maya Chen</div>
+              </div>
+            </div>
+
+            <div class="bp-tear"></div>
+
+            <div class="bp-stub">
+              <div class="bp-fields bp-fields--stub">
+                <div class="bp-field">
+                  <div class="bp-field-label">SEAT</div>
+                  <div class="bp-field-value">Rear right</div>
+                </div>
+                <div class="bp-field bp-field--widest">
+                  <div class="bp-field-label">VEHICLE</div>
+                  <div class="bp-field-value">Blue Toyota Camry · 8ABC123</div>
+                </div>
+                <div class="bp-field">
+                  <div class="bp-field-label">DURATION</div>
+                  <div class="bp-field-value">58 min</div>
+                </div>
+                <div class="bp-field">
+                  <div class="bp-field-label">DISTANCE</div>
+                  <div class="bp-field-value">44.2 mi</div>
+                </div>
+              </div>
+              <div class="bp-barcode">
+                <svg class="bp-barcode-svg" viewBox="0 0 220 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <rect x="0" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="5" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="9" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="15" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="20" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="24" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="31" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="35" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="41" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="48" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="53" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="59" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="66" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="71" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="77" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="84" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="89" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="95" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="100" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="107" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="113" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="118" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="125" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="131" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="136" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="143" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="148" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="154" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="161" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="166" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="172" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="177" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="184" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="190" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="195" y="0" width="3" height="36" fill="currentColor"/>
+                  <rect x="202" y="0" width="2" height="36" fill="currentColor"/>
+                  <rect x="208" y="0" width="1" height="36" fill="currentColor"/>
+                  <rect x="213" y="0" width="3" height="36" fill="currentColor"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="ride-meta-row">
+            <div class="meta-pill"><span class="meta-pill-label">Status</span><span class="meta-pill-value">Seat reserved</span></div>
+            <div class="meta-pill"><span class="meta-pill-label">Arrival code</span><span class="meta-pill-value">482913</span></div>
+            <div class="meta-pill"><span class="meta-pill-label">Total paid</span><span class="meta-pill-value">$18.00</span></div>
+          </div>
+        </div>
+
+        <!-- 2. Rider checklist -->
+        <div class="dashboard-checklist-widget">
+          <div class="checklist-widget-header">
+            <div class="checklist-widget-title">
+              <span class="checklist-widget-eyebrow">Rider checklist</span>
+              <span class="checklist-widget-progress">2 / 7</span>
+            </div>
+            <div class="checklist-progress-bar">
+              <div class="checklist-progress-fill" style="width: 29%"></div>
+            </div>
+          </div>
+          <ol class="checklist-steps">
+            <li class="checklist-step checklist-step--done">
+              <label class="checklist-step-label">
+                <input type="checkbox" class="checklist-step-checkbox" checked disabled />
+                <span class="checklist-step-circle">✓</span>
+                <div class="checklist-step-body">
+                  <span class="checklist-step-title">Seat reserved</span>
+                  <span class="checklist-step-desc">You have a confirmed spot on this ride.</span>
+                </div>
+              </label>
+            </li>
+            <li class="checklist-step checklist-step--done">
+              <label class="checklist-step-label">
+                <input type="checkbox" class="checklist-step-checkbox" checked />
+                <span class="checklist-step-circle">✓</span>
+                <div class="checklist-step-body">
+                  <span class="checklist-step-title">Verify the driver</span>
+                  <span class="checklist-step-desc">At pickup, confirm the name, car, and plate match your booking.</span>
+                </div>
+              </label>
+            </li>
+            <li class="checklist-step">
+              <label class="checklist-step-label">
+                <input type="checkbox" class="checklist-step-checkbox" />
+                <span class="checklist-step-circle">3</span>
+                <div class="checklist-step-body">
+                  <span class="checklist-step-title">Check door safety</span>
+                  <span class="checklist-step-desc">Confirm your door opens from inside and the child lock is off.</span>
+                </div>
+              </label>
+            </li>
+            <li class="checklist-step">
+              <label class="checklist-step-label">
+                <input type="checkbox" class="checklist-step-checkbox" />
+                <span class="checklist-step-circle">4</span>
+                <div class="checklist-step-body">
+                  <span class="checklist-step-title">Share live tracking <span class="checklist-step-optional">optional</span></span>
+                  <span class="checklist-step-desc">Send your trip link to someone you trust for extra safety.</span>
+                </div>
+              </label>
+            </li>
+            <li class="checklist-step">
+              <label class="checklist-step-label">
+                <input type="checkbox" class="checklist-step-checkbox" />
+                <span class="checklist-step-circle">5</span>
+                <div class="checklist-step-body">
+                  <span class="checklist-step-title">Use Safety Mode if needed <span class="checklist-step-optional">optional</span></span>
+                  <span class="checklist-step-desc">Start a safety recording if you feel unsafe.</span>
+                </div>
+              </label>
+            </li>
+            <li class="checklist-step">
+              <label class="checklist-step-label">
+                <input type="checkbox" class="checklist-step-checkbox" />
+                <span class="checklist-step-circle">6</span>
+                <div class="checklist-step-body">
+                  <span class="checklist-step-title">Give your arrival code</span>
+                  <span class="checklist-step-desc">Share your 6-digit code with the driver at pickup.</span>
+                </div>
+              </label>
+            </li>
+            <li class="checklist-step">
+              <label class="checklist-step-label">
+                <input type="checkbox" class="checklist-step-checkbox" />
+                <span class="checklist-step-circle">7</span>
+                <div class="checklist-step-body">
+                  <span class="checklist-step-title">Rate the driver</span>
+                  <span class="checklist-step-desc">After arrival, leave a quick rating to help the community.</span>
+                </div>
+              </label>
+            </li>
+          </ol>
+        </div>
+
+        <!-- 3. Quick actions -->
+        <div class="quick-actions">
+          <button class="btn-primary">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Find a Ride
+          </button>
+          <button class="btn-secondary">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            List a Ride
+          </button>
+        </div>
+
+        <!-- 4. Safety section -->
+        <div class="dashboard-tracking-section" style="padding-top:0; border-top: 1px solid var(--border); padding-top: 1.75rem;">
+          <div class="safety-mission-header">
+            <div class="safety-mission-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <h3 class="dashboard-section-label">Rider Safety</h3>
+              <p class="dashboard-tracking-subtitle">Your safety is built into every ride — share your location, record audio if needed, and reach our team instantly.</p>
+            </div>
+          </div>
+
+          <div class="tracking-layout">
+            <div class="safety-cards-col">
+              <div class="safety-card">
+                <div class="safety-card-header">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                  <span class="safety-card-title">Live Location</span>
+                  <span class="tracking-status">Off</span>
+                </div>
+                <div class="safety-card-body">
+                  <label class="tracking-recipient-label">Trusted person's email
+                    <input type="email" placeholder="friend@example.com" />
+                  </label>
+                  <div class="tracking-action-row">
+                    <button type="button">Start sharing</button>
+                    <button type="button" disabled>End trip</button>
+                  </div>
+                  <p class="tracking-note">Expires when sharing stops. Only your trusted contact can view your location.</p>
+                </div>
+              </div>
+
+              <div class="safety-card safety-mode-panel">
+                <div class="safety-card-header">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                  <span class="safety-card-title">Record this ride</span>
+                  <span class="safety-status-badge">Off</span>
+                </div>
+                <p class="safety-mode-copy">Secretly record audio if you feel unsafe. Recordings are stored for 30 days and only reviewed if you file a report.</p>
+                <div class="safety-card-body">
+                  <div class="tracking-action-row">
+                    <button type="button">Start recording</button>
+                    <button type="button" disabled>Stop &amp; upload</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="safety-card safety-incident-card">
+                <div class="safety-card-header">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span class="safety-card-title">Report to LinkUp</span>
+                </div>
+                <div class="safety-card-body">
+                  <label class="safety-note-label">
+                    <textarea rows="3" placeholder="Describe anything our safety team should review…"></textarea>
+                  </label>
+                  <div class="tracking-action-row">
+                    <button type="button">Send safety note</button>
+                    <button type="button">Report door issue</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tracking-map-col">
+              <div class="fake-map" style="flex:1;min-height:280px;">Route map</div>
+              <div class="tracking-meta" style="margin-top: 0.75rem;">No location shared yet.</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </body>
+</html>

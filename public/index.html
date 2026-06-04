@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260602-light-mode-contrast" />
+    <link rel="stylesheet" href="styles.css?v=20260603-map-stretch" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -352,6 +352,7 @@
                 <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="release-notes">Release notes</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="conduct">Conduct record</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="feedback">Send feedback</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="delete-account">Delete account</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="about">About LinkUp</button>
               </aside>
@@ -586,17 +587,18 @@
                   <form id="default-payment-form" class="profile-form payout-guide">
                     <div>
                       <h4>Default payment method</h4>
-                      <p>Save the card you want to use when checking out rides.</p>
+                      <p>Save a card to use at checkout — no need to re-enter details each time.</p>
                     </div>
                     <div id="default-payment-summary" class="payment-method-summary">No default payment method saved.</div>
-                    <div class="payout-note payout-warning">
-                      Stripe securely collects and stores your card. LinkUp only keeps the card brand, last 4 digits, and expiration date.
-                    </div>
-                    <button type="submit">Set up payment method with Stripe</button>
+                    <button type="submit">Add payment method</button>
                     <div id="default-payment-stripe-container" class="stripe-payment-frame hidden">
                       <div id="default-payment-element"></div>
                       <button type="button" id="default-payment-confirm" class="hidden">Save card</button>
                     </div>
+                    <p class="payout-trust-note">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                      Card details are entered directly into Stripe's secure form — LinkUp only sees the card brand, last 4 digits, and expiry.
+                    </p>
                     <div id="default-payment-message" class="success-message"></div>
                     <div id="default-payment-error" class="error-message"></div>
                   </form>
@@ -743,6 +745,33 @@
                     <div id="delete-account-error" class="error-message"></div>
                   </form>
                 </div>
+                <div id="profile-feedback-panel" class="profile-panel hidden" data-profile-panel="feedback">
+                  <form id="feedback-profile-form" class="profile-form">
+                    <div>
+                      <span class="about-linkup-eyebrow">Beta feedback</span>
+                      <h4>Send us feedback</h4>
+                      <p class="profile-section-desc">Found a bug, have a suggestion, or just want to say something? We read every message and respond to serious issues at <a href="mailto:ridewlinkup@gmail.com">ridewlinkup@gmail.com</a>.</p>
+                    </div>
+                    <label>Category
+                      <select id="feedback-category">
+                        <option value="Bug report">Bug report</option>
+                        <option value="Feature request">Feature request</option>
+                        <option value="General feedback">General feedback</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </label>
+                    <label>Subject
+                      <input type="text" id="feedback-subject" maxlength="120" placeholder="Short summary (optional)" />
+                    </label>
+                    <label>Message
+                      <textarea id="feedback-message" maxlength="2000" rows="7" placeholder="Describe what happened, what you expected, or what you'd like to see…" required></textarea>
+                    </label>
+                    <button type="submit" id="feedback-profile-submit">Send feedback</button>
+                    <div id="feedback-profile-success" class="success-message"></div>
+                    <div id="feedback-profile-error" class="error-message"></div>
+                  </form>
+                </div>
+
                 <div id="profile-about-panel" class="profile-panel hidden" data-profile-panel="about">
                   <div class="about-linkup-panel">
                     <div>
@@ -789,17 +818,27 @@
                     <!-- Flow indicator -->
                     <div class="payout-flow">
                       <div class="payout-flow-step payout-flow-step--active">
-                        <span class="payout-flow-icon">&#9651;</span>
+                        <span class="payout-flow-icon">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        </span>
                         <span>Ride earnings</span>
                       </div>
-                      <span class="payout-flow-arrow">&#8594;</span>
+                      <span class="payout-flow-arrow" aria-hidden="true">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </span>
                       <div class="payout-flow-step payout-flow-step--active">
-                        <span class="payout-flow-icon">&#9670;</span>
+                        <span class="payout-flow-icon">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>
+                        </span>
                         <span>LinkUp Wallet</span>
                       </div>
-                      <span class="payout-flow-arrow">&#8594;</span>
+                      <span class="payout-flow-arrow" aria-hidden="true">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </span>
                       <div class="payout-flow-step" id="payout-flow-bank">
-                        <span class="payout-flow-icon">&#128970;</span>
+                        <span class="payout-flow-icon">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="10" width="18" height="11" rx="1"/><path d="M3 10l9-7 9 7"/><line x1="12" y1="10" x2="12" y2="21"/><line x1="7" y1="10" x2="7" y2="21"/><line x1="17" y1="10" x2="17" y2="21"/></svg>
+                        </span>
                         <span>Your Bank</span>
                         <small>weekly</small>
                       </div>
@@ -831,7 +870,8 @@
                       <div id="stripe-connect-container" class="stripe-connect-container hidden"></div>
                       <div id="payout-message" class="success-message"></div>
                       <div id="payout-error" class="error-message"></div>
-                      <p class="payout-note payout-warning">
+                      <p class="payout-trust-note">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                         LinkUp never stores your bank details — all payout info is held securely by Stripe.
                       </p>
                     </div>
@@ -845,12 +885,16 @@
           <!-- Home / Browse -->
           <div id="dashboard-home">
 
+            <!-- 1. Boarding pass -->
             <div class="dashboard-next-ride">
               <h3 class="dashboard-section-label">Your next ride</h3>
               <div id="dashboard-ride-card"></div>
-              <div id="upcoming-ride-checklist" class="hidden"></div>
             </div>
 
+            <!-- 2. Checklist -->
+            <div id="upcoming-ride-checklist" class="hidden"></div>
+
+            <!-- 3. Quick actions + stats + recent rides -->
             <div class="dashboard-quick-actions">
               <button id="home-find-ride-btn" type="button" class="dashboard-action-btn dashboard-action-btn--primary">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -878,6 +922,7 @@
               <div id="dashboard-recent-rides-list"></div>
             </div>
 
+            <!-- 4. Safety (very bottom) -->
             <div class="dashboard-tracking-section">
 
               <div class="safety-mission-header">
@@ -958,7 +1003,7 @@
                   </div>
 
                 </div>
-                <div>
+                <div class="tracking-map-col">
                   <div id="tracking-map" class="tracking-map"></div>
                   <div id="tracking-last-update" class="tracking-meta">No location shared yet.</div>
                 </div>
@@ -1267,6 +1312,10 @@
                     <input type="checkbox" id="ride-terms-agree" required />
                     I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> as a driver.
                   </label>
+                  <label class="checkbox-label terms-agreement">
+                    <input type="checkbox" id="ride-driver-disclaimer" required />
+                    I have a valid driver's license and current auto insurance. I understand LinkUp is a peer-to-peer platform — not a commercial transportation service.
+                  </label>
                   <button type="submit">Post ride</button>
                 </form>
               </article>
@@ -1569,6 +1618,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260602-light-mode-contrast"></script>
+    <script src="app.js?v=20260603-boarding-pass"></script>
   </body>
 </html>

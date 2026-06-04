@@ -2185,6 +2185,7 @@ function showProfileTab(tabName) {
   if (tabName === 'security') render2FAPanel(currentUser);
   if (tabName === 'release-notes') loadReleaseNotes();
   if (tabName === 'conduct') loadConductRecord();
+  if (tabName === 'feedback') resetFeedbackPanel();
 }
 
 function clearDefaultPaymentMessages() {
@@ -4206,6 +4207,15 @@ async function loadConnectionRequestsPanel() {
   }
 }
 
+function isInChecklistWindow(ride) {
+  const now = Date.now();
+  const start = getRideStartTime(ride);
+  if (!start) return false;
+  const windowStart = start - 60 * 60 * 1000; // 1 hour before departure
+  const windowEnd = start + (Number(ride.estimatedDurationMinutes || 90) + 120) * 60 * 1000; // ride end + 2hr buffer
+  return now >= windowStart && now <= windowEnd;
+}
+
 async function loadDashboardUpcomingRide() {
   const container = document.getElementById('dashboard-ride-card');
   const checklistContainer = document.getElementById('upcoming-ride-checklist');
@@ -4232,14 +4242,27 @@ async function loadDashboardUpcomingRide() {
       empty.innerHTML = 'No upcoming rides. <button type="button" id="dashboard-browse-cta" class="inline-cta">Browse rides</button> to find your next trip.';
       empty.querySelector('#dashboard-browse-cta').addEventListener('click', () => showBrowsePage());
       container.appendChild(empty);
-      return;
+    } else {
+      const next = upcoming[0];
+      container.appendChild(buildBoardingPass(next, next._dashRole));
+      if (next._dashRole === 'driver') {
+        if (!next.seatingChartUnavailable || (next.passengers || []).length) {
+          container.appendChild(buildDriverSeatManifest(next));
+        }
+        const hasPaidRiders = (next.passengers || []).some((p) => p.paid);
+        const departed = next.date && next.time && Date.now() >= getRideStartTime(next);
+        if (departed && next.hasCompletionCode && hasPaidRiders) {
+          container.appendChild(buildDriverCompletionForm(next));
+        }
+      }
     }
-    const next = upcoming[0];
-    const card = next._dashRole === 'driver' ? buildDriverRideSummary(next) : buildRideSummary(next);
-    container.appendChild(card);
-    if (next._dashRole === 'rider' && checklistContainer) {
+
+    // Show checklist for the ride currently in the departure window (1 hr before → ~2 hrs after end).
+    // This may be a just-departed ride even if the upcoming card shows the next one.
+    const checklistRide = allRides.find(isInChecklistWindow);
+    if (checklistRide && checklistContainer) {
       checklistContainer.innerHTML = '';
-      checklistContainer.appendChild(buildDashboardChecklist(next));
+      checklistContainer.appendChild(buildDashboardChecklist(checklistRide, checklistRide._dashRole));
       checklistContainer.classList.remove('hidden');
     }
   } catch {
@@ -4247,18 +4270,137 @@ async function loadDashboardUpcomingRide() {
   }
 }
 
-function buildDashboardChecklist(ride) {
-  const STEPS = [
+function bpDateShort(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function bpBarcodeSVG() {
+  const widths = [2,1,3,1,2,2,1,3,1,2,1,3,2,1,2,3,1,2,1,2,3,1,2,2,1,3,1,2,1,3,2,1,2,1,3,2,1,2,1,2];
+  let x = 0;
+  const rects = widths.map((w, i) => {
+    const rect = i % 2 === 0 ? `<rect x="${x}" y="0" width="${w}" height="36" fill="currentColor"/>` : '';
+    x += w + 1;
+    return rect;
+  }).join('');
+  return `<svg class="bp-barcode-svg" viewBox="0 0 ${x} 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${rects}</svg>`;
+}
+
+function buildBoardingPass(ride, role) {
+  const isDriver = role === 'driver';
+  const isMoving = ride.rideProviderType === 'moving_service';
+
+  const userName   = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ') || (isDriver ? 'Driver' : 'Passenger');
+  const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || '—';
+  const confirmedRiders = (ride.passengers || []).filter((p) => p.paid || p.reservationConfirmed).length;
+  const seatId     = getCurrentUserSeatId(ride);
+  const rawSeatLabel = seatId ? getSeatLabel(seatId) : null;
+  const seatLabel  = rawSeatLabel && rawSeatLabel !== seatId ? rawSeatLabel : (!isDriver && !isMoving ? 'Confirmed' : null);
+  const vehicle    = [ride.carColor, ride.carMaker, ride.carModel].filter(Boolean).join(' ')
+                     || (ride.rideshareService || (ride.rideProviderType === 'rideshare_service' ? 'Rideshare' : ''))
+                     || (isMoving ? (ride.movingVehicleType || 'Moving vehicle') : '');
+
+  const roleBadge  = isDriver ? (isMoving ? 'MOVER' : 'DRIVER') : 'PASSENGER';
+
+  const bp = document.createElement('div');
+  bp.className = 'boarding-pass';
+
+  bp.innerHTML = `
+    <div class="bp-header">
+      <span class="bp-brand">LINKUP</span>
+      <span class="bp-role-badge bp-role-badge--${isDriver ? 'driver' : 'rider'}">${roleBadge}</span>
+    </div>
+    <div class="bp-route">
+      <div class="bp-route-stop">
+        <div class="bp-stop-label">FROM</div>
+        <div class="bp-stop-name">${esc(ride.origin)}</div>
+      </div>
+      <div class="bp-route-arrow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>
+      </div>
+      <div class="bp-route-stop bp-route-stop--dest">
+        <div class="bp-stop-label">TO</div>
+        <div class="bp-stop-name">${esc(ride.destination)}</div>
+      </div>
+    </div>
+
+    <div class="bp-fields">
+      <div class="bp-field bp-field--wide">
+        <div class="bp-field-label">${isDriver ? 'DRIVER' : 'PASSENGER'}</div>
+        <div class="bp-field-value">${esc(userName)}</div>
+      </div>
+      <div class="bp-field">
+        <div class="bp-field-label">DATE</div>
+        <div class="bp-field-value">${esc(bpDateShort(ride.date))}</div>
+      </div>
+      <div class="bp-field">
+        <div class="bp-field-label">DEPARTS</div>
+        <div class="bp-field-value">${esc(formatRideTime(ride.time) || '—')}</div>
+      </div>
+      ${isDriver
+        ? `<div class="bp-field">
+             <div class="bp-field-label">RIDERS</div>
+             <div class="bp-field-value">${confirmedRiders} confirmed</div>
+           </div>`
+        : `<div class="bp-field bp-field--wide">
+             <div class="bp-field-label">DRIVER</div>
+             <div class="bp-field-value">${esc(driverName)}</div>
+           </div>`
+      }
+    </div>
+
+    <div class="bp-tear"></div>
+
+    <div class="bp-stub">
+      <div class="bp-fields bp-fields--stub">
+        ${seatLabel ? `<div class="bp-field">
+          <div class="bp-field-label">SEAT</div>
+          <div class="bp-field-value">${esc(seatLabel)}</div>
+        </div>` : ''}
+        ${vehicle ? `<div class="bp-field bp-field--widest">
+          <div class="bp-field-label">VEHICLE</div>
+          <div class="bp-field-value">${esc(vehicle)}${ride.licensePlate ? ` · ${esc(ride.licensePlate)}` : ''}</div>
+        </div>` : ''}
+        <div class="bp-field">
+          <div class="bp-field-label">DURATION</div>
+          <div class="bp-field-value">${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
+        </div>
+        <div class="bp-field">
+          <div class="bp-field-label">DISTANCE</div>
+          <div class="bp-field-value">${esc(formatMiles(getRideMiles(ride)))}</div>
+        </div>
+      </div>
+      <div class="bp-barcode">${bpBarcodeSVG()}</div>
+    </div>
+  `;
+
+  return bp;
+}
+
+function buildDashboardChecklist(ride, role) {
+  const RIDER_STEPS = [
     { title: 'Seat reserved', desc: "You've got a confirmed spot on this ride.", optional: false },
     { title: 'Verify the driver', desc: 'At pickup, confirm the name, car, and plate match your booking.', optional: false },
-    { title: 'Check door safety', desc: 'Before the ride starts, confirm your door opens from inside, child lock is off, and report it if that changes.', optional: false },
-    { title: 'Share live tracking', desc: 'Optional — send your trip link to someone you trust for extra safety.', optional: true },
-    { title: 'Use Safety Mode if needed', desc: 'Optional — record only after everyone is notified and consent is handled where required.', optional: true },
-    { title: 'Give your arrival code', desc: 'Share your 6-digit code with the driver so they can confirm the trip.', optional: false },
+    { title: 'Check door safety', desc: 'Before the ride starts, confirm your door opens from inside and the child lock is off.', optional: false },
+    { title: 'Share live tracking', desc: 'Send your trip link to someone you trust for extra safety.', optional: true },
+    { title: 'Use Safety Mode if needed', desc: 'Start a safety recording from the dashboard if you feel unsafe.', optional: true },
+    { title: 'Give your arrival code', desc: 'Share your 6-digit code with the driver at pickup so they can confirm the trip.', optional: false },
     { title: 'Rate the driver', desc: 'After arrival, leave a quick rating to help the community.', optional: false },
   ];
 
-  const storageKey = `lup_checklist_${ride.id}`;
+  const DRIVER_STEPS = [
+    { title: 'Ride posted', desc: 'Your listing is live and open for reservations.', optional: false },
+    { title: 'Review your riders', desc: 'Check confirmed passengers in Your Rides before you leave.', optional: false },
+    { title: 'Confirm pickup details', desc: 'Make sure every rider has your exact pickup spot and departure time.', optional: false },
+    { title: 'Vehicle ready', desc: 'Confirm your car is fueled, doors work from the inside, and child locks are off.', optional: false },
+    { title: 'Share your route', desc: 'Let someone you trust know your route before you leave.', optional: true },
+    { title: 'Collect arrival codes', desc: 'Ask each rider for their 6-digit code at pickup to confirm the trip.', optional: false },
+    { title: 'Rate your riders', desc: 'After the trip, rate each passenger to help the community.', optional: false },
+  ];
+
+  const isDriver = role === 'driver';
+  const STEPS = isDriver ? DRIVER_STEPS : RIDER_STEPS;
+  const storageKey = `lup_checklist_${isDriver ? 'driver' : 'rider'}_${ride.id}`;
   let checked;
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
@@ -4281,7 +4423,7 @@ function buildDashboardChecklist(ride) {
   header.className = 'checklist-widget-header';
   header.innerHTML = `
     <div class="checklist-widget-title">
-      <span class="checklist-widget-eyebrow">Rider checklist</span>
+      <span class="checklist-widget-eyebrow">${isDriver ? 'Driver checklist' : 'Rider checklist'}</span>
       <span class="checklist-widget-progress" id="checklist-progress-text"></span>
     </div>
     <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="checklist-progress-fill"></div></div>
@@ -8549,12 +8691,17 @@ offerForm.addEventListener('submit', async (event) => {
   const carColor = document.getElementById('car-color').value.trim();
   const licensePlate = document.getElementById('license-plate').value.trim();
   const termsAccepted = document.getElementById('ride-terms-agree').checked;
+  const driverDisclaimerAccepted = document.getElementById('ride-driver-disclaimer').checked;
   const pickupRadiusMiles = getRadiusInputMiles(offerPickupRadiusInput);
   const dropoffRadiusMiles = getRadiusInputMiles(offerDropoffRadiusInput);
   const notes = document.getElementById('notes').value.trim();
   // Validate all fields BEFORE firing the Google Maps metrics API call to avoid wasting quota
   if (!origin || !destination || !date || !time || !rideProviderType || !price || !termsAccepted) {
     showToast('Fill in all required fields and select both locations.', 'error');
+    return;
+  }
+  if (!driverDisclaimerAccepted) {
+    showToast('Confirm you have a valid license and insurance before posting a ride.', 'error');
     return;
   }
   if (!originLat || !originLng || !destinationLat || !destinationLng) {
@@ -10056,3 +10203,51 @@ if (trackingViewerToken) {
 // Footer — dynamic copyright year
 const footerYear = document.getElementById('footer-year');
 if (footerYear) footerYear.textContent = new Date().getFullYear();
+
+// ── Profile feedback panel ──────────────────────────────────────────────────
+function resetFeedbackPanel() {
+  const successEl = document.getElementById('feedback-profile-success');
+  const errorEl = document.getElementById('feedback-profile-error');
+  if (successEl) { successEl.textContent = ''; successEl.classList.remove('show'); }
+  if (errorEl) { errorEl.textContent = ''; errorEl.classList.remove('show'); }
+}
+
+document.getElementById('feedback-profile-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const category = document.getElementById('feedback-category')?.value || 'General feedback';
+  const subject = document.getElementById('feedback-subject')?.value.trim() || '';
+  const message = document.getElementById('feedback-message')?.value.trim() || '';
+  const submitBtn = document.getElementById('feedback-profile-submit');
+  const successEl = document.getElementById('feedback-profile-success');
+  const errorEl = document.getElementById('feedback-profile-error');
+
+  if (!message) {
+    errorEl.textContent = 'Write a message before sending.';
+    errorEl.classList.add('show');
+    return;
+  }
+
+  setButtonLoading(submitBtn, true);
+  successEl.textContent = '';
+  successEl.classList.remove('show');
+  errorEl.textContent = '';
+  errorEl.classList.remove('show');
+
+  try {
+    await fetchJson('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, subject, message }),
+    });
+    successEl.textContent = 'Feedback sent — thank you! We\'ll follow up at your account email if needed.';
+    successEl.classList.add('show');
+    document.getElementById('feedback-subject').value = '';
+    document.getElementById('feedback-message').value = '';
+    document.getElementById('feedback-category').value = 'Bug report';
+  } catch {
+    errorEl.textContent = 'Could not send feedback. Try again or email ridewlinkup@gmail.com directly.';
+    errorEl.classList.add('show');
+  } finally {
+    setButtonLoading(submitBtn, false);
+  }
+});
