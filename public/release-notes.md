@@ -5,6 +5,9 @@
 ## v2026.06.03 BETA
 
 ### New
+- **Notification dropdown.** A new Notifications button in the dashboard header shows ride updates and LinkUp alerts in a compact dropdown list, sorted newest to oldest, without taking users to a separate page.
+- **Student search in the header.** Users can now search for other verified LinkUp students directly from the dashboard header, open public profiles from the results, and choose LinkUp to receive ride/request updates from that student.
+- **Friendlier invite links.** Profile invite links now use readable names and member numbers when available, while still supporting older invite codes.
 - **Boarding pass on the dashboard.** Your next ride now appears as a boarding pass at the top of the dashboard. It shows your full pickup and drop-off addresses, passenger name, date, departure time, driver, seat, vehicle, duration, distance, and a decorative barcode stub — all in one place before you head out.
 - **Ride-role checklists.** A step-by-step checklist appears on the dashboard starting one hour before your departure time, inspired by the airline gate experience. Riders and drivers get different checklists tailored to what each person needs to do. The checklist stays visible through the ride so you can complete steps like giving your arrival code and rating after you arrive. Progress saves per ride.
 - **Driver route navigation.** Drivers now see a dedicated route card with the next/current stop, all rider drop-off stops, the final destination, and one-tap buttons to open the full route in Google Maps or Apple Maps.
@@ -13,6 +16,8 @@
 - **University directory expanded to 2,400+ schools.** The school directory now covers virtually every U.S. and Canadian university, college, and community college with a `.edu` or `.ca` email domain. Students whose schools weren't previously recognized will now see their correct university name instead of a fallback.
 
 ### Improvements
+- **Header actions feel more polished.** Chat, Notifications, Cart, Profile, and Sign Out now use compact icons with consistent spacing so the dashboard header scans faster.
+- **Login layout is better centered.** The auth screen spacing was nudged down slightly so the logo and sign-in panel feel more balanced in the first viewport.
 - **Dashboard layout reorganized.** The boarding pass sits at the very top. The ride checklist appears directly below it when your departure is within one hour. Quick actions, stats, and recent rides follow. Rider Safety tools are anchored at the very bottom.
 - **Boarding pass is full width.** The boarding pass stretches across the full dashboard container — no more half-width card.
 - **Ride-specific destination display.** Riders now see their own drop-off destination on the boarding pass with the number of stops before their stop. Drivers still see the final destination plus how many stops come before it.

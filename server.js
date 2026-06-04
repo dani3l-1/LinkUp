@@ -3410,22 +3410,46 @@ function normalizeFriendInvites(invites) {
     .filter((invite) => invite.email);
 }
 
-function getFriendInviteCode(user) {
+function slugifyInvitePart(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 28);
+}
+
+function getLegacyFriendInviteCode(user) {
   const existing = String(user?.friendInviteCode || '').trim().toLowerCase();
-  if (/^[a-z0-9_-]{8,40}$/.test(existing)) return existing;
+  if (/^[a-z0-9_-]{8,80}$/.test(existing)) return existing;
   const source = String(user?.id || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   return ('lu' + source).slice(0, 14);
 }
 
-function buildFriendInviteUrl(user) {
-  const inviteCode = getFriendInviteCode(user);
+function getFriendInviteCode(user, db = null) {
+  const nameSlug = [slugifyInvitePart(user?.firstName), slugifyInvitePart(user?.lastName)]
+    .filter(Boolean)
+    .join('-')
+    || slugifyInvitePart(String(user?.email || '').split('@')[0])
+    || 'linkup-member';
+  const memberNumber = db && user?.id ? getUserMemberNumber(db, user.id) : null;
+  if (memberNumber) return `${nameSlug}-${memberNumber}`.slice(0, 80);
+  return getLegacyFriendInviteCode(user);
+}
+
+function buildFriendInviteUrl(user, db = null) {
+  const inviteCode = getFriendInviteCode(user, db);
   return `${APP_BASE_URL.replace(/\/$/, '')}/?invite=${encodeURIComponent(inviteCode)}`;
 }
 
 function findUserByFriendInviteCode(db, inviteCode) {
   const normalizedCode = String(inviteCode || '').trim().toLowerCase();
   if (!normalizedCode) return null;
-  return activeUsers(db).find((user) => getFriendInviteCode(user) === normalizedCode) || null;
+  return activeUsers(db).find((user) => (
+    getFriendInviteCode(user, db) === normalizedCode ||
+    getLegacyFriendInviteCode(user) === normalizedCode
+  )) || null;
 }
 
 function normalizeCheckoutSessions(sessions) {
@@ -5034,8 +5058,8 @@ function publicUser(user, db = null) {
     emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
     friendInviteCount: normalizeFriendInvites(user.friendInvites).length,
     friendInviteJoinedCount: db ? activeUsers(db).filter((entry) => entry.invitedByUserId === user.id).length : 0,
-    friendInviteCode: getFriendInviteCode(user),
-    friendInviteUrl: buildFriendInviteUrl(user),
+    friendInviteCode: getFriendInviteCode(user, db),
+    friendInviteUrl: buildFriendInviteUrl(user, db),
     wallet: db ? buildDriverWalletSummary(db, user.id) : null,
   };
 }
@@ -5123,9 +5147,9 @@ async function sendTwoFactorEmail(to, code) {
   await sendAuthEmail(to, 'Your LinkUp sign-in code', `Your LinkUp sign-in code is: ${code}\n\nThis code expires in 10 minutes.`, html);
 }
 
-function sendFriendInviteEmail(inviter, friendEmail) {
+function sendFriendInviteEmail(inviter, friendEmail, db = null) {
   const inviterName = getUserDisplayName(inviter);
-  const inviteUrl = buildFriendInviteUrl(inviter);
+  const inviteUrl = buildFriendInviteUrl(inviter, db);
   const subject = `${inviterName} invited you to LinkUp`;
   const textBody = `${inviterName} has invited you to something creative: LinkUp.\n\nLinkUp helps verified students find, reserve, and share rides with people in their university network.\n\nJoin here:\n${inviteUrl}\n\n- LinkUp`;
   const htmlBody = renderLinkUpEmail({
@@ -6114,7 +6138,7 @@ app.post('/api/auth/signup', async (req, res) => {
   };
   if (invitedByUser && invitedByUser.email !== normalizedEmail) {
     user.invitedByUserId = invitedByUser.id;
-    user.invitedByInviteCode = getFriendInviteCode(invitedByUser);
+    user.invitedByInviteCode = getFriendInviteCode(invitedByUser, db);
     user.invitedAt = new Date().toISOString();
   }
 
@@ -6819,7 +6843,7 @@ app.post('/api/profile/invite-friend', requireAuth, sensitiveWriteRateLimit, (re
   });
   user.updatedAt = new Date().toISOString();
   saveDb(db);
-  sendFriendInviteEmail(user, friendEmail);
+  sendFriendInviteEmail(user, friendEmail, db);
   res.json({
     message: 'Invite sent to ' + friendEmail + '.',
     inviteCount: user.friendInvites.length,
@@ -9008,6 +9032,94 @@ app.delete('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) =>
   res.json({ message: 'Ride removed from cart' });
 });
 
+app.get('/api/notifications', requireAuth, requireServiceAccess, (req, res) => {
+  const db = expireUnclaimedRideRequests(loadDb());
+  const user = (db.users || []).find((entry) => entry.id === req.session.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const notifications = [];
+  const now = Date.now();
+  const rides = Array.isArray(db.rides) ? db.rides : [];
+  const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
+  const alertUserIds = normalizeRideAlertUserIds(user.rideAlertUserIds);
+  const alertUsers = activeUsers(db).filter((entry) => alertUserIds.includes(entry.id) && !areUsersBlocked(db, user.id, entry.id));
+
+  rides.forEach((ride) => {
+    const interval = getTripInterval(ride);
+    const isDriver = ride.driverId === user.id;
+    const passenger = (ride.passengers || []).find((entry) => entry.studentId === user.id);
+    if ((isDriver || passenger) && interval.end >= now - 60 * 60 * 1000) {
+      notifications.push({
+        id: 'ride-' + ride.id,
+        type: 'ride',
+        typeLabel: 'Ride',
+        title: isDriver ? 'Upcoming ride you listed' : 'Upcoming reserved ride',
+        body: [ride.origin, ride.destination].filter(Boolean).join(' to ') || 'Open your ride details.',
+        timeLabel: describeTripTime(ride),
+        createdAt: ride.date && ride.time ? new Date(`${ride.date}T${ride.time}`).getTime() || now : now,
+        action: 'rides',
+        actionLabel: 'View rides',
+      });
+    }
+  });
+
+  alertUsers.forEach((linkedUser) => {
+    notifications.push({
+      id: 'linkup-' + linkedUser.id,
+      type: 'linkup',
+      typeLabel: 'LinkUp',
+      title: `Linked with ${getUserDisplayName(linkedUser)}`,
+      body: 'You will get updates when this student posts rides or requests.',
+      timeLabel: linkedUser.universityDomain || getEmailDomain(linkedUser.email),
+      createdAt: linkedUser.createdAt ? Date.parse(linkedUser.createdAt) || 0 : 0,
+      action: 'profile',
+      actionLabel: 'View profile',
+      userId: linkedUser.id,
+    });
+  });
+
+  rides
+    .filter((ride) => alertUserIds.includes(ride.driverId))
+    .filter((ride) => !areUsersBlocked(db, user.id, ride.driverId))
+    .forEach((ride) => {
+      const actor = (db.users || []).find((entry) => entry.id === ride.driverId);
+      if (!actor || actor.id === user.id) return;
+      notifications.push({
+        id: 'ride-alert-' + ride.id,
+        type: 'ride-alert',
+        typeLabel: 'Ride alert',
+        title: `${getUserDisplayName(actor)} posted a ride`,
+        body: [ride.origin, ride.destination].filter(Boolean).join(' to ') || 'Open Browse to view it.',
+        timeLabel: describeTripTime(ride),
+        createdAt: ride.createdAt ? Date.parse(ride.createdAt) || 0 : 0,
+        action: 'browse',
+        actionLabel: 'Browse',
+      });
+    });
+
+  rideRequests
+    .filter((request) => alertUserIds.includes(request.riderId))
+    .filter((request) => !areUsersBlocked(db, user.id, request.riderId))
+    .forEach((request) => {
+      const actor = (db.users || []).find((entry) => entry.id === request.riderId);
+      if (!actor || actor.id === user.id) return;
+      notifications.push({
+        id: 'request-alert-' + request.id,
+        type: 'ride-alert',
+        typeLabel: 'Ride alert',
+        title: `${getUserDisplayName(actor)} requested a ride`,
+        body: [request.origin, request.destination].filter(Boolean).join(' to ') || 'Open Browse to view it.',
+        timeLabel: describeTripTime(request),
+        createdAt: request.createdAt ? Date.parse(request.createdAt) || 0 : 0,
+        action: 'browse',
+        actionLabel: 'Browse',
+      });
+    });
+
+  notifications.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+  res.json({ notifications: notifications.slice(0, 20) });
+});
+
 app.post('/api/users/:userId/block', requireAuth, requireServiceAccess, (req, res) => {
   const blockedUserId = String(req.params.userId || '').trim();
   const db = loadDb();
@@ -9077,6 +9189,72 @@ app.post('/api/users/:userId/ride-alerts', requireAuth, requireServiceAccess, (r
     message: `You will be notified when ${getUserDisplayName(targetUser)} posts a ride or request.`,
     rideAlertSubscribed: true,
   });
+});
+
+app.get('/api/users/search', requireAuth, requireServiceAccess, (req, res) => {
+  const db = loadDb();
+  const viewer = (db.users || []).find((user) => user.id === req.session.userId);
+  if (!viewer) return res.status(404).json({ error: 'User not found' });
+
+  const query = String(req.query.q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (query.length < 2) {
+    return res.json({ results: [] });
+  }
+
+  const queryParts = query.split(' ').filter(Boolean);
+  const rides = Array.isArray(db.rides) ? db.rides : [];
+  const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
+  const results = activeUsers(db)
+    .filter((user) => (
+      user.id !== viewer.id &&
+      !isAdminUser(user) &&
+      !isDeletedUser(user) &&
+      hasServiceAccess(user) &&
+      !areUsersBlocked(db, viewer.id, user.id)
+    ))
+    .map((user) => {
+      const searchable = [
+        user.firstName,
+        user.lastName,
+        getUserDisplayName(user),
+        user.major,
+        user.classYear,
+        getUserUniversityDisplay(user),
+        user.universityDomain || getEmailDomain(user.email),
+        `member ${getUserMemberNumber(db, user.id) || ''}`,
+      ].filter(Boolean).join(' ').toLowerCase();
+      const matched = queryParts.every((part) => searchable.includes(part));
+      if (!matched) return null;
+
+      const canSeeFullName = canUserSeeProfileFullName(db, user.id, viewer.id);
+      const maskedNameParts = getMaskedUserNameParts(user);
+      const firstName = user.firstName || maskedNameParts.firstName;
+      const lastName = canSeeFullName ? (user.lastName || '') : maskedNameParts.lastName;
+      const createdRides = rides.filter((ride) => ride.driverId === user.id);
+      const joinedRides = rides.filter((ride) => (ride.passengers || []).some((passenger) => passenger.studentId === user.id));
+      const openRideRequests = rideRequests.filter((request) => request.riderId === user.id && request.status === 'open').length;
+      return {
+        id: user.id,
+        name: [firstName, lastName].filter(Boolean).join(' ') || 'LinkUp member',
+        firstName,
+        profilePictureDataUrl: user.profilePictureDataUrl || '',
+        university: getUserUniversityDisplay(user),
+        universityDomain: user.universityDomain || getEmailDomain(user.email),
+        classYear: user.classYear || '',
+        major: user.major || '',
+        memberNumber: getUserMemberNumber(db, user.id),
+        rideAlertSubscribed: isRideAlertSubscribed(viewer, user.id),
+        stats: {
+          ridesOffered: createdRides.length,
+          ridesJoined: joinedRides.length,
+          openRideRequests,
+        },
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+
+  res.json({ results });
 });
 
 app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, res) => {

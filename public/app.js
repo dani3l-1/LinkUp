@@ -119,6 +119,12 @@ const yourRidesRequestsTab = document.getElementById('your-rides-requests-tab');
 const yourRidesHistoryTab = document.getElementById('your-rides-history-tab');
 const yourRidesBackHomeButton = document.getElementById('your-rides-back-home');
 const profileButton = document.getElementById('profile-button');
+const notificationsButton = document.getElementById('notifications-button');
+const notificationsCount = document.getElementById('notifications-count');
+const notificationsPopover = document.getElementById('notifications-popover');
+const notificationsList = document.getElementById('notifications-list');
+const notificationsSummary = document.getElementById('notifications-summary');
+const notificationsError = document.getElementById('notifications-error');
 const leaderboardButton = document.getElementById('leaderboard-button');
 const adminButton = document.getElementById('admin-button');
 const adminPage = document.getElementById('admin-page');
@@ -143,6 +149,12 @@ const publicProfileSubtitle = document.getElementById('public-profile-subtitle')
 const publicProfileContent = document.getElementById('public-profile-content');
 const publicProfileError = document.getElementById('public-profile-error');
 const publicProfileBackHomeButton = document.getElementById('public-profile-back-home');
+const userSearchPopover = document.getElementById('user-search-popover');
+const userSearchForm = document.getElementById('user-search-form');
+const userSearchInput = document.getElementById('user-search-input');
+const userSearchSubmit = document.getElementById('user-search-submit');
+const userSearchResults = document.getElementById('user-search-results');
+const userSearchError = document.getElementById('user-search-error');
 const profilePage = document.getElementById('profile-page');
 const profileForm = document.getElementById('profile-form');
 const profileBackHomeButton = document.getElementById('profile-back-home');
@@ -292,6 +304,8 @@ const themePreferenceInputs = document.querySelectorAll('input[name="theme-prefe
 
 let currentUser = null;
 let currentCampusGroups = [];
+let notificationsSeenCount = 0;
+let cachedNotifications = [];
 let originMap = null;
 let originMarker = null;
 let destinationMarker = null;
@@ -518,9 +532,26 @@ let browseDropoffMarker = null;
 let browseRouteRenderer = null;
 let browseRouteLine = null;
 let browseResultMarkers = [];
+let userSearchDebounceTimer = null;
 
 document.addEventListener('click', async (event) => {
   const target = event.target.closest?.('button');
+  if (
+    userSearchPopover &&
+    !userSearchPopover.classList.contains('hidden') &&
+    !event.target.closest?.('#user-search-popover') &&
+    !event.target.closest?.('#user-search-form')
+  ) {
+    closeUserSearchPopover();
+  }
+  if (
+    notificationsPopover &&
+    !notificationsPopover.classList.contains('hidden') &&
+    !event.target.closest?.('#notifications-popover') &&
+    !event.target.closest?.('#notifications-button')
+  ) {
+    closeNotificationsPopover();
+  }
   if (!target) return;
   if (target.classList.contains('tab-button') && target.dataset.tab) {
     event.preventDefault();
@@ -550,6 +581,7 @@ document.addEventListener('click', async (event) => {
     'leaderboard-button': () => showLeaderboardPage(),
     'admin-button': () => showAdminPage(),
     'profile-button': () => showProfilePage(),
+    'notifications-button': () => toggleNotificationsPopover(),
     'cart-button': () => showCartPage(),
     'leaderboard-back-home': () => returnToBrowseRides(),
     'admin-back-home': () => returnToBrowseRides(),
@@ -1936,11 +1968,100 @@ function hideDashboardPages() {
 }
 
 
+function updateNavProfileAvatar(user) {
+  if (!profileButton) return;
+  profileButton.innerHTML = '';
+  if (user?.profilePictureDataUrl) {
+    const img = document.createElement('img');
+    img.src = user.profilePictureDataUrl;
+    img.alt = 'Profile';
+    img.className = 'nav-profile-avatar';
+    profileButton.appendChild(img);
+  } else {
+    const initials = document.createElement('span');
+    initials.className = 'nav-profile-initials';
+    initials.textContent = getProfileInitials(user);
+    profileButton.appendChild(initials);
+  }
+}
+
 function updateUserHeader(user) {
   welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
   studentUniversityLabel.textContent = user.rideServicesPaused
     ? 'Ride services temporarily paused'
     : user.serviceApproved ? `${user.university} Ride Network` : 'LinkUp waitlist';
+  updateNavProfileAvatar(user);
+}
+
+function closeNotificationsPopover() {
+  notificationsPopover?.classList.add('hidden');
+}
+
+function renderNotifications(notifications = []) {
+  if (!notificationsList) return;
+  cachedNotifications = notifications;
+  notificationsList.innerHTML = '';
+  if (notificationsCount) {
+    const unread = Math.max(0, notifications.length - notificationsSeenCount);
+    notificationsCount.textContent = String(unread);
+    notificationsCount.classList.toggle('hidden', unread === 0);
+  }
+  if (notificationsSummary) {
+    notificationsSummary.textContent = notifications.length
+      ? `${notifications.length} update${notifications.length === 1 ? '' : 's'}`
+      : 'Ride and LinkUp updates';
+  }
+  if (!notifications.length) {
+    notificationsList.innerHTML = '<p class="notifications-empty">No notifications yet.</p>';
+    return;
+  }
+  notifications.forEach((item) => {
+    const row = document.createElement('article');
+    row.className = 'notification-item';
+    row.innerHTML = `
+      <div class="notification-main">
+        <span class="notification-type">${esc(item.typeLabel || 'Update')}</span>
+        <strong>${esc(item.title || 'LinkUp update')}</strong>
+        <p>${esc(item.body || '')}</p>
+        ${item.timeLabel ? `<small>${esc(item.timeLabel)}</small>` : ''}
+      </div>
+    `;
+    notificationsList.appendChild(row);
+  });
+}
+
+async function loadNotifications({ silent = false } = {}) {
+  if (!notificationsList || !currentUser?.serviceApproved) return;
+  if (notificationsError) {
+    notificationsError.textContent = '';
+    notificationsError.classList.remove('show');
+  }
+  if (!silent) notificationsList.innerHTML = '<p class="notifications-empty">Loading notifications...</p>';
+  try {
+    const data = await fetchJson('/api/notifications');
+    renderNotifications(data.notifications || []);
+  } catch (err) {
+    if (!silent && notificationsError) {
+      notificationsError.textContent = err.message || 'Unable to load notifications.';
+      notificationsError.classList.add('show');
+    }
+  }
+}
+
+async function toggleNotificationsPopover() {
+  if (!ensureServiceAccess()) return;
+  if (!notificationsPopover) return;
+  if (notificationsPopover.classList.contains('hidden')) {
+    notificationsPopover.classList.remove('hidden');
+    await loadNotifications();
+    notificationsSeenCount = cachedNotifications.length;
+    if (notificationsCount) {
+      notificationsCount.textContent = '0';
+      notificationsCount.classList.add('hidden');
+    }
+  } else {
+    closeNotificationsPopover();
+  }
 }
 
 function clearProfileMessages() {
@@ -3300,6 +3421,100 @@ async function toggleUserBlock(profile) {
     loadCart();
   } catch (err) {
     showToast(err.message || 'Unable to update block setting.', 'error');
+  }
+}
+
+function showUserSearchEmpty(message) {
+  if (!userSearchResults) return;
+  userSearchResults.innerHTML = `<p class="user-search-empty">${esc(message)}</p>`;
+}
+
+function renderUserSearchResults(results) {
+  if (!userSearchResults) return;
+  userSearchResults.innerHTML = '';
+  if (!results.length) {
+    showUserSearchEmpty('No matching students found.');
+    return;
+  }
+  results.forEach((user) => {
+    const item = document.createElement('article');
+    item.className = 'user-search-result';
+    const avatar = user.profilePictureDataUrl
+      ? `<img src="${esc(user.profilePictureDataUrl)}" alt="${esc(user.name || 'Student')} profile picture" />`
+      : `<span>${esc((user.firstName || user.name || 'S').charAt(0).toUpperCase())}</span>`;
+    const meta = [
+      user.university || user.universityDomain || '',
+      user.major || '',
+      user.classYear ? 'Class of ' + user.classYear : '',
+      user.memberNumber ? 'Member #' + user.memberNumber : '',
+    ].filter(Boolean).join(' · ');
+    item.innerHTML = `
+      <button type="button" class="user-search-result-main" data-user-id="${esc(user.id)}">
+        <span class="user-search-avatar">${avatar}</span>
+        <span class="user-search-copy">
+          <strong>${esc(user.name || 'LinkUp member')}</strong>
+          <small>${esc(meta || 'Verified LinkUp member')}</small>
+        </span>
+      </button>
+      <button type="button" class="user-search-open${user.rideAlertSubscribed ? ' is-linked' : ''}" data-linkup-user-id="${esc(user.id)}" ${user.rideAlertSubscribed ? 'disabled' : ''}>
+        ${user.rideAlertSubscribed ? 'Linked' : 'LinkUp'}
+      </button>
+    `;
+    item.querySelectorAll('[data-user-id]').forEach((button) => {
+      button.addEventListener('click', () => {
+        closeUserSearchPopover();
+        showPublicProfilePage(button.dataset.userId);
+      });
+    });
+    item.querySelector('[data-linkup-user-id]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = 'Sending...';
+      try {
+        await fetchJson('/api/users/' + encodeURIComponent(user.id) + '/ride-alerts', { method: 'POST' });
+        button.textContent = 'Linked';
+        button.classList.add('is-linked');
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = 'LinkUp';
+        showToast(err.message || 'Unable to LinkUp with this student.', 'error');
+      }
+    });
+    userSearchResults.appendChild(item);
+  });
+}
+
+async function searchUsers(query) {
+  if (!userSearchError) return;
+  const q = String(query || '').trim();
+  userSearchError.textContent = '';
+  userSearchError.classList.remove('show');
+  if (q.length < 2) {
+    showUserSearchEmpty('Type at least 2 characters to search.');
+    return;
+  }
+  showUserSearchEmpty('Searching...');
+  try {
+    const data = await fetchJson('/api/users/search?q=' + encodeURIComponent(q));
+    renderUserSearchResults(data.results || []);
+  } catch (err) {
+    showUserSearchEmpty('Search results will appear here.');
+    userSearchError.textContent = err.message || 'Unable to search users.';
+    userSearchError.classList.add('show');
+  } finally {
+    if (userSearchSubmit) userSearchSubmit.disabled = false;
+  }
+}
+
+function closeUserSearchPopover() {
+  userSearchPopover?.classList.add('hidden');
+}
+
+function openUserSearchPopover() {
+  if (!ensureServiceAccess()) return;
+  userSearchPopover?.classList.remove('hidden');
+  if (!userSearchInput?.value.trim()) {
+    showUserSearchEmpty('Search for a student to view their public profile.');
   }
 }
 
@@ -4942,6 +5157,7 @@ function showDashboard(user) {
   dashboard.classList.remove('hidden');
   welcomeMessage.textContent = `Welcome, ${getDisplayName(user)}`;
   updateUserHeader(user);
+  loadNotifications({ silent: true });
   if (!user.serviceApproved) {
     showWaitlistPage(user);
     return;
@@ -9973,6 +10189,30 @@ stopSafetyRecordingButton?.addEventListener('click', () => stopSafetyRecording()
 sendSafetyNoteButton?.addEventListener('click', () => sendSafetyIncident());
 reportDoorSafetyButton?.addEventListener('click', () => sendSafetyIncident({ doorIssue: true }));
 continueShoppingButton.addEventListener('click', () => returnToBrowseRides());
+userSearchForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  openUserSearchPopover();
+  searchUsers(userSearchInput?.value || '');
+});
+userSearchInput?.addEventListener('focus', () => {
+  openUserSearchPopover();
+});
+userSearchInput?.addEventListener('input', () => {
+  openUserSearchPopover();
+  window.clearTimeout(userSearchDebounceTimer);
+  const query = userSearchInput.value || '';
+  if (query.trim().length < 2) {
+    showUserSearchEmpty('Type at least 2 characters to search.');
+    return;
+  }
+  userSearchDebounceTimer = window.setTimeout(() => searchUsers(query), 250);
+});
+userSearchInput?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeUserSearchPopover();
+    userSearchInput.blur();
+  }
+});
 cartSelectAllCheckbox?.addEventListener('change', () => {
   const checked = cartSelectAllCheckbox.checked;
   cartItems.querySelectorAll('.cart-item-select-checkbox').forEach((checkbox) => {
