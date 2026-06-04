@@ -7,17 +7,23 @@
 ### New
 - **Boarding pass on the dashboard.** Your next ride now appears as a boarding pass at the top of the dashboard. It shows your full pickup and drop-off addresses, passenger name, date, departure time, driver, seat, vehicle, duration, distance, and a decorative barcode stub — all in one place before you head out.
 - **Ride-role checklists.** A step-by-step checklist appears on the dashboard starting one hour before your departure time, inspired by the airline gate experience. Riders and drivers get different checklists tailored to what each person needs to do. The checklist stays visible through the ride so you can complete steps like giving your arrival code and rating after you arrive. Progress saves per ride.
+- **Driver route navigation.** Drivers now see a dedicated route card with the next/current stop, all rider drop-off stops, the final destination, and one-tap buttons to open the full route in Google Maps or Apple Maps.
+- **Driver dashboard preview.** A new driver dashboard preview shows the driver boarding pass, seat manifest, route navigation, driver checklist, Google Maps route view, and the same safety tools riders have.
 - **Send feedback from Profile.** A new "Send feedback" section in Profile lets you submit bug reports, feature requests, or general feedback directly to the LinkUp team. Messages are delivered by email with your name, university, and member number attached so we can follow up.
 - **University directory expanded to 2,400+ schools.** The school directory now covers virtually every U.S. and Canadian university, college, and community college with a `.edu` or `.ca` email domain. Students whose schools weren't previously recognized will now see their correct university name instead of a fallback.
 
 ### Improvements
 - **Dashboard layout reorganized.** The boarding pass sits at the very top. The ride checklist appears directly below it when your departure is within one hour. Quick actions, stats, and recent rides follow. Rider Safety tools are anchored at the very bottom.
 - **Boarding pass is full width.** The boarding pass stretches across the full dashboard container — no more half-width card.
-- **Route map stretches to match safety cards.** The route map in the Rider Safety section now extends to the same height as the three safety tool cards beside it.
+- **Ride-specific destination display.** Riders now see their own drop-off destination on the boarding pass with the number of stops before their stop. Drivers still see the final destination plus how many stops come before it.
+- **Route map stretches to match safety cards.** The route map in the Ride Safety section now extends to the same height as the safety tool cards beside it.
+- **Active-ride dashboard cleanup.** Find a Ride and List a Ride are hidden while a user is currently in the ride checklist window, keeping the dashboard focused on the active trip.
 - **Driver disclaimer on List a Ride.** Drivers must now confirm they have a valid license and current auto insurance, and acknowledge that LinkUp is a peer-to-peer platform rather than a commercial transportation service, before posting any ride.
 
 ### Fixed
-- **Checklist checkbox layout.** A global CSS change that caused form inputs to inherit `width: 100%` was incorrectly applied to checkboxes, breaking the checklist step layout. Checkboxes and radio inputs are now excluded from that rule.
+- **Safety features apply to drivers and riders.** Live tracking, Safety Mode recording, and Report to LinkUp are now presented as ride-wide tools for both sides instead of rider-only tools.
+- **Live tracking map shows the route before GPS starts.** The tracking map can draw the ride route first, then add the current-location dot once GPS begins updating.
+- **Create Account has a sign-in escape hatch.** Users who realize they already have an account can return from Create Account to Sign In without reloading the page.
 
 ---
 

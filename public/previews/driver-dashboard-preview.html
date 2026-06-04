@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LinkUp Driver Dashboard Preview</title>
+    <link rel="stylesheet" href="../styles.css?v=driver-dashboard-preview" />
+    <style>
+      body {
+        min-height: 100vh;
+        padding: 2rem;
+        background: var(--bg);
+        font-family: var(--font-body);
+        color: var(--text-primary);
+      }
+
+      .preview-shell {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .fake-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding: 0.85rem 1.5rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-bottom: none;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      }
+
+      .fake-header h2 {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+
+      .fake-header p {
+        margin: 0.15rem 0 0;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .fake-nav {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .fake-nav button {
+        width: auto;
+        padding: 0.35rem 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: none;
+        color: var(--text-secondary);
+        font-family: var(--font-display);
+        font-size: 0.78rem;
+        letter-spacing: 0.05em;
+      }
+
+      #dashboard-home {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+      }
+
+      .dashboard-checklist-widget { margin-top: 0; }
+
+      .checklist-step-checkbox {
+        position: static !important;
+        appearance: none;
+        -webkit-appearance: none;
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        outline: none;
+      }
+
+      .driver-preview-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(300px, 0.78fr);
+        gap: 1rem;
+        align-items: start;
+      }
+
+      .driver-preview-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        background: rgba(255,255,255,0.025);
+        padding: 1rem;
+      }
+
+      .driver-preview-card h4 {
+        margin: 0 0 0.75rem;
+        font-size: 0.95rem;
+      }
+
+      #driver-preview-google-map {
+        flex: 1;
+        min-height: 100%;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        background: #10262a;
+      }
+
+      .preview-map-fallback {
+        min-height: 320px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        display: grid;
+        place-items: center;
+        padding: 1.25rem;
+        background: rgba(255,255,255,0.025);
+        color: var(--text-muted);
+        font-family: var(--font-display);
+        font-size: 0.72rem;
+        letter-spacing: 0.1em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      @media (max-width: 820px) {
+        body { padding: 1rem; }
+        #dashboard-home { padding: 1rem; }
+        .driver-preview-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-shell">
+      <div class="fake-header">
+        <div>
+          <h2>Welcome, Daniel</h2>
+          <p>Driver dashboard · active ride</p>
+        </div>
+        <nav class="fake-nav">
+          <button>Your rides</button>
+          <button>Chat</button>
+          <button>Profile</button>
+        </nav>
+      </div>
+
+      <section id="dashboard-home">
+        <div>
+          <h3 class="dashboard-section-label">Your next ride</h3>
+
+          <div class="boarding-pass">
+            <div class="bp-header">
+              <span class="bp-brand">LINKUP</span>
+              <span class="bp-role-badge bp-role-badge--driver">DRIVER</span>
+            </div>
+
+            <div class="bp-route">
+              <div class="bp-route-stop">
+                <div class="bp-stop-label">FROM</div>
+                <div class="bp-stop-name">UCI Student Center, Irvine, CA</div>
+              </div>
+              <div class="bp-route-arrow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>
+                <span>2 stops before final</span>
+              </div>
+              <div class="bp-route-stop bp-route-stop--dest">
+                <div class="bp-stop-label">TO</div>
+                <div class="bp-stop-name">LAX Terminal 1, Los Angeles, CA</div>
+              </div>
+            </div>
+
+            <div class="bp-fields">
+              <div class="bp-field bp-field--wide">
+                <div class="bp-field-label">DRIVER</div>
+                <div class="bp-field-value">Daniel Xu</div>
+              </div>
+              <div class="bp-field">
+                <div class="bp-field-label">DATE</div>
+                <div class="bp-field-value">Jun 6</div>
+              </div>
+              <div class="bp-field">
+                <div class="bp-field-label">DEPARTS</div>
+                <div class="bp-field-value">8:30 AM</div>
+              </div>
+              <div class="bp-field">
+                <div class="bp-field-label">RIDERS</div>
+                <div class="bp-field-value">3 confirmed</div>
+              </div>
+            </div>
+
+            <div class="bp-tear"></div>
+
+            <div class="bp-stub">
+              <div class="bp-fields bp-fields--stub">
+                <div class="bp-field bp-field--widest">
+                  <div class="bp-field-label">VEHICLE</div>
+                  <div class="bp-field-value">Blue Toyota Camry · 8ABC123</div>
+                </div>
+                <div class="bp-field">
+                  <div class="bp-field-label">DURATION</div>
+                  <div class="bp-field-value">58 min</div>
+                </div>
+                <div class="bp-field">
+                  <div class="bp-field-label">DISTANCE</div>
+                  <div class="bp-field-value">44.2 mi</div>
+                </div>
+              </div>
+              <div class="bp-barcode">
+                <svg class="bp-barcode-svg" viewBox="0 0 108 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <rect x="0" y="0" width="2" height="36" fill="currentColor"/><rect x="6" y="0" width="3" height="36" fill="currentColor"/><rect x="13" y="0" width="2" height="36" fill="currentColor"/><rect x="18" y="0" width="1" height="36" fill="currentColor"/><rect x="22" y="0" width="3" height="36" fill="currentColor"/><rect x="30" y="0" width="2" height="36" fill="currentColor"/><rect x="35" y="0" width="1" height="36" fill="currentColor"/><rect x="39" y="0" width="3" height="36" fill="currentColor"/><rect x="46" y="0" width="2" height="36" fill="currentColor"/><rect x="52" y="0" width="3" height="36" fill="currentColor"/><rect x="59" y="0" width="1" height="36" fill="currentColor"/><rect x="64" y="0" width="2" height="36" fill="currentColor"/><rect x="70" y="0" width="3" height="36" fill="currentColor"/><rect x="77" y="0" width="1" height="36" fill="currentColor"/><rect x="82" y="0" width="2" height="36" fill="currentColor"/><rect x="88" y="0" width="3" height="36" fill="currentColor"/><rect x="96" y="0" width="2" height="36" fill="currentColor"/><rect x="102" y="0" width="3" height="36" fill="currentColor"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="driver-preview-grid">
+          <div>
+            <div class="seat-manifest">
+              <div class="seat-manifest-title">Seat assignments</div>
+              <div class="seat-manifest-list">
+                <div class="seat-manifest-row"><span class="seat-manifest-seat">Front passenger</span><span class="seat-manifest-rider"><button type="button" class="user-profile-link">Maya Chen</button> · Terminal 1</span></div>
+                <div class="seat-manifest-row"><span class="seat-manifest-seat">Rear left</span><span class="seat-manifest-rider"><button type="button" class="user-profile-link">Ari Patel</button> · Terminal 4</span></div>
+                <div class="seat-manifest-row"><span class="seat-manifest-seat">Rear right</span><span class="seat-manifest-rider"><button type="button" class="user-profile-link">Sofia Lee</button> · Terminal 7</span></div>
+              </div>
+            </div>
+
+            <div class="driver-route-card">
+              <div class="driver-route-card-head">
+                <div>
+                  <span class="driver-route-eyebrow">Driver route</span>
+                  <strong>Open your full drop-off route</strong>
+                </div>
+                <span>3 stops</span>
+              </div>
+              <div class="driver-current-stop">
+                <span>Current stop</span>
+                <strong>LAX Terminal 4, Los Angeles, CA</strong>
+                <small>Ari Patel</small>
+              </div>
+              <div class="driver-route-list">
+                <div><span>Start</span><strong>UCI Student Center, Irvine, CA</strong></div>
+                <div class="current"><span>1</span><strong>LAX Terminal 4, Los Angeles, CA</strong><small>Ari Patel</small></div>
+                <div><span>2</span><strong>LAX Terminal 7, Los Angeles, CA</strong><small>Sofia Lee</small></div>
+                <div><span>3</span><strong>LAX Terminal 1, Los Angeles, CA</strong><small>Maya Chen · Final destination</small></div>
+              </div>
+              <div class="driver-route-actions">
+                <a href="https://www.google.com/maps/dir/?api=1&origin=UCI%20Student%20Center%2C%20Irvine%2C%20CA&destination=LAX%20Terminal%201%2C%20Los%20Angeles%2C%20CA&waypoints=LAX%20Terminal%204%2C%20Los%20Angeles%2C%20CA%7CLAX%20Terminal%207%2C%20Los%20Angeles%2C%20CA&travelmode=driving" target="_blank" rel="noopener">Open in Google Maps</a>
+                <a href="https://maps.apple.com/?saddr=UCI%20Student%20Center%2C%20Irvine%2C%20CA&daddr=LAX%20Terminal%204%20to%20LAX%20Terminal%207%20to%20LAX%20Terminal%201&dirflg=d" target="_blank" rel="noopener">Open in Apple Maps</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-checklist-widget">
+            <div class="checklist-widget-header">
+              <div class="checklist-widget-title">
+                <span class="checklist-widget-eyebrow">Driver checklist</span>
+                <span class="checklist-widget-progress">2 of 7 done</span>
+              </div>
+              <div class="checklist-progress-bar"><div class="checklist-progress-fill" style="width:28%;"></div></div>
+            </div>
+            <ol class="checklist-steps">
+              <li class="checklist-step complete"><label class="checklist-step-label"><input type="checkbox" class="checklist-step-checkbox" checked /><span class="checklist-step-circle">1</span><div class="checklist-step-body"><span class="checklist-step-title">Ride posted</span><span class="checklist-step-desc">Your listing is live and open for reservations.</span></div></label></li>
+              <li class="checklist-step complete"><label class="checklist-step-label"><input type="checkbox" class="checklist-step-checkbox" checked /><span class="checklist-step-circle">2</span><div class="checklist-step-body"><span class="checklist-step-title">Review your riders</span><span class="checklist-step-desc">Check confirmed passengers before you leave.</span></div></label></li>
+              <li class="checklist-step"><label class="checklist-step-label"><input type="checkbox" class="checklist-step-checkbox" /><span class="checklist-step-circle">3</span><div class="checklist-step-body"><span class="checklist-step-title">Confirm pickup details</span><span class="checklist-step-desc">Make sure every rider has the exact pickup spot and departure time.</span></div></label></li>
+              <li class="checklist-step"><label class="checklist-step-label"><input type="checkbox" class="checklist-step-checkbox" /><span class="checklist-step-circle">4</span><div class="checklist-step-body"><span class="checklist-step-title">Vehicle ready</span><span class="checklist-step-desc">Confirm doors open from inside and child locks are off.</span></div></label></li>
+              <li class="checklist-step"><label class="checklist-step-label"><input type="checkbox" class="checklist-step-checkbox" /><span class="checklist-step-circle">5</span><div class="checklist-step-body"><span class="checklist-step-title">Share your route</span><span class="checklist-step-desc">Let someone you trust know your route before you leave.</span></div></label></li>
+              <li class="checklist-step"><label class="checklist-step-label"><input type="checkbox" class="checklist-step-checkbox" /><span class="checklist-step-circle">6</span><div class="checklist-step-body"><span class="checklist-step-title">Collect arrival codes</span><span class="checklist-step-desc">Ask each rider for their 6-digit code at pickup.</span></div></label></li>
+              <li class="checklist-step"><label class="checklist-step-label"><input type="checkbox" class="checklist-step-checkbox" /><span class="checklist-step-circle">7</span><div class="checklist-step-body"><span class="checklist-step-title">Rate your riders</span><span class="checklist-step-desc">After the trip, rate each passenger.</span></div></label></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="dashboard-tracking-section" style="padding-top:0; border-top: 1px solid var(--border); padding-top: 1.75rem;">
+          <div class="safety-mission-header">
+            <div class="safety-mission-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <h3 class="dashboard-section-label">Ride Safety</h3>
+              <p class="dashboard-tracking-subtitle">Drivers get the same safety tools as riders: share live tracking, record if needed, and report directly to LinkUp.</p>
+            </div>
+          </div>
+          <div class="tracking-layout">
+            <div class="safety-cards-col">
+              <div class="safety-card">
+                <div class="safety-card-header">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                  <span class="safety-card-title">Live Location</span>
+                  <span class="tracking-status">Off</span>
+                </div>
+                <div class="safety-card-body">
+                  <label class="tracking-recipient-label">
+                    Trusted person's email
+                    <input type="email" placeholder="friend@example.com" />
+                  </label>
+                  <div class="tracking-action-row">
+                    <button type="button">Start sharing</button>
+                    <button type="button" disabled>End trip</button>
+                    <button class="copy-tracking-link" type="button">Send invite</button>
+                    <button class="copy-tracking-link" type="button">Copy link</button>
+                  </div>
+                  <p class="tracking-note">Expires when sharing stops. Only your trusted contact can view your location.</p>
+                </div>
+              </div>
+
+              <div class="safety-card safety-mode-panel">
+                <div class="safety-card-header">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                  <span class="safety-card-title">Record this ride</span>
+                  <span class="safety-status-badge">Off</span>
+                </div>
+                <p class="safety-mode-copy">Record audio if you feel unsafe. Recordings are stored for 30 days and only reviewed if you file a report.</p>
+                <div class="safety-card-body">
+                  <div class="tracking-action-row">
+                    <button type="button">Start recording</button>
+                    <button type="button" disabled>Stop &amp; upload</button>
+                  </div>
+                  <p class="safety-recording-consent-note">Safety Mode is available to riders and drivers. Everyone in the car should know recording is active where required.</p>
+                </div>
+              </div>
+
+              <div class="safety-card safety-incident-card">
+                <div class="safety-card-header">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span class="safety-card-title">Report to LinkUp</span>
+                </div>
+                <div class="safety-card-body">
+                  <label class="safety-note-label">
+                    <textarea rows="3" placeholder="Describe anything our safety team should review..."></textarea>
+                  </label>
+                  <div class="tracking-action-row">
+                    <button type="button">Send safety note</button>
+                    <button type="button">Report door issue</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tracking-map-col">
+              <div id="driver-preview-google-map" class="tracking-map" aria-label="Google Maps route preview"></div>
+              <div class="tracking-meta">Waiting for first GPS update.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script>
+      const previewRoute = {
+        origin: { lat: 33.6493, lng: -117.8428 },
+        current: { lat: 33.7822, lng: -118.0178 },
+        stop1: { lat: 33.9416, lng: -118.4085 },
+        stop2: { lat: 33.9411, lng: -118.4023 },
+        destination: { lat: 33.9428, lng: -118.4098 },
+      };
+
+      function previewMapStyles() {
+        return [
+          { elementType: 'geometry', stylers: [{ color: '#102326' }] },
+          { elementType: 'labels.text.fill', stylers: [{ color: '#9fc6cd' }] },
+          { elementType: 'labels.text.stroke', stylers: [{ color: '#102326' }] },
+          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#27464b' }] },
+          { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2f6268' }] },
+          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#061619' }] },
+          { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+          { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+        ];
+      }
+
+      function previewDotIcon() {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="15" fill="#3ecfcf" opacity="0.18"/><circle cx="17" cy="17" r="9" fill="#3ecfcf" stroke="#ffffff" stroke-width="2"/><circle cx="17" cy="17" r="4" fill="#0d1517"/></svg>';
+        return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(17, 17) };
+      }
+
+      function previewPinIcon(color) {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="10" fill="' + color + '" opacity="0.18"/><circle cx="14" cy="14" r="6" fill="' + color + '"/><circle cx="14" cy="14" r="3" fill="#0d1517"/></svg>';
+        return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(14, 14) };
+      }
+
+      async function loadGoogleMapsForPreview() {
+        if (window.google?.maps) return;
+        const keyResponse = await fetch('/api/config/google-maps-key', { credentials: 'include' });
+        if (!keyResponse.ok) throw new Error('Sign in locally, then open this preview from http://127.0.0.1:4000/previews/driver-dashboard-preview.html to load Google Maps.');
+        const { apiKey } = await keyResponse.json();
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey);
+          script.async = true;
+          script.defer = true;
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Google Maps script failed to load.'));
+          document.head.appendChild(script);
+        });
+      }
+
+      async function renderDriverPreviewMap() {
+        const mapEl = document.getElementById('driver-preview-google-map');
+        const meta = document.querySelector('.tracking-meta');
+        try {
+          await loadGoogleMapsForPreview();
+          const map = new google.maps.Map(mapEl, {
+            center: previewRoute.current,
+            zoom: 10,
+            styles: previewMapStyles(),
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+          });
+          const renderer = new google.maps.DirectionsRenderer({
+            map,
+            suppressMarkers: true,
+            preserveViewport: false,
+            polylineOptions: { strokeColor: '#67d7d9', strokeOpacity: 0.92, strokeWeight: 5 },
+          });
+          new google.maps.DirectionsService().route({
+            origin: previewRoute.origin,
+            destination: previewRoute.destination,
+            waypoints: [
+              { location: previewRoute.stop1, stopover: true },
+              { location: previewRoute.stop2, stopover: true },
+            ],
+            travelMode: google.maps.TravelMode.DRIVING,
+          }, (result, status) => {
+            if (status === 'OK') renderer.setDirections(result);
+          });
+          new google.maps.Marker({ map, position: previewRoute.origin, icon: previewPinIcon('#3ecfcf'), title: 'Start' });
+          new google.maps.Marker({ map, position: previewRoute.stop1, icon: previewPinIcon('#3ecfcf'), title: 'Current stop' });
+          new google.maps.Marker({ map, position: previewRoute.destination, icon: previewPinIcon('#4d9ef5'), title: 'Final destination' });
+          new google.maps.Marker({ map, position: previewRoute.current, icon: previewDotIcon(), title: 'Current location' });
+          meta.textContent = 'Google Maps route preview · current location approaching stop 1.';
+        } catch (error) {
+          mapEl.className = 'preview-map-fallback';
+          mapEl.textContent = error.message;
+          meta.textContent = 'Google Maps did not load in this preview.';
+        }
+      }
+
+      renderDriverPreviewMap();
+    </script>
+  </body>
+</html>

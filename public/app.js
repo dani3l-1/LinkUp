@@ -576,6 +576,11 @@ document.addEventListener('click', async (event) => {
       verificationForm?.reset();
       showAuthForm('signin-form');
     },
+    'signup-back-to-signin': () => {
+      signupError.textContent = '';
+      signupError.classList.remove('show');
+      showAuthForm('signin-form');
+    },
     'reset-back-to-signin': () => {
       clearRecoveryMessages();
       resetPasswordForm?.reset();
@@ -660,6 +665,14 @@ function makeCarIcon() {
     <path d="M13 18h10" stroke="#0d1517" stroke-width="1.5" stroke-linecap="round"/>
   </svg>`;
   return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(18, 18) };
+}
+function makeLiveLocationDotIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+    <circle cx="17" cy="17" r="15" fill="#3ecfcf" opacity="0.18"/>
+    <circle cx="17" cy="17" r="9" fill="#3ecfcf" stroke="#ffffff" stroke-width="2"/>
+    <circle cx="17" cy="17" r="4" fill="#0d1517"/>
+  </svg>`;
+  return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(17, 17) };
 }
 function makeLetterIcon(letter) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
@@ -4219,9 +4232,11 @@ function isInChecklistWindow(ride) {
 async function loadDashboardUpcomingRide() {
   const container = document.getElementById('dashboard-ride-card');
   const checklistContainer = document.getElementById('upcoming-ride-checklist');
+  const quickActions = document.querySelector('.dashboard-quick-actions');
   if (!container) return;
   container.textContent = 'Loading...';
   if (checklistContainer) checklistContainer.classList.add('hidden');
+  quickActions?.classList.remove('hidden');
   try {
     const data = await fetchJson('/api/profile');
     const allRides = [
@@ -4249,6 +4264,8 @@ async function loadDashboardUpcomingRide() {
         if (!next.seatingChartUnavailable || (next.passengers || []).length) {
           container.appendChild(buildDriverSeatManifest(next));
         }
+        const navigationCard = buildDriverNavigationCard(next);
+        if (navigationCard) container.appendChild(navigationCard);
         const hasPaidRiders = (next.passengers || []).some((p) => p.paid);
         const departed = next.date && next.time && Date.now() >= getRideStartTime(next);
         if (departed && next.hasCompletionCode && hasPaidRiders) {
@@ -4260,6 +4277,7 @@ async function loadDashboardUpcomingRide() {
     // Show checklist for the ride currently in the departure window (1 hr before → ~2 hrs after end).
     // This may be a just-departed ride even if the upcoming card shows the next one.
     const checklistRide = allRides.find(isInChecklistWindow);
+    quickActions?.classList.toggle('hidden', Boolean(checklistRide));
     if (checklistRide && checklistContainer) {
       checklistContainer.innerHTML = '';
       checklistContainer.appendChild(buildDashboardChecklist(checklistRide, checklistRide._dashRole));
@@ -4286,6 +4304,34 @@ function bpBarcodeSVG() {
   return `<svg class="bp-barcode-svg" viewBox="0 0 ${x} 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${rects}</svg>`;
 }
 
+function getBoardingPassRouteInfo(ride, isDriver) {
+  const passenger = isDriver ? null : getCurrentUserPassenger(ride);
+  const riderDestination = normalizeRouteStopLabel(passenger?.actualDropoff || ride.destination);
+  const routeDestination = isDriver ? normalizeRouteStopLabel(ride.destination) : riderDestination;
+  const passengerDropoffs = (ride.passengers || [])
+    .map((entry) => normalizeRouteStopLabel(entry.actualDropoff || ride.destination))
+    .filter(Boolean);
+  const finalDestinationKey = normalizeRouteStopLabel(ride.destination).toLowerCase();
+  const intermediateDriverStops = dedupeRouteStops(passengerDropoffs.map((label) => ({ label })))
+    .filter((stop) => stop.label.toLowerCase() !== finalDestinationKey);
+  const riderDestinationIndex = !isDriver && riderDestination
+    ? passengerDropoffs.findIndex((label) => label.toLowerCase() === riderDestination.toLowerCase())
+    : -1;
+  const stopsBeforeDestination = isDriver
+    ? intermediateDriverStops.length
+    : Math.max(0, riderDestinationIndex);
+  return {
+    destination: routeDestination || normalizeRouteStopLabel(ride.destination),
+    middleLabel: isDriver
+      ? (stopsBeforeDestination > 0
+        ? `${stopsBeforeDestination} stop${stopsBeforeDestination === 1 ? '' : 's'} before final`
+        : 'Direct')
+      : (stopsBeforeDestination > 0
+        ? `${stopsBeforeDestination} stop${stopsBeforeDestination === 1 ? '' : 's'} before`
+        : 'Direct'),
+  };
+}
+
 function buildBoardingPass(ride, role) {
   const isDriver = role === 'driver';
   const isMoving = ride.rideProviderType === 'moving_service';
@@ -4301,6 +4347,7 @@ function buildBoardingPass(ride, role) {
                      || (isMoving ? (ride.movingVehicleType || 'Moving vehicle') : '');
 
   const roleBadge  = isDriver ? (isMoving ? 'MOVER' : 'DRIVER') : 'PASSENGER';
+  const routeInfo = getBoardingPassRouteInfo(ride, isDriver);
 
   const bp = document.createElement('div');
   bp.className = 'boarding-pass';
@@ -4317,10 +4364,11 @@ function buildBoardingPass(ride, role) {
       </div>
       <div class="bp-route-arrow">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>
+        <span>${esc(routeInfo.middleLabel)}</span>
       </div>
       <div class="bp-route-stop bp-route-stop--dest">
         <div class="bp-stop-label">TO</div>
-        <div class="bp-stop-name">${esc(ride.destination)}</div>
+        <div class="bp-stop-name">${esc(routeInfo.destination)}</div>
       </div>
     </div>
 
@@ -5280,16 +5328,22 @@ function fitTrackingMapToTrip(map, position, routePoints, pathLocations = []) {
   if (hasBounds) map.fitBounds(bounds, { top: 56, right: 48, bottom: 56, left: 48 });
 }
 
-function updateTrackingMap(location, pathLocations = [], rideRoute = null) {
-  if (!location) return;
-  const position = { lat: Number(location.lat), lng: Number(location.lng) };
+function updateTrackingMap(location = null, pathLocations = [], rideRoute = null) {
+  const hasPosition = location && Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng));
+  const position = hasPosition ? { lat: Number(location.lat), lng: Number(location.lng) } : null;
+  const routePointsPreview = getRoutePoints(rideRoute);
+  if (!hasPosition && !routePointsPreview) return;
   if (!window.google?.maps || !trackingMapDiv) {
-    renderTrackingMapFallback(trackingMapDiv, position, 'Your live location');
+    if (hasPosition) {
+      renderTrackingMapFallback(trackingMapDiv, position, 'Your live location');
+    } else {
+      trackingMapDiv.textContent = 'Route: ' + (rideRoute?.origin || 'Pick-up') + ' to ' + (rideRoute?.destination || 'Drop-off') + '. Waiting for your current location dot...';
+    }
     if (!trackingMapLoadPending) {
       trackingMapLoadPending = true;
       loadGoogleMapsAPI().then(() => {
         trackingMapLoadPending = false;
-        if (window.google?.maps && lastTrackingLocation) {
+        if (window.google?.maps && (lastTrackingLocation || lastTrackingRideRoute)) {
           updateTrackingMap(lastTrackingLocation, lastTrackingLocations, lastTrackingRideRoute);
         }
       }).catch(() => { trackingMapLoadPending = false; });
@@ -5299,15 +5353,28 @@ function updateTrackingMap(location, pathLocations = [], rideRoute = null) {
   trackingMapLoadPending = false;
 
   if (!trackingMap) {
+    const initialCenter = position || {
+      lat: (routePointsPreview.origin.lat + routePointsPreview.destination.lat) / 2,
+      lng: (routePointsPreview.origin.lng + routePointsPreview.destination.lng) / 2,
+    };
     trackingMap = new google.maps.Map(trackingMapDiv, {
-      zoom: 15, center: position,
+      zoom: hasPosition ? 15 : 11, center: initialCenter,
       styles: getGoogleMapStylesForTheme(),
       mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
     });
-    trackingMarker = new google.maps.Marker({ map: trackingMap, position, icon: makeCarIcon(), title: 'Your current location' });
+    if (hasPosition) {
+      trackingMarker = new google.maps.Marker({ map: trackingMap, position, icon: makeLiveLocationDotIcon(), title: 'Your current location' });
+    }
     trackingPath = new google.maps.Polyline({ map: trackingMap, path: [], strokeColor: '#8fb8ff', strokeOpacity: 0.9, strokeWeight: 4 });
-  } else {
+  } else if (hasPosition && !trackingMarker) {
+    trackingMarker = new google.maps.Marker({ map: trackingMap, position, icon: makeLiveLocationDotIcon(), title: 'Your current location' });
+  } else if (hasPosition) {
     trackingMarker.setPosition(position);
+  } else {
+    trackingMap.setCenter({
+      lat: (routePointsPreview.origin.lat + routePointsPreview.destination.lat) / 2,
+      lng: (routePointsPreview.origin.lng + routePointsPreview.destination.lng) / 2,
+    });
   }
   const routePoints = drawTrackingRouteOverlay(trackingMap, rideRoute, {
     renderer: { get current() { return trackingRouteRenderer; }, set current(value) { trackingRouteRenderer = value; } },
@@ -5485,6 +5552,8 @@ async function startTripTracking() {
     copyTrackingLinkButton?.classList.toggle('hidden', !activeTrackingViewerUrl);
     updateTrackingDriverInfo();
     setTrackingActive(true);
+    lastTrackingRideRoute = data.rideRoute || null;
+    updateTrackingMap(null, [], lastTrackingRideRoute);
     trackingMessage.textContent = data.rideRoute
       ? (data.message || 'Invite sent. Keep this page open while riding.')
       : 'Tracking started, but no active reserved ride route was found to draw yet.';
@@ -5618,7 +5687,7 @@ function updateSharedTrackingMap(location, pathLocations = [], rideRoute = null)
     sharedTrackingMap.setCenter(position);
   }
   if (hasPosition && !sharedTrackingMarker) {
-    sharedTrackingMarker = new google.maps.Marker({ map: sharedTrackingMap, position, icon: makeCarIcon(), title: 'Current rider location' });
+    sharedTrackingMarker = new google.maps.Marker({ map: sharedTrackingMap, position, icon: makeLiveLocationDotIcon(), title: 'Current rider location' });
   } else if (hasPosition) {
     sharedTrackingMarker.setPosition(position);
   }
@@ -6900,7 +6969,6 @@ function buildDriverSeatManifest(ride) {
       rider.className = 'seat-manifest-rider';
       const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
       rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
-      if (passenger.email) rider.appendChild(document.createTextNode(' · ' + passenger.email));
       appendPassengerStopDetails(rider, passenger);
 
       row.append(spot, rider);
@@ -6941,7 +7009,6 @@ function buildDriverSeatManifest(ride) {
     if (passenger) {
       const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
       rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
-      if (passenger.email) rider.appendChild(document.createTextNode(' · ' + passenger.email));
       appendPassengerStopDetails(rider, passenger);
     } else {
       rider.textContent = isForSale ? 'Available' : 'Unavailable';
@@ -6961,6 +7028,112 @@ function buildDriverSeatManifest(ride) {
 
   manifest.appendChild(list);
   return manifest;
+}
+
+function normalizeRouteStopLabel(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function dedupeRouteStops(stops) {
+  const seen = new Set();
+  return stops.filter((stop) => {
+    const label = normalizeRouteStopLabel(stop.label);
+    if (!label) return false;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    stop.label = label;
+    return true;
+  });
+}
+
+function getDriverNavigationStops(ride) {
+  const origin = normalizeRouteStopLabel(ride.origin);
+  const destination = normalizeRouteStopLabel(ride.destination);
+  const destinationKey = destination.toLowerCase();
+  const dropoffByLabel = new Map();
+  (ride.passengers || []).forEach((passenger) => {
+    const label = normalizeRouteStopLabel(passenger.actualDropoff || ride.destination);
+    if (!label) return;
+    const key = label.toLowerCase();
+    const riderName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
+    const existing = dropoffByLabel.get(key);
+    if (existing) {
+      existing.riderNames.push(riderName);
+    } else {
+      dropoffByLabel.set(key, { label, riderNames: [riderName] });
+    }
+  });
+  const intermediateStops = [...dropoffByLabel.values()]
+    .filter((stop) => stop.label.toLowerCase() !== destinationKey)
+    .map((stop) => ({ label: stop.label, riderName: stop.riderNames.join(', ') }));
+  const finalStop = destination
+    ? {
+        label: destination,
+        riderName: dropoffByLabel.get(destinationKey)?.riderNames.length
+          ? dropoffByLabel.get(destinationKey).riderNames.join(', ') + ' · Final destination'
+          : 'Final destination',
+      }
+    : null;
+  const stops = finalStop ? [...intermediateStops, finalStop] : intermediateStops;
+  return { origin, stops };
+}
+
+function buildGoogleDriverRouteUrl(ride) {
+  const { origin, stops } = getDriverNavigationStops(ride);
+  if (!origin || !stops.length) return '';
+  const destination = stops[stops.length - 1].label;
+  const waypoints = stops.slice(0, -1).map((stop) => stop.label).join('|');
+  const params = new URLSearchParams({
+    api: '1',
+    origin,
+    destination,
+    travelmode: 'driving',
+  });
+  if (waypoints) params.set('waypoints', waypoints);
+  return 'https://www.google.com/maps/dir/?' + params.toString();
+}
+
+function buildAppleDriverRouteUrl(ride) {
+  const { origin, stops } = getDriverNavigationStops(ride);
+  if (!origin || !stops.length) return '';
+  const orderedDestinationText = stops.map((stop) => stop.label).join(' to ');
+  const params = new URLSearchParams({
+    saddr: origin,
+    daddr: orderedDestinationText,
+    dirflg: 'd',
+  });
+  return 'https://maps.apple.com/?' + params.toString();
+}
+
+function buildDriverNavigationCard(ride) {
+  const { origin, stops } = getDriverNavigationStops(ride);
+  if (!origin || !stops.length) return null;
+
+  const googleUrl = buildGoogleDriverRouteUrl(ride);
+  const appleUrl = buildAppleDriverRouteUrl(ride);
+  const currentStop = stops[0];
+  const card = document.createElement('div');
+  card.className = 'driver-route-card';
+  card.innerHTML = `
+    <div class="driver-route-card-head">
+      <div>
+        <span class="driver-route-eyebrow">Driver route</span>
+        <strong>Open your full drop-off route</strong>
+      </div>
+      <span>${esc(String(stops.length))} stop${stops.length === 1 ? '' : 's'}</span>
+    </div>
+    <div class="driver-current-stop">
+      <span>Next stop</span>
+      <strong>${esc(currentStop.label)}</strong>
+      <small>${esc(currentStop.riderName)}</small>
+    </div>
+    <div class="driver-route-actions">
+      <a href="${esc(googleUrl)}" target="_blank" rel="noopener">Open in Google Maps</a>
+      <a href="${esc(appleUrl)}" target="_blank" rel="noopener">Open in Apple Maps</a>
+    </div>
+  `;
+  return card;
 }
 
 function buildBrowseSeatManifest(ride) {
@@ -7232,6 +7405,8 @@ function buildDriverRideSummary(ride) {
   } else if ((ride.passengers || []).length) {
     container.appendChild(buildDriverSeatManifest(ride));
   }
+  const navigationCard = buildDriverNavigationCard(ride);
+  if (navigationCard) container.appendChild(navigationCard);
 
   // Show trip completion form after departure if the ride uses completion codes
   const hasPaidRiders = (ride.passengers || []).some((p) => p.paid);

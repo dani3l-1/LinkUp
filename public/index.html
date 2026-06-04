@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260603-map-stretch" />
+    <link rel="stylesheet" href="styles.css?v=20260603-driver-route-nav" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -155,6 +155,7 @@
               I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="privacy">Privacy Notice</button>.
             </label>
             <button type="submit" class="btn-primary">Create Account →</button>
+            <button type="button" id="signup-back-to-signin" class="text-button">Already have an account? Sign in</button>
             <div id="signup-error" class="error-message"></div>
           </form>
 
@@ -635,7 +636,7 @@
                         </section>
                         <section>
                           <h5>Location sharing</h5>
-                          <p>Track My Trip location sharing and Safety Mode are for rider safety. Only share tracking links with trusted people. Record audio only after everyone is notified and consent is handled where required.</p>
+                          <p>Track My Trip location sharing and Safety Mode are for rider and driver safety. Only share tracking links with trusted people. Record audio only after everyone is notified and consent is handled where required.</p>
                         </section>
                         <section>
                           <h5>Privacy notice</h5>
@@ -930,8 +931,8 @@
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>
                 <div>
-                  <h3 class="dashboard-section-label">Rider Safety</h3>
-                  <p class="dashboard-tracking-subtitle">Your safety is built into every ride — share your location, record audio if needed, and reach our team instantly.</p>
+                  <h3 class="dashboard-section-label">Ride Safety</h3>
+                  <p class="dashboard-tracking-subtitle">Safety is built into every ride for riders and drivers — share your location, record audio if needed, and reach our team instantly.</p>
                 </div>
               </div>
 
@@ -973,13 +974,13 @@
                       <span class="safety-card-title">Record this ride</span>
                       <span id="safety-mode-status" class="safety-status-badge">Off</span>
                     </div>
-                    <p class="safety-mode-copy">Secretly record audio if you feel unsafe. Recordings are stored for 30 days and only reviewed if you file a report.</p>
+                    <p class="safety-mode-copy">Record audio if you feel unsafe. Recordings are stored for 30 days and only reviewed if you file a report.</p>
                     <div class="safety-card-body">
                       <div class="tracking-action-row">
                         <button id="start-safety-recording" type="button">Start recording</button>
                         <button id="stop-safety-recording" type="button" disabled>Stop &amp; upload</button>
                       </div>
-                      <p class="safety-recording-consent-note">Drivers consent to safety recording when they list a ride on LinkUp.</p>
+                      <p class="safety-recording-consent-note">Safety Mode is available to riders and drivers. Everyone in the car should know recording is active where required.</p>
                     </div>
                     <input type="checkbox" id="safety-recording-consent" class="hidden" />
                     <input type="checkbox" id="door-safety-confirmed" class="hidden" />
@@ -1618,6 +1619,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260603-boarding-pass"></script>
+    <script src="app.js?v=20260603-driver-route-nav"></script>
   </body>
 </html>

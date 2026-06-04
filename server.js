@@ -7465,15 +7465,15 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
   trips.push(trip);
   saveDb(db);
   if (trustedEmail) {
-    const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
+    const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp member') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
     sendAuthEmail(
       trustedEmail,
       user.firstName + ' invited you to track their LinkUp trip',
       trackingText,
       renderLinkUpEmail({
         eyebrow: 'Live tracking',
-        title: `${user.firstName || 'A LinkUp rider'} invited you to track their trip`,
-        intro: `${escapeHtml(user.firstName || 'A LinkUp rider')} wants to share their live LinkUp trip location with you for safety.`,
+        title: `${user.firstName || 'A LinkUp member'} invited you to track their trip`,
+        intro: `${escapeHtml(user.firstName || 'A LinkUp member')} wants to share their live LinkUp trip location with you for safety.`,
         bodyHtml: '<p style="margin:0;font-size:14px;line-height:1.65;color:#54636a;">This secure link only works while sharing is active. It expires when the trip ends or after 8 hours.</p>',
         cta: { href: viewerUrl, label: 'View trip' },
       })
@@ -7525,15 +7525,15 @@ app.put('/api/trips/track/:tripId/trusted-email', requireAuth, requireServiceAcc
   if (!trip.viewerUrl) {
     return res.status(400).json({ error: 'This tracking trip was started before invite updates were supported. Copy the tracking link and send it manually, or restart sharing.' });
   }
-  const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp rider') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + trip.viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
+  const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp member') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + trip.viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
   sendAuthEmail(
     trustedEmail,
     user.firstName + ' invited you to track their LinkUp trip',
     trackingText,
     renderLinkUpEmail({
       eyebrow: 'Live tracking',
-      title: `${user.firstName || 'A LinkUp rider'} invited you to track their trip`,
-      intro: `${escapeHtml(user.firstName || 'A LinkUp rider')} wants to share their live LinkUp trip location with you for safety.`,
+      title: `${user.firstName || 'A LinkUp member'} invited you to track their trip`,
+      intro: `${escapeHtml(user.firstName || 'A LinkUp member')} wants to share their live LinkUp trip location with you for safety.`,
       bodyHtml: '<p style="margin:0;font-size:14px;line-height:1.65;color:#54636a;">This secure link only works while sharing is active. It expires when the trip ends or after 8 hours.</p>',
       cta: { href: trip.viewerUrl, label: 'View trip' },
     })
@@ -7631,7 +7631,8 @@ app.post('/api/safety/recordings', requireAuth, requireServiceAccess, (req, res)
   const consentAcknowledged = req.body.consentAcknowledged === true;
   const noticeShown = req.body.noticeShown === true;
 
-  // Consent is now given upfront when drivers agree to T&C at listing time.
+  // Ride participants acknowledge Safety Mode in the UI and policy flow; keep the
+  // endpoint available to both the driver and booked riders on the active ride.
   if (!audioBase64 || audioBase64.length > SAFETY_RECORDING_MAX_BASE64_CHARS || !/^[A-Za-z0-9+/=]+$/.test(audioBase64)) {
     return res.status(400).json({ error: 'Safety recording is missing or too large' });
   }
@@ -7703,8 +7704,8 @@ app.post('/api/safety/incidents', requireAuth, requireServiceAccess, (req, res) 
   db.userReports = db.userReports || [];
   const safetyDetails = [
     details,
-    doorSafetyIssue ? 'Door safety issue reported: rider could not confirm the door opens from inside or child lock is off.' : '',
-    doorSafetyConfirmed ? 'Door safety check confirmed by rider.' : '',
+    doorSafetyIssue ? 'Door safety issue reported: participant could not confirm the door opens from inside or child lock is off.' : '',
+    doorSafetyConfirmed ? 'Door safety check confirmed by participant.' : '',
     safetyRecordingId ? `Safety recording ID: ${safetyRecordingId}` : '',
   ].filter(Boolean).join('\n\n');
   const report = {
