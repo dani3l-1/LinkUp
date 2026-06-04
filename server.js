@@ -2941,6 +2941,7 @@ const sensitiveWriteRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max:
 const trackingRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many tracking requests. Please slow down.' });
 const adminRateLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many admin requests. Please wait and try again.' });
 const adminDashboardRateLimit = makeRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many admin dashboard requests. Please wait and try again.' });
+const reportRateLimit = makeRateLimiter({ windowMs: 60 * 60 * 1000, max: 10, message: 'Too many reports submitted. Please wait before reporting again.' });
 
 class JsonSessionStore extends session.Store {
   constructor(filePath) {
@@ -5715,6 +5716,9 @@ function requireServiceAccess(req, res, next) {
   if (!hasServiceAccess(user)) {
     return res.status(403).json({ error: 'LinkUp has not launched at your university yet. Your account is on the waitlist, and we will notify you when access opens.' });
   }
+  if (user.emailVerified === false) {
+    return res.status(403).json({ error: 'Verify your email address before using LinkUp services.', code: 'EMAIL_NOT_VERIFIED' });
+  }
   if (userNeedsPolicyConsent(user)) {
     return res.status(403).json({
       error: 'Please review and agree to the latest Terms and Conditions and Privacy Notice in your profile before using LinkUp services.',
@@ -6048,8 +6052,8 @@ app.post('/api/auth/signup', async (req, res) => {
   }
   const birthdayDate = new Date(birthday + 'T00:00:00');
   const ageDays = (Date.now() - birthdayDate.getTime()) / (1000 * 60 * 60 * 24);
-  if (isNaN(ageDays) || ageDays < 365 * 13 || ageDays > 365 * 120) {
-    return res.status(400).json({ error: 'Enter a valid birthday' });
+  if (isNaN(ageDays) || ageDays < 365 * 18 || ageDays > 365 * 120) {
+    return res.status(400).json({ error: 'You must be at least 18 years old to use LinkUp' });
   }
 
   const normalizedEmail = normalizeEmail(email);
@@ -6071,6 +6075,16 @@ app.post('/api/auth/signup', async (req, res) => {
   const existingUser = db.users.find((u) => u.email === normalizedEmail);
   if (existingUser) {
     return res.status(400).json({ error: 'This email is already associated with an account' });
+  }
+  const isBannedUser = db.users.some(
+    (u) => u.suspendedAt &&
+      u.universityDomain === getEmailDomain(normalizedEmail) &&
+      u.firstName.trim().toLowerCase() === String(firstName).trim().toLowerCase() &&
+      u.lastName.trim().toLowerCase() === String(lastName).trim().toLowerCase() &&
+      u.birthday === birthday
+  );
+  if (isBannedUser) {
+    return res.status(403).json({ error: 'This account is not eligible to register on LinkUp' });
   }
   const invitedByUser = findUserByFriendInviteCode(db, inviteCode);
 
@@ -8032,6 +8046,9 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   if (termsAccepted !== true) {
     return res.status(400).json({ error: 'You must agree to the driver terms and conditions before listing a ride' });
   }
+  if (req.body.driverDisclaimerAccepted !== true) {
+    return res.status(400).json({ error: 'Confirm you have a valid driver\'s license and appropriate insurance before listing a ride' });
+  }
 
   if (!isValidTripDateTime(date, time)) {
     return res.status(400).json({ error: 'Enter a valid ride date and time' });
@@ -8385,7 +8402,7 @@ app.post('/api/feedback', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/reports', requireAuth, requireServiceAccess, (req, res) => {
+app.post('/api/reports', requireAuth, requireServiceAccess, reportRateLimit, (req, res) => {
   const reportedUserId = String(req.body.reportedUserId || '').trim();
   const rideId = String(req.body.rideId || '').trim();
   const reason = String(req.body.reason || '').trim().slice(0, 80);

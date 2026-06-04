@@ -8770,6 +8770,7 @@ offerForm.addEventListener('submit', async (event) => {
         carColor,
         licensePlate,
         termsAccepted,
+        driverDisclaimerAccepted,
         estimatedDurationMinutes: rideMetrics.durationMinutes,
         distanceMiles: rideMetrics.distanceMiles,
         notes,
