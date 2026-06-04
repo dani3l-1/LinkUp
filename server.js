@@ -5762,6 +5762,24 @@ function requireServiceAccess(req, res, next) {
   next();
 }
 
+function requireCampusNetworkAccess(req, res, next) {
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user || isDeletedUser(user)) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (user.suspendedAt) {
+    const banMsg = user.bannedByStrikesAt
+      ? 'This account has been permanently banned due to repeated terms of service violations.'
+      : 'This account has been suspended by LinkUp moderation.';
+    return res.status(403).json({ error: banMsg });
+  }
+  if (user.emailVerified === false) {
+    return res.status(403).json({ error: 'Verify your email address before using LinkUp.', code: 'EMAIL_NOT_VERIFIED' });
+  }
+  next();
+}
+
 function requireRideServicesOpen(req, res, next) {
   if (RIDE_SERVICES_PAUSED) {
     return res.status(503).json({
@@ -9032,7 +9050,7 @@ app.delete('/api/cart/:rideId', requireAuth, requireServiceAccess, (req, res) =>
   res.json({ message: 'Ride removed from cart' });
 });
 
-app.get('/api/notifications', requireAuth, requireServiceAccess, (req, res) => {
+app.get('/api/notifications', requireAuth, requireCampusNetworkAccess, (req, res) => {
   const db = expireUnclaimedRideRequests(loadDb());
   const user = (db.users || []).find((entry) => entry.id === req.session.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -9042,7 +9060,7 @@ app.get('/api/notifications', requireAuth, requireServiceAccess, (req, res) => {
   const rides = Array.isArray(db.rides) ? db.rides : [];
   const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
   const alertUserIds = normalizeRideAlertUserIds(user.rideAlertUserIds);
-  const alertUsers = activeUsers(db).filter((entry) => alertUserIds.includes(entry.id) && !areUsersBlocked(db, user.id, entry.id));
+  const alertUsers = activeUsers(db).filter((entry) => alertUserIds.includes(entry.id) && !entry.suspendedAt && !areUsersBlocked(db, user.id, entry.id));
 
   rides.forEach((ride) => {
     const interval = getTripInterval(ride);
@@ -9162,11 +9180,11 @@ app.delete('/api/users/:userId/block', requireAuth, requireServiceAccess, (req, 
   res.json({ message: 'User unblocked.', blocked: false });
 });
 
-app.post('/api/users/:userId/ride-alerts', requireAuth, requireServiceAccess, (req, res) => {
+app.post('/api/users/:userId/ride-alerts', requireAuth, requireCampusNetworkAccess, (req, res) => {
   const targetUserId = String(req.params.userId || '').trim();
   const db = loadDb();
   const subscriber = (db.users || []).find((user) => user.id === req.session.userId);
-  const targetUser = (db.users || []).find((user) => user.id === targetUserId && !isDeletedUser(user));
+  const targetUser = (db.users || []).find((user) => user.id === targetUserId && !isDeletedUser(user) && !user.suspendedAt);
   if (!subscriber) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -9191,7 +9209,7 @@ app.post('/api/users/:userId/ride-alerts', requireAuth, requireServiceAccess, (r
   });
 });
 
-app.get('/api/users/search', requireAuth, requireServiceAccess, (req, res) => {
+app.get('/api/users/search', requireAuth, requireCampusNetworkAccess, (req, res) => {
   const db = loadDb();
   const viewer = (db.users || []).find((user) => user.id === req.session.userId);
   if (!viewer) return res.status(404).json({ error: 'User not found' });
@@ -9209,7 +9227,7 @@ app.get('/api/users/search', requireAuth, requireServiceAccess, (req, res) => {
       user.id !== viewer.id &&
       !isAdminUser(user) &&
       !isDeletedUser(user) &&
-      hasServiceAccess(user) &&
+      !user.suspendedAt &&
       !areUsersBlocked(db, viewer.id, user.id)
     ))
     .map((user) => {
@@ -9257,10 +9275,10 @@ app.get('/api/users/search', requireAuth, requireServiceAccess, (req, res) => {
   res.json({ results });
 });
 
-app.get('/api/users/:userId/profile', requireAuth, requireServiceAccess, (req, res) => {
+app.get('/api/users/:userId/profile', requireAuth, requireCampusNetworkAccess, (req, res) => {
   const db = expireUnclaimedRideRequests(loadDb());
   const user = (db.users || []).find((entry) => entry.id === req.params.userId);
-  if (!user || isDeletedUser(user)) {
+  if (!user || isDeletedUser(user) || user.suspendedAt) {
     return res.status(404).json({ error: 'User not found' });
   }
 

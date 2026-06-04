@@ -2031,7 +2031,7 @@ function renderNotifications(notifications = []) {
 }
 
 async function loadNotifications({ silent = false } = {}) {
-  if (!notificationsList || !currentUser?.serviceApproved) return;
+  if (!notificationsList || !currentUser) return;
   if (notificationsError) {
     notificationsError.textContent = '';
     notificationsError.classList.remove('show');
@@ -2049,7 +2049,7 @@ async function loadNotifications({ silent = false } = {}) {
 }
 
 async function toggleNotificationsPopover() {
-  if (!ensureServiceAccess()) return;
+  if (!currentUser) return;
   if (!notificationsPopover) return;
   if (notificationsPopover.classList.contains('hidden')) {
     notificationsPopover.classList.remove('hidden');
@@ -3511,7 +3511,7 @@ function closeUserSearchPopover() {
 }
 
 function openUserSearchPopover() {
-  if (!ensureServiceAccess()) return;
+  if (!currentUser) return;
   userSearchPopover?.classList.remove('hidden');
   if (!userSearchInput?.value.trim()) {
     showUserSearchEmpty('Search for a student to view their public profile.');
