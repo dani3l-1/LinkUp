@@ -97,7 +97,22 @@ const stripe = process.env.STRIPE_SECRET_KEY
 if (!stripe) {
   console.warn(`WARNING: STRIPE_SECRET_KEY not set. Payment features are disabled (env: ${NODE_ENV}).`);
 }
-const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || 'v2026.06.3';
+const REQUIRED_TERMS_VERSION = process.env.REQUIRED_TERMS_VERSION || (() => {
+  try {
+    const tc = fs.readFileSync(path.join(__dirname, 'public', 'terms-and-conditions.md'), 'utf8');
+    const dateMatch = tc.match(/\*\*Last Updated:\*\*\s+(\w+)\s+(\d+),\s+(\d{4})/);
+    if (dateMatch) {
+      const months = { January:1,February:2,March:3,April:4,May:5,June:6,July:7,August:8,September:9,October:10,November:11,December:12 };
+      const m = String(months[dateMatch[1]]).padStart(2,'0');
+      const d = String(dateMatch[2]).padStart(2,'0');
+      const base = `v${dateMatch[3]}.${m}.${d}`;
+      const revMatch = tc.match(/\*\*Revision:\*\*\s+(\d+)/);
+      const rev = revMatch ? parseInt(revMatch[1], 10) : 0;
+      return rev > 0 ? `${base}.${rev}` : base;
+    }
+  } catch {}
+  return 'v2026.06.03';
+})();
 const REQUIRED_PRIVACY_VERSION = process.env.REQUIRED_PRIVACY_VERSION || 'v2026.06.2';
 const TRACKING_VIEWER_TTL_MS = 1000 * 60 * 60 * 8;
 

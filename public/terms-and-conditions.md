@@ -2,6 +2,7 @@
 
 **Effective Date:** May 15, 2026
 **Last Updated:** June 3, 2026
+**Revision:** 1
 
 By accessing or using LinkUp ("the Service," "the App," "the Platform"), you agree to be bound by these Terms and Conditions ("Terms"). If you do not agree, you may not access or use the Service. Please read them carefully before using the Platform.
 
