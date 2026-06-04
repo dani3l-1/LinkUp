@@ -3428,9 +3428,7 @@ function getLegacyFriendInviteCode(user) {
 }
 
 function getFriendInviteCode(user, db = null) {
-  const nameSlug = [slugifyInvitePart(user?.firstName), slugifyInvitePart(user?.lastName)]
-    .filter(Boolean)
-    .join('-')
+  const nameSlug = slugifyInvitePart(user?.firstName)
     || slugifyInvitePart(String(user?.email || '').split('@')[0])
     || 'linkup-member';
   const memberNumber = db && user?.id ? getUserMemberNumber(db, user.id) : null;
