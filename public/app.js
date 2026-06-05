@@ -1997,13 +1997,32 @@ function closeNotificationsPopover() {
   notificationsPopover?.classList.add('hidden');
 }
 
+function getLinkupButtonLabel(status) {
+  if (status === 'linked') return 'Linked';
+  if (status === 'pending_sent') return 'Requested';
+  if (status === 'pending_received') return 'Accept';
+  return 'LinkUp';
+}
+
+function getLinkupButtonTitle(status) {
+  if (status === 'linked') return 'You are Links and receive each other\'s ride/request updates';
+  if (status === 'pending_sent') return 'Waiting for this student to accept';
+  if (status === 'pending_received') return 'Accept this LinkUp request';
+  return 'Send a LinkUp request';
+}
+
+async function acceptLinkupRequest(userId) {
+  if (!userId) return null;
+  return fetchJson('/api/users/' + encodeURIComponent(userId) + '/ride-alerts/accept', { method: 'POST' });
+}
+
 function renderNotifications(notifications = []) {
   if (!notificationsList) return;
   cachedNotifications = notifications;
   notificationsList.innerHTML = '';
   if (notificationsCount) {
     const unread = Math.max(0, notifications.length - notificationsSeenCount);
-    notificationsCount.textContent = String(unread);
+    notificationsCount.textContent = unread > 9 ? '9+' : String(unread);
     notificationsCount.classList.toggle('hidden', unread === 0);
   }
   if (notificationsSummary) {
@@ -2025,7 +2044,23 @@ function renderNotifications(notifications = []) {
         <p>${esc(item.body || '')}</p>
         ${item.timeLabel ? `<small>${esc(item.timeLabel)}</small>` : ''}
       </div>
+      ${item.action === 'accept-linkup' ? `<button type="button" class="notification-action" data-accept-linkup="${esc(item.userId || '')}">${esc(item.actionLabel || 'Accept')}</button>` : ''}
     `;
+    row.querySelector('[data-accept-linkup]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const userId = button.dataset.acceptLinkup;
+      button.disabled = true;
+      button.textContent = 'Accepting...';
+      try {
+        const response = await acceptLinkupRequest(userId);
+        showToast(response?.message || 'You are now Linked.', 'success');
+        await loadNotifications();
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = item.actionLabel || 'Accept';
+        showToast(err.message || 'Unable to accept LinkUp request.', 'error');
+      }
+    });
     notificationsList.appendChild(row);
   });
 }
@@ -3396,10 +3431,11 @@ async function requestUserConnection(profile) {
   if (!profile?.id || profile.isCurrentUser) return;
   try {
     const response = await fetchJson('/api/users/' + encodeURIComponent(profile.id) + '/ride-alerts', { method: 'POST' });
-    showToast(response.message || 'You will be notified when this student posts a ride or request.', 'success');
+    showToast(response.message || 'LinkUp request sent.', 'success');
     await showPublicProfilePage(profile.id);
+    await loadNotifications({ silent: true });
   } catch (err) {
-    showToast(err.message || 'Unable to turn on ride alerts.', 'error');
+    showToast(err.message || 'Unable to send LinkUp request.', 'error');
   }
 }
 
@@ -3448,6 +3484,8 @@ function renderUserSearchResults(results) {
       user.classYear ? 'Class of ' + user.classYear : '',
       user.memberNumber ? 'Member #' + user.memberNumber : '',
     ].filter(Boolean).join(' · ');
+    const linkupStatus = user.linkupStatus || (user.rideAlertSubscribed ? 'linked' : 'none');
+    const linkupDisabled = linkupStatus === 'linked' || linkupStatus === 'pending_sent';
     item.innerHTML = `
       <button type="button" class="user-search-result-main" data-user-id="${esc(user.id)}">
         <span class="user-search-avatar">${avatar}</span>
@@ -3456,8 +3494,8 @@ function renderUserSearchResults(results) {
           <small>${esc(meta || 'Verified LinkUp member')}</small>
         </span>
       </button>
-      <button type="button" class="user-search-open${user.rideAlertSubscribed ? ' is-linked' : ''}" data-linkup-user-id="${esc(user.id)}" ${user.rideAlertSubscribed ? 'disabled' : ''}>
-        ${user.rideAlertSubscribed ? 'Linked' : 'LinkUp'}
+      <button type="button" class="user-search-open${linkupStatus !== 'none' ? ' is-linked' : ''}" data-linkup-user-id="${esc(user.id)}" title="${esc(getLinkupButtonTitle(linkupStatus))}" ${linkupDisabled ? 'disabled' : ''}>
+        ${esc(getLinkupButtonLabel(linkupStatus))}
       </button>
     `;
     item.querySelectorAll('[data-user-id]').forEach((button) => {
@@ -3471,9 +3509,13 @@ function renderUserSearchResults(results) {
       button.disabled = true;
       button.textContent = 'Sending...';
       try {
-        await fetchJson('/api/users/' + encodeURIComponent(user.id) + '/ride-alerts', { method: 'POST' });
-        button.textContent = 'Linked';
+        const response = await fetchJson('/api/users/' + encodeURIComponent(user.id) + '/ride-alerts', { method: 'POST' });
+        const nextStatus = response.linkupStatus || 'pending_sent';
+        button.textContent = getLinkupButtonLabel(nextStatus);
         button.classList.add('is-linked');
+        button.disabled = nextStatus === 'linked' || nextStatus === 'pending_sent';
+        showToast(response.message || 'LinkUp request sent.', 'success');
+        await loadNotifications({ silent: true });
       } catch (err) {
         button.disabled = false;
         button.textContent = 'LinkUp';
@@ -3564,6 +3606,9 @@ function renderPublicProfile(profile) {
     renderPublicProfileTagSection(profile),
   ].filter(Boolean);
   const profileDetailSections = profileDetailSectionList.join('');
+  const linkupStatus = profile.linkupStatus || (profile.rideAlertSubscribed ? 'linked' : 'none');
+  const linkupDisabled = linkupStatus === 'linked' || linkupStatus === 'pending_sent';
+  const linkCount = Number(profile.linkCount || 0);
 
   publicProfileTitle.textContent = 'Public profile';
   publicProfileSubtitle.textContent = [profile.university || profile.universityDomain, 'Member since ' + formatPublicProfileDate(profile.memberSince), memberLabel].filter(Boolean).join(' · ');
@@ -3580,10 +3625,11 @@ function renderPublicProfile(profile) {
         <p class="public-profile-university">${esc(heroMeta.join(' · '))}</p>
         ${profile.isCurrentUser ? '' : `
           <div class="public-profile-hero-actions">
-            <button id="public-profile-connect-button" type="button" class="primary-action-button" ${profile.rideAlertSubscribed ? 'disabled' : ''}>
-              ${profile.rideAlertSubscribed ? 'Linked' : 'LinkUp'}
+            <button id="public-profile-connect-button" type="button" class="primary-action-button" ${linkupDisabled ? 'disabled' : ''}>
+              ${esc(getLinkupButtonLabel(linkupStatus))}
             </button>
-            <span class="public-profile-link-count">${profile.rideAlertSubscribed ? 'Ride alerts on' : 'Get notified when they post rides or requests'}</span>
+            <span class="public-profile-link-count"><strong>${esc(String(linkCount))}</strong> Links</span>
+            <span class="public-profile-link-status">${esc(getLinkupButtonTitle(linkupStatus))}</span>
           </div>
         `}
       </div>

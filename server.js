@@ -4218,6 +4218,61 @@ function isRideAlertSubscribed(viewer, targetUserId) {
   return normalizeRideAlertUserIds(viewer?.rideAlertUserIds).includes(String(targetUserId || '').trim());
 }
 
+function areUsersLinked(db, userId, otherUserId) {
+  const user = (db.users || []).find((entry) => entry.id === userId);
+  const other = (db.users || []).find((entry) => entry.id === otherUserId);
+  return Boolean(user && other && isRideAlertSubscribed(user, other.id) && isRideAlertSubscribed(other, user.id));
+}
+
+function getUserLinkCount(db, userId) {
+  return activeUsers(db)
+    .filter((entry) => entry.id !== userId && !entry.suspendedAt)
+    .filter((entry) => areUsersLinked(db, userId, entry.id))
+    .length;
+}
+
+function normalizeLinkupRequests(value) {
+  const seen = new Set();
+  return asArray(value)
+    .map((request) => {
+      if (typeof request === 'string') {
+        return { fromUserId: request.trim(), createdAt: '' };
+      }
+      return {
+        fromUserId: String(request?.fromUserId || request?.userId || '').trim(),
+        createdAt: request?.createdAt || '',
+      };
+    })
+    .filter((request) => {
+      if (!request.fromUserId || seen.has(request.fromUserId)) return false;
+      seen.add(request.fromUserId);
+      return true;
+    });
+}
+
+function isLinkupRequestPending(recipient, requesterId) {
+  const id = String(requesterId || '').trim();
+  return normalizeLinkupRequests(recipient?.linkupRequests).some((request) => request.fromUserId === id);
+}
+
+function getLinkupStatus(db, viewer, targetUserId) {
+  const target = (db.users || []).find((user) => user.id === targetUserId);
+  if (!viewer || !target) return 'none';
+  if (areUsersLinked(db, viewer.id, target.id)) return 'linked';
+  if (isLinkupRequestPending(target, viewer.id)) return 'pending_sent';
+  if (isLinkupRequestPending(viewer, target.id)) return 'pending_received';
+  return 'none';
+}
+
+function acceptLinkupRequest(db, recipient, requester) {
+  recipient.linkupRequests = normalizeLinkupRequests(recipient.linkupRequests)
+    .filter((request) => request.fromUserId !== requester.id);
+  recipient.rideAlertUserIds = normalizeRideAlertUserIds(recipient.rideAlertUserIds);
+  requester.rideAlertUserIds = normalizeRideAlertUserIds(requester.rideAlertUserIds);
+  if (!recipient.rideAlertUserIds.includes(requester.id)) recipient.rideAlertUserIds.push(requester.id);
+  if (!requester.rideAlertUserIds.includes(recipient.id)) requester.rideAlertUserIds.push(recipient.id);
+}
+
 function notifyRideAlertSubscribers(db, actor, item, itemType = 'ride') {
   if (!actor?.id) return;
   const actorName = getUserDisplayName(actor);
@@ -4229,7 +4284,7 @@ function notifyRideAlertSubscribers(db, actor, item, itemType = 'ride') {
   const url = isRequest ? '/#browse' : '/#browse';
   const subscribers = activeUsers(db)
     .filter((user) => user.id !== actor.id)
-    .filter((user) => isRideAlertSubscribed(user, actor.id))
+    .filter((user) => areUsersLinked(db, user.id, actor.id))
     .filter((user) => !areUsersBlocked(db, user.id, actor.id));
 
   subscribers.forEach((subscriber) => {
@@ -5017,7 +5072,6 @@ function publicUser(user, db = null) {
     profilePictureDataUrl: user.profilePictureDataUrl || '',
     classYear: user.classYear || '',
     major: user.major || '',
-    socialLinks: user.socialLinks || {},
     themePreference: normalizeThemePreference(user.themePreference),
     email: user.email,
     university: getUserUniversityDisplay(user),
@@ -9058,7 +9112,25 @@ app.get('/api/notifications', requireAuth, requireCampusNetworkAccess, (req, res
   const rides = Array.isArray(db.rides) ? db.rides : [];
   const rideRequests = Array.isArray(db.rideRequests) ? db.rideRequests : [];
   const alertUserIds = normalizeRideAlertUserIds(user.rideAlertUserIds);
-  const alertUsers = activeUsers(db).filter((entry) => alertUserIds.includes(entry.id) && !entry.suspendedAt && !areUsersBlocked(db, user.id, entry.id));
+  const alertUsers = activeUsers(db).filter((entry) => alertUserIds.includes(entry.id) && !entry.suspendedAt && areUsersLinked(db, user.id, entry.id) && !areUsersBlocked(db, user.id, entry.id));
+  const linkupRequests = normalizeLinkupRequests(user.linkupRequests);
+
+  linkupRequests.forEach((request) => {
+    const requester = activeUsers(db).find((entry) => entry.id === request.fromUserId && !entry.suspendedAt);
+    if (!requester || areUsersBlocked(db, user.id, requester.id)) return;
+    notifications.push({
+      id: 'linkup-request-' + requester.id,
+      type: 'linkup-request',
+      typeLabel: 'LinkUp request',
+      title: `${getUserDisplayName(requester)} wants to LinkUp`,
+      body: 'Accept to become Links and get each other\'s ride/request updates.',
+      timeLabel: requester.universityDomain || getEmailDomain(requester.email),
+      createdAt: request.createdAt ? Date.parse(request.createdAt) || 0 : 0,
+      action: 'accept-linkup',
+      actionLabel: 'Accept',
+      userId: requester.id,
+    });
+  });
 
   rides.forEach((ride) => {
     const interval = getTripInterval(ride);
@@ -9096,6 +9168,7 @@ app.get('/api/notifications', requireAuth, requireCampusNetworkAccess, (req, res
 
   rides
     .filter((ride) => alertUserIds.includes(ride.driverId))
+    .filter((ride) => areUsersLinked(db, user.id, ride.driverId))
     .filter((ride) => !areUsersBlocked(db, user.id, ride.driverId))
     .forEach((ride) => {
       const actor = (db.users || []).find((entry) => entry.id === ride.driverId);
@@ -9115,6 +9188,7 @@ app.get('/api/notifications', requireAuth, requireCampusNetworkAccess, (req, res
 
   rideRequests
     .filter((request) => alertUserIds.includes(request.riderId))
+    .filter((request) => areUsersLinked(db, user.id, request.riderId))
     .filter((request) => !areUsersBlocked(db, user.id, request.riderId))
     .forEach((request) => {
       const actor = (db.users || []).find((entry) => entry.id === request.riderId);
@@ -9196,14 +9270,54 @@ app.post('/api/users/:userId/ride-alerts', requireAuth, requireCampusNetworkAcce
     return res.status(403).json({ error: 'Ride alerts are unavailable for blocked users.' });
   }
 
-  subscriber.rideAlertUserIds = normalizeRideAlertUserIds(subscriber.rideAlertUserIds);
-  if (!subscriber.rideAlertUserIds.includes(targetUser.id)) {
-    subscriber.rideAlertUserIds.push(targetUser.id);
+  const status = getLinkupStatus(db, subscriber, targetUser.id);
+  if (status === 'linked') {
+    return res.json({
+      message: `You and ${getUserDisplayName(targetUser)} are already Linked.`,
+      rideAlertSubscribed: true,
+      linkupStatus: 'linked',
+    });
+  }
+  if (status === 'pending_received') {
+    acceptLinkupRequest(db, subscriber, targetUser);
+    saveDb(db);
+    return res.json({
+      message: `You and ${getUserDisplayName(targetUser)} are now Linked.`,
+      rideAlertSubscribed: true,
+      linkupStatus: 'linked',
+    });
+  }
+  targetUser.linkupRequests = normalizeLinkupRequests(targetUser.linkupRequests);
+  if (!targetUser.linkupRequests.some((request) => request.fromUserId === subscriber.id)) {
+    targetUser.linkupRequests.push({ fromUserId: subscriber.id, createdAt: new Date().toISOString() });
     saveDb(db);
   }
   res.json({
-    message: `You will be notified when ${getUserDisplayName(targetUser)} posts a ride or request.`,
+    message: `LinkUp request sent to ${getUserDisplayName(targetUser)}.`,
+    rideAlertSubscribed: false,
+    linkupStatus: 'pending_sent',
+  });
+});
+
+app.post('/api/users/:userId/ride-alerts/accept', requireAuth, requireCampusNetworkAccess, (req, res) => {
+  const requesterId = String(req.params.userId || '').trim();
+  const db = loadDb();
+  const recipient = (db.users || []).find((user) => user.id === req.session.userId);
+  const requester = (db.users || []).find((user) => user.id === requesterId && !isDeletedUser(user) && !user.suspendedAt);
+  if (!recipient) return res.status(404).json({ error: 'User not found' });
+  if (!requester) return res.status(404).json({ error: 'LinkUp request not found.' });
+  if (areUsersBlocked(db, recipient.id, requester.id)) {
+    return res.status(403).json({ error: 'LinkUp requests are unavailable for blocked users.' });
+  }
+  if (!isLinkupRequestPending(recipient, requester.id) && getLinkupStatus(db, recipient, requester.id) !== 'linked') {
+    return res.status(404).json({ error: 'LinkUp request not found.' });
+  }
+  acceptLinkupRequest(db, recipient, requester);
+  saveDb(db);
+  res.json({
+    message: `You and ${getUserDisplayName(requester)} are now Linked.`,
     rideAlertSubscribed: true,
+    linkupStatus: 'linked',
   });
 });
 
@@ -9249,6 +9363,7 @@ app.get('/api/users/search', requireAuth, requireCampusNetworkAccess, (req, res)
       const createdRides = rides.filter((ride) => ride.driverId === user.id);
       const joinedRides = rides.filter((ride) => (ride.passengers || []).some((passenger) => passenger.studentId === user.id));
       const openRideRequests = rideRequests.filter((request) => request.riderId === user.id && request.status === 'open').length;
+      const linkupStatus = getLinkupStatus(db, viewer, user.id);
       return {
         id: user.id,
         name: [firstName, lastName].filter(Boolean).join(' ') || 'LinkUp member',
@@ -9259,7 +9374,9 @@ app.get('/api/users/search', requireAuth, requireCampusNetworkAccess, (req, res)
         classYear: user.classYear || '',
         major: user.major || '',
         memberNumber: getUserMemberNumber(db, user.id),
-        rideAlertSubscribed: isRideAlertSubscribed(viewer, user.id),
+        linkCount: getUserLinkCount(db, user.id),
+        rideAlertSubscribed: linkupStatus === 'linked',
+        linkupStatus,
         stats: {
           ridesOffered: createdRides.length,
           ridesJoined: joinedRides.length,
@@ -9297,6 +9414,8 @@ app.get('/api/users/:userId/profile', requireAuth, requireCampusNetworkAccess, (
   const maskedNameParts = getMaskedUserNameParts(user);
   const firstName = user.firstName || maskedNameParts.firstName;
   const lastName = canSeeFullName ? (user.lastName || '') : maskedNameParts.lastName;
+  const viewer = (db.users || []).find((entry) => entry.id === req.session.userId);
+  const linkupStatus = getLinkupStatus(db, viewer, user.id);
 
   res.json({
     id: user.id,
@@ -9306,16 +9425,17 @@ app.get('/api/users/:userId/profile', requireAuth, requireCampusNetworkAccess, (
     profilePictureDataUrl: user.profilePictureDataUrl || '',
     classYear: user.classYear || '',
     major: user.major || '',
-    socialLinks: user.socialLinks || {},
     fullNameVisible: canSeeFullName,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
     memberSince: user.createdAt || null,
     memberNumber: getUserMemberNumber(db, user.id),
     adminNumber: getAdminNumber(db, user.id),
+    linkCount: getUserLinkCount(db, user.id),
     serviceApproved: user.serviceApproved === true,
     isCurrentUser: user.id === req.session.userId,
-    rideAlertSubscribed: isRideAlertSubscribed((db.users || []).find((entry) => entry.id === req.session.userId), user.id),
+    rideAlertSubscribed: linkupStatus === 'linked',
+    linkupStatus,
     isBlockedByCurrentUser: isUserBlocked(db, req.session.userId, user.id),
     hasBlockedCurrentUser: isUserBlocked(db, user.id, req.session.userId),
     stats: {

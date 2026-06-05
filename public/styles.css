@@ -543,15 +543,21 @@ html[data-theme="light"] .notifications-popover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.1rem;
-  height: 1.1rem;
-  margin-left: 0.35rem;
-  padding: 0 0.3rem;
+  position: absolute;
+  top: 0.18rem;
+  right: 0.18rem;
+  min-width: 0.92rem;
+  height: 0.92rem;
+  padding: 0 0.22rem;
+  border: 2px solid var(--bg);
   border-radius: 999px;
-  background: var(--accent);
-  color: #062023;
-  font-size: 0.65rem;
+  background: #e5484d;
+  color: #fff;
+  font-size: 0.56rem;
   font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(229,72,77,0.18), 0 4px 10px rgba(229,72,77,0.22);
+  pointer-events: none;
 }
 
 .notifications-count.hidden {
@@ -611,7 +617,10 @@ html[data-theme="light"] .notifications-popover {
 }
 
 .notification-item {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: center;
   padding: 0.85rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -657,6 +666,22 @@ html[data-theme="light"] .notifications-popover {
   margin-top: 0.35rem;
   color: var(--text-muted);
   font-size: 0.72rem;
+}
+
+.notification-action {
+  width: auto;
+  min-height: 38px;
+  margin: 0;
+  padding: 0.58rem 0.9rem;
+  border-color: rgba(62,207,207,0.35);
+  background: rgba(62,207,207,0.1);
+  color: var(--accent);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.notification-action::before {
+  display: none;
 }
 
 body.dashboard-mode .site-logo:hover { opacity: 0.72; }
@@ -1233,6 +1258,11 @@ button:disabled::before { display: none; }
 #chat-button,
 #notifications-button {
   padding: 0.55rem;
+}
+
+#notifications-button {
+  position: relative;
+  overflow: visible;
 }
 
 #profile-button {
@@ -6114,10 +6144,24 @@ article.card h3 {
 .public-profile-link-count {
   display: inline-flex;
   align-items: center;
+  gap: 0.3rem;
   min-height: 36px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-weight: 750;
   white-space: nowrap;
+}
+
+.public-profile-link-count strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.public-profile-link-status {
+  flex-basis: 100%;
+  min-height: 0;
+  color: var(--text-muted);
+  line-height: 1.35;
 }
 
 .public-profile-groups,
@@ -8272,6 +8316,14 @@ article.card h3 {
     right: auto;
     width: calc(100vw - 1.5rem);
     transform: translateX(-50%);
+  }
+
+  .notification-item {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-action {
+    width: 100%;
   }
 
   .user-search-form {

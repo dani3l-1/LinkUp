@@ -7,11 +7,17 @@
 ### New
 - **Notification dropdown.** A new Notifications button in the dashboard header shows ride updates and LinkUp alerts in a compact dropdown list, sorted newest to oldest, without taking users to a separate page.
 - **Student search in the header.** Users can now search for other verified LinkUp students directly from the dashboard header, open public profiles from the results, and choose LinkUp to receive ride/request updates from that student.
+- **Mutual LinkUp requests.** Tapping LinkUp now sends a request instead of instantly following someone. The other student must accept before both users become Links and receive each other's ride/request alerts.
+- **Link count on public profiles.** Public profiles now show how many accepted Links a student has, displayed next to the LinkUp / Requested / Linked button.
 - **Friendlier invite links.** Profile invite links now use readable names and member numbers when available, while still supporting older invite codes.
 
 ### Improvements
+- **Unread notification badge.** The notification count now sits directly on the bell icon as a red unread badge, showing `9+` when there are more than nine unread updates.
 - **Header actions feel more polished.** Chat, Notifications, Cart, Profile, and Sign Out now use compact icons with consistent spacing so the dashboard header scans faster.
 - **Login layout is better centered.** The auth screen spacing was nudged down slightly so the logo and sign-in panel feel more balanced in the first viewport.
+
+### Fixed
+- **Social features remain hidden from production.** User social links are no longer exposed in production profile API responses, keeping unreleased social features out of the live product.
 
 ---
 
