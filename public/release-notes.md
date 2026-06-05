@@ -6,18 +6,12 @@
 
 ### New
 - **Notification dropdown.** A new Notifications button in the dashboard header shows ride updates and LinkUp alerts in a compact dropdown list, sorted newest to oldest, without taking users to a separate page.
-- **Student search in the header.** Users can now search for other verified LinkUp students directly from the dashboard header, open public profiles from the results, and choose LinkUp to receive ride/request updates from that student.
-- **Mutual LinkUp requests.** Tapping LinkUp now sends a request instead of instantly following someone. The other student must accept before both users become Links and receive each other's ride/request alerts.
-- **Link count on public profiles.** Public profiles now show how many accepted Links a student has, displayed next to the LinkUp / Requested / Linked button.
 - **Friendlier invite links.** Profile invite links now use readable names and member numbers when available, while still supporting older invite codes.
 
 ### Improvements
 - **Unread notification badge.** The notification count now sits directly on the bell icon as a red unread badge, showing `9+` when there are more than nine unread updates.
 - **Header actions feel more polished.** Chat, Notifications, Cart, Profile, and Sign Out now use compact icons with consistent spacing so the dashboard header scans faster.
 - **Login layout is better centered.** The auth screen spacing was nudged down slightly so the logo and sign-in panel feel more balanced in the first viewport.
-
-### Fixed
-- **Social features remain hidden from production.** User social links are no longer exposed in production profile API responses, keeping unreleased social features out of the live product.
 
 ---
 
@@ -114,10 +108,9 @@
 
 ### New
 - **Drop-off privacy.** When you post a ride request, your exact drop-off address is hidden from public view by default. Drivers browsing requests see only a general neighborhood area — your precise location is revealed only after a driver makes you an offer. You can turn this off in the request form if you prefer your destination to be shown exactly.
-- **Social profile links.** You can now add optional Instagram, LinkedIn, and X links to your profile so verified students can link up beyond a ride when you choose to share them.
 
 ### Improvements
-- **Redesigned Personal Info layout.** Profile fields are now organized into labeled sections — Name, Academic, Social, and Account — so it's easier to find and edit what you need.
+- **Redesigned Personal Info layout.** Profile fields are now organized into labeled sections — Name, Academic, and Account — so it's easier to find and edit what you need.
 - **Cleaner profile identity tag.** The name, university, and member details in the profile header are now better spaced and typographically distinct, with university displayed as a credential label above your academic info.
 - **Notes fields are now multi-line.** Both the ride offer and ride request forms now use a proper text box for notes, so you can write more without losing track of what you typed.
 - **Moving service cards show "Mover" instead of "Driver".** Listings posted as a moving service now correctly label the provider as "Mover" to match the context.
@@ -163,7 +156,7 @@
 - **Auto theme.** Automatically switches between light and dark mode based on the time of day.
 
 ### Improvements
-- **Redesigned Personal Info page.** Profile photo editing now works like Instagram — hover to see the edit overlay, then click to upload or remove.
+- **Redesigned Personal Info page.** Profile photo editing now uses a familiar hover-to-edit overlay, then click to upload or remove.
 - **Sharper light mode.** Text throughout the app is noticeably darker and easier to read in light mode, meeting accessibility contrast standards.
 
 ### Security
@@ -176,7 +169,7 @@
 ## v2026.05.17 BETA
 
 ### Improvements
-- **Better search previews.** LinkUp now appears with a cleaner logo and description in Google and social media link previews.
+- **Better search previews.** LinkUp now appears with a cleaner logo and description in Google and external link previews.
 - **Light and dark mode.** Profile now has an Appearance section where users can switch LinkUp between dark mode and light mode.
 - **Security hardening.** API writes now reject untrusted origins, sensitive API responses avoid browser/CDN storage, and profile photo uploads verify real image data.
 - **Safer Stripe payout onboarding.** Stripe onboarding now starts from a protected action and opens in a separate tab instead of using a state-changing link.
