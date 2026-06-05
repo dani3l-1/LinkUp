@@ -280,6 +280,11 @@
                     <button type="button" class="waitlist-intent-btn" data-waitlist-intent="driver" aria-pressed="false">Drive</button>
                     <button type="button" class="waitlist-intent-btn" data-waitlist-intent="unsure" aria-pressed="false">Not sure</button>
                   </div>
+                  <div class="waitlist-role-legend" aria-label="Leaderboard line color legend">
+                    <span><i class="waitlist-role-dot waitlist-role-dot-rider"></i>Riders</span>
+                    <span><i class="waitlist-role-dot waitlist-role-dot-driver"></i>Drivers</span>
+                    <span><i class="waitlist-role-dot waitlist-role-dot-unsure"></i>Unsure</span>
+                  </div>
                   <p id="waitlist-intent-message" class="waitlist-intent-message" aria-live="polite"></p>
                 </div>
                 <div class="waitlist-leaderboard-panel" aria-label="Waitlist leaderboard">
@@ -372,6 +377,7 @@
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payment" data-waitlist-hidden="true">Payment method</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="payouts" data-waitlist-hidden="true">Driver payouts</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="security">Security</button>
+                <button class="profile-sidebar-button" type="button" data-profile-tab="notifications">Notifications</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="appearance">Appearance</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="school-transfer">Transfer school</button>
                 <button class="profile-sidebar-button" type="button" data-profile-tab="policies">Policy agreement</button>
@@ -630,6 +636,34 @@
                 </div>
                 <div id="profile-security-panel" class="profile-panel hidden" data-profile-panel="security">
                   <div id="twofa-panel-content"></div>
+                </div>
+                <div id="profile-notifications-panel" class="profile-panel hidden" data-profile-panel="notifications">
+                  <form id="notification-preferences-form" class="profile-form notification-settings-card">
+                    <div class="notification-settings-header">
+                      <span class="profile-section-label">Notifications</span>
+                      <h4>Email preferences</h4>
+                      <p>Choose which LinkUp updates should be sent to your email. Ride coordination, safety, and account notifications still appear inside LinkUp.</p>
+                    </div>
+                    <div class="notification-preference-list">
+                      <label class="notification-preference-row">
+                        <input type="checkbox" id="weekly-recap-email" />
+                        <span>
+                          <strong>Weekly recap email</strong>
+                          <small>A weekly summary of your rides, LinkUps, and account activity.</small>
+                        </span>
+                      </label>
+                      <label class="notification-preference-row">
+                        <input type="checkbox" id="ride-alert-email" />
+                        <span>
+                          <strong>Ride and request alert emails</strong>
+                          <small>Email me when accepted LinkUps post a ride or request a ride.</small>
+                        </span>
+                      </label>
+                    </div>
+                    <button type="submit" id="notification-preferences-submit">Save notifications</button>
+                    <div id="notification-preferences-message" class="success-message"></div>
+                    <div id="notification-preferences-error" class="error-message"></div>
+                  </form>
                 </div>
                 <div id="profile-policies-panel" class="profile-panel hidden" data-profile-panel="policies">
                   <form id="policy-consent-form" class="profile-form payout-guide">

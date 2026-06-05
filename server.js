@@ -73,6 +73,8 @@ const ADMIN_EMAILS = new Set(String(process.env.ADMIN_EMAILS || '')
   .filter(Boolean));
 const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
 const WAITLIST_MODE = process.env.WAITLIST_MODE === 'true';
+const WEEKLY_RECAP_EMAILS_ENABLED = process.env.WEEKLY_RECAP_EMAILS_ENABLED !== 'false';
+const WEEKLY_RECAP_CHECK_INTERVAL_MS = 60 * 1000;
 // Email verification can be bypassed in local test mode via .env.local.
 const BYPASS_EMAIL_VERIFICATION = NODE_ENV !== 'production' && process.env.BYPASS_EMAIL_VERIFICATION === 'true';
 const LOCAL_TEST_BYPASS_WAITLIST = NODE_ENV !== 'production' && process.env.LOCAL_TEST_BYPASS_WAITLIST === 'true';
@@ -3481,6 +3483,7 @@ function normalizeDbShape(db) {
     ...user,
     pushSubscriptions: normalizePushSubscriptions(user.pushSubscriptions),
     friendInvites: normalizeFriendInvites(user.friendInvites),
+    linkupAcceptedAt: asPlainObject(user.linkupAcceptedAt),
     strikes: asArray(user.strikes).filter(isPlainObject),
     apiTokens: asArray(user.apiTokens).filter(isPlainObject),
   }));
@@ -3689,6 +3692,13 @@ function normalizeGender(gender) {
 function normalizeThemePreference(themePreference) {
   const value = String(themePreference || '').trim().toLowerCase();
   return ['dark', 'light', 'auto'].includes(value) ? value : 'dark';
+}
+
+function normalizeNotificationPreferences(value = {}) {
+  return {
+    weeklyRecapEmail: value.weeklyRecapEmail !== false,
+    rideAlertEmail: value.rideAlertEmail !== false,
+  };
 }
 
 function canMatchSameGender(riderGender, driverGender) {
@@ -4265,12 +4275,17 @@ function getLinkupStatus(db, viewer, targetUserId) {
 }
 
 function acceptLinkupRequest(db, recipient, requester) {
+  const acceptedAt = new Date().toISOString();
   recipient.linkupRequests = normalizeLinkupRequests(recipient.linkupRequests)
     .filter((request) => request.fromUserId !== requester.id);
   recipient.rideAlertUserIds = normalizeRideAlertUserIds(recipient.rideAlertUserIds);
   requester.rideAlertUserIds = normalizeRideAlertUserIds(requester.rideAlertUserIds);
+  recipient.linkupAcceptedAt = asPlainObject(recipient.linkupAcceptedAt);
+  requester.linkupAcceptedAt = asPlainObject(requester.linkupAcceptedAt);
   if (!recipient.rideAlertUserIds.includes(requester.id)) recipient.rideAlertUserIds.push(requester.id);
   if (!requester.rideAlertUserIds.includes(recipient.id)) requester.rideAlertUserIds.push(recipient.id);
+  recipient.linkupAcceptedAt[requester.id] = recipient.linkupAcceptedAt[requester.id] || acceptedAt;
+  requester.linkupAcceptedAt[recipient.id] = requester.linkupAcceptedAt[recipient.id] || acceptedAt;
 }
 
 function notifyRideAlertSubscribers(db, actor, item, itemType = 'ride') {
@@ -4300,6 +4315,7 @@ function notifyRideAlertSubscribers(db, actor, item, itemType = 'ride') {
         requestId: isRequest ? (item?.id || '') : '',
       },
     });
+    if (!normalizeNotificationPreferences(subscriber.notificationPreferences).rideAlertEmail) return;
     const textBody = `Hi ${subscriber.firstName || 'there'},\n\n${title}${route ? `:\n${route}` : ''}${when ? `\nTime: ${when}` : ''}\n\nOpen LinkUp to view it:\n${APP_BASE_URL}\n\nYou are receiving this because you tapped LinkUp on ${actorName}'s profile.\n\n- LinkUp`;
     const htmlBody = renderLinkUpEmail({
       eyebrow: 'Ride alert',
@@ -4394,6 +4410,155 @@ function renderLinkUpEmail({ eyebrow = '', title = '', intro = '', bodyHtml = ''
       </body>
     </html>
   `;
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatRecapWeekRange(start, end) {
+  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+  const endInclusive = new Date(end.getTime() - 1);
+  return `${formatter.format(start)}-${formatter.format(endInclusive)}`;
+}
+
+function getPreviousWeeklyRecapRange(now = new Date()) {
+  const end = new Date(now);
+  end.setHours(0, 0, 0, 0);
+  const daysSinceSunday = end.getDay();
+  end.setDate(end.getDate() - daysSinceSunday);
+  const start = new Date(end);
+  start.setDate(start.getDate() - 7);
+  return { start, end, key: getLocalDateKey(end) };
+}
+
+function getTripStartMs(trip) {
+  if (trip?.date) {
+    const datePart = String(trip.date || '').trim();
+    const timePart = String(trip.time || '00:00').trim() || '00:00';
+    const parsed = new Date(`${datePart}T${timePart}`);
+    if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
+  }
+  const fallback = new Date(trip?.createdAt || 0).getTime();
+  return Number.isFinite(fallback) ? fallback : 0;
+}
+
+function countRidesTakenForRange(db, userId, start, end) {
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  return (db.rides || [])
+    .filter((ride) => (ride.passengers || []).some((passenger) => passenger.studentId === userId))
+    .filter((ride) => {
+      const rideMs = getTripStartMs(ride);
+      return rideMs >= startMs && rideMs < endMs;
+    })
+    .length;
+}
+
+function countNewLinkupsForRange(user, start, end) {
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  return Object.values(asPlainObject(user.linkupAcceptedAt))
+    .map((acceptedAt) => new Date(acceptedAt || 0).getTime())
+    .filter((acceptedAtMs) => Number.isFinite(acceptedAtMs) && acceptedAtMs >= startMs && acceptedAtMs < endMs)
+    .length;
+}
+
+function buildWeeklyRecap(db, user, range) {
+  return {
+    weekLabel: formatRecapWeekRange(range.start, range.end),
+    ridesTaken: countRidesTakenForRange(db, user.id, range.start, range.end),
+    newLinkups: countNewLinkupsForRange(user, range.start, range.end),
+  };
+}
+
+function renderWeeklyRecapEmail(user, recap) {
+  const firstName = escapeHtml(user.firstName || 'there');
+  const statCell = (label, value, sublabel) => `
+    <td width="50%" valign="top" style="padding:0 6px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f0fbfb;border:1px solid #cdeff0;border-radius:18px;">
+        <tr>
+          <td style="padding:24px 16px 22px;text-align:center;">
+            <p style="margin:0 0 10px;color:#0c747a;font-size:12px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;">${escapeHtml(label)}</p>
+            <p style="margin:0;color:#102326;font-size:38px;line-height:1;font-weight:900;">${escapeHtml(String(value))}</p>
+            <p style="margin:10px 0 0;color:#7a9ea3;font-size:12px;font-weight:900;letter-spacing:0.12em;text-transform:uppercase;">${escapeHtml(sublabel)}</p>
+          </td>
+        </tr>
+      </table>
+    </td>`;
+  const bodyHtml = `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        ${statCell('Rides taken', recap.ridesTaken, 'Completed this week')}
+        ${statCell('New LinkUps', recap.newLinkups, 'Accepted this week')}
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:30px;background:#f5fcfc;border:1px solid #dff2f2;border-radius:16px;">
+      <tr>
+        <td style="padding:18px 20px;">
+          <p style="margin:0;color:#315458;font-size:15px;line-height:1.65;">Your recap only includes activity from ${escapeHtml(recap.weekLabel)}. Keep your profile updated so students know who they are riding with before pickup.</p>
+        </td>
+      </tr>
+    </table>`;
+  return renderLinkUpEmail({
+    eyebrow: 'Weekly recap',
+    title: 'Your week on LinkUp',
+    intro: `Hi ${firstName}, here is your quick LinkUp recap for the week.`,
+    bodyHtml,
+    cta: { href: APP_BASE_URL, label: 'Open LinkUp' },
+    footer: 'You are receiving this because weekly recap emails are enabled in your LinkUp notification settings.',
+  });
+}
+
+function sendWeeklyRecapEmail(db, user, range) {
+  const preferences = normalizeNotificationPreferences(user.notificationPreferences);
+  if (!preferences.weeklyRecapEmail || !user.email || isDeletedUser(user) || user.suspendedAt) return false;
+  const recap = buildWeeklyRecap(db, user, range);
+  const subject = 'Your LinkUp week';
+  const textBody = [
+    `Hi ${user.firstName || 'there'},`,
+    '',
+    `Here is your LinkUp recap for ${recap.weekLabel}.`,
+    '',
+    `Rides taken: ${recap.ridesTaken}`,
+    `New LinkUps: ${recap.newLinkups}`,
+    '',
+    `Open LinkUp: ${APP_BASE_URL}`,
+    '',
+    'You are receiving this because weekly recap emails are enabled in your LinkUp notification settings.',
+  ].join('\n');
+  sendAuthEmail(user.email, subject, textBody, renderWeeklyRecapEmail(user, recap));
+  return true;
+}
+
+function sendWeeklyRecapsIfDue(now = new Date()) {
+  if (!WEEKLY_RECAP_EMAILS_ENABLED || now.getDay() !== 0) return;
+  const range = getPreviousWeeklyRecapRange(now);
+  const db = normalizeUserAccess(loadDb());
+  db.meta = asPlainObject(db.meta);
+  if (db.meta.weeklyRecapLastSentKey === range.key) return;
+  const users = activeUsers(db).filter((user) => normalizeNotificationPreferences(user.notificationPreferences).weeklyRecapEmail);
+  let sentCount = 0;
+  users.forEach((user) => {
+    if (sendWeeklyRecapEmail(db, user, range)) sentCount += 1;
+  });
+  db.meta.weeklyRecapLastSentKey = range.key;
+  db.meta.weeklyRecapLastSentAt = now.toISOString();
+  db.meta.weeklyRecapLastSentCount = sentCount;
+  saveDb(db);
+  console.log(`Weekly recap emails processed for ${range.key}: ${sentCount}`);
+}
+
+function startWeeklyRecapScheduler() {
+  if (!WEEKLY_RECAP_EMAILS_ENABLED) {
+    console.log('Weekly recap emails disabled.');
+    return;
+  }
+  sendWeeklyRecapsIfDue(new Date());
+  setInterval(() => sendWeeklyRecapsIfDue(new Date()), WEEKLY_RECAP_CHECK_INTERVAL_MS).unref();
 }
 
 function sendVerificationCode(user, code) {
@@ -5073,6 +5238,7 @@ function publicUser(user, db = null) {
     classYear: user.classYear || '',
     major: user.major || '',
     themePreference: normalizeThemePreference(user.themePreference),
+    notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences),
     email: user.email,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
@@ -6932,6 +7098,22 @@ app.put('/api/profile/preferences', requireAuth, (req, res) => {
   res.json(publicUser(user, db));
 });
 
+app.put('/api/profile/notifications', requireAuth, (req, res) => {
+  const db = normalizeUserAccess(loadDb());
+  const user = db.users.find((u) => u.id === req.session.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  user.notificationPreferences = normalizeNotificationPreferences(req.body.notificationPreferences || {});
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json({
+    message: 'Notification preferences saved.',
+    notificationPreferences: user.notificationPreferences,
+  });
+});
+
 app.put('/api/profile/waitlist-intent', requireAuth, sensitiveWriteRateLimit, (req, res) => {
   const waitlistIntent = normalizeWaitlistIntent(req.body.waitlistIntent);
   if (!waitlistIntent) {
@@ -7484,6 +7666,9 @@ app.get('/api/leaderboard/waitlist-schools', requireAuth, (req, res) => {
         state: knownDomain ? (schoolInfo?.state || '') : '',
         location: knownDomain ? [schoolInfo.city, schoolInfo.state].filter(Boolean).join(', ') : '',
         userCount: 0,
+        riderCount: 0,
+        driverCount: 0,
+        unsureCount: 0,
         serviceApproved: false,
         needsReview: !knownDomain,
       });
@@ -7491,6 +7676,10 @@ app.get('/api/leaderboard/waitlist-schools', requireAuth, (req, res) => {
 
     const entry = schoolCounts.get(key);
     entry.userCount += 1;
+    const waitlistIntent = normalizeWaitlistIntent(user.waitlistIntent) || 'unsure';
+    if (waitlistIntent === 'driver') entry.driverCount += 1;
+    else if (waitlistIntent === 'rider') entry.riderCount += 1;
+    else entry.unsureCount += 1;
     entry.needsReview = entry.needsReview || !knownDomain;
     if (!knownDomain && domain) {
       needsReviewSchools.set(domain, {
@@ -10074,6 +10263,7 @@ migrateDbOnStartup().then(() => {
   const listenArgs = HOST ? [PORT, HOST] : [PORT];
   server = httpServer.listen(...listenArgs, () => {
     console.log(`LinkUp server listening on http://${HOST || 'localhost'}:${PORT}`);
+    startWeeklyRecapScheduler();
   });
   server.on('error', (err) => {
     console.error('Server startup error:', err);

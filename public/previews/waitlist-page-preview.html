@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LinkUp Waitlist Page Preview</title>
+    <link rel="stylesheet" href="../styles.css?v=waitlist-page-preview" />
+    <style>
+      body {
+        min-height: 100vh;
+        padding: 32px 18px;
+      }
+
+      .preview-wrap {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body class="dashboard-mode">
+    <main class="preview-wrap">
+      <section id="waitlist-page" class="card" aria-label="Waitlist page preview">
+        <div class="waitlist-inner">
+          <div class="waitlist-hero">
+            <img class="waitlist-logo" src="../assets/images/LinkUp-wordmark.png" alt="LinkUp" />
+            <span class="waitlist-status-pill">Access pending</span>
+            <h2 class="waitlist-member-number">Member #128</h2>
+            <p class="waitlist-about-msg">LinkUp helps verified college students find, reserve, and share rides with people in their university network.</p>
+            <p class="waitlist-notify-msg">We saved your account. We will notify you when your access is approved and you can ride with LinkUp.</p>
+          </div>
+
+          <div class="waitlist-action-grid">
+            <div class="waitlist-intent-panel" aria-label="Waitlist ride preference preview">
+              <p class="waitlist-intent-title">What are you more likely to do most often?</p>
+              <div class="waitlist-intent-actions">
+                <button type="button" class="waitlist-intent-btn active" aria-pressed="true">Ride</button>
+                <button type="button" class="waitlist-intent-btn" aria-pressed="false">Drive</button>
+                <button type="button" class="waitlist-intent-btn" aria-pressed="false">Not sure</button>
+              </div>
+              <div class="waitlist-role-legend" aria-label="Leaderboard line color legend">
+                <span><i class="waitlist-role-dot waitlist-role-dot-rider"></i>Riders</span>
+                <span><i class="waitlist-role-dot waitlist-role-dot-driver"></i>Drivers</span>
+                <span><i class="waitlist-role-dot waitlist-role-dot-unsure"></i>Unsure</span>
+              </div>
+              <p class="waitlist-intent-message">Preference saved.</p>
+            </div>
+
+            <div class="waitlist-leaderboard-panel" aria-label="Waitlist leaderboard preview">
+              <div class="waitlist-leaderboard-header">
+                <span>Waitlist leaderboard</span>
+                <strong>128 students</strong>
+              </div>
+              <p class="waitlist-leaderboard-summary">128 waitlisted students across 4 schools.</p>
+              <div class="leaderboard-chart waitlist-leaderboard-chart">
+                <div class="leaderboard-row current-school">
+                  <div class="leaderboard-rank">1</div>
+                  <div class="leaderboard-school">
+                    <div class="leaderboard-school-header">
+                      <span>University of California, Irvine</span>
+                      <strong>54 students</strong>
+                    </div>
+                    <div class="leaderboard-bar-track">
+                      <div class="leaderboard-bar leaderboard-bar-segmented" style="width:100%">
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-rider" style="width:58%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-driver" style="width:28%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-unsure" style="width:14%"></span>
+                      </div>
+                    </div>
+                    <div class="leaderboard-meta">Irvine, CA - uci.edu - Waitlist - Your school</div>
+                  </div>
+                </div>
+
+                <div class="leaderboard-row">
+                  <div class="leaderboard-rank">2</div>
+                  <div class="leaderboard-school">
+                    <div class="leaderboard-school-header">
+                      <span>Chapman University</span>
+                      <strong>33 students</strong>
+                    </div>
+                    <div class="leaderboard-bar-track">
+                      <div class="leaderboard-bar leaderboard-bar-segmented" style="width:61%">
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-rider" style="width:72%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-driver" style="width:16%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-unsure" style="width:12%"></span>
+                      </div>
+                    </div>
+                    <div class="leaderboard-meta">Orange, CA - chapman.edu - Waitlist</div>
+                  </div>
+                </div>
+
+                <div class="leaderboard-row">
+                  <div class="leaderboard-rank">3</div>
+                  <div class="leaderboard-school">
+                    <div class="leaderboard-school-header">
+                      <span>California State University, Fullerton</span>
+                      <strong>25 students</strong>
+                    </div>
+                    <div class="leaderboard-bar-track">
+                      <div class="leaderboard-bar leaderboard-bar-segmented" style="width:46%">
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-rider" style="width:44%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-driver" style="width:40%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-unsure" style="width:16%"></span>
+                      </div>
+                    </div>
+                    <div class="leaderboard-meta">Fullerton, CA - fullerton.edu - Waitlist</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="waitlist-profile-btn">Edit profile</button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

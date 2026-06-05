@@ -174,6 +174,12 @@ const deleteAccountForm = document.getElementById('delete-account-form');
 const deleteAccountSubmit = document.getElementById('delete-account-submit');
 const deleteAccountMessage = document.getElementById('delete-account-message');
 const deleteAccountError = document.getElementById('delete-account-error');
+const notificationPreferencesForm = document.getElementById('notification-preferences-form');
+const weeklyRecapEmailInput = document.getElementById('weekly-recap-email');
+const rideAlertEmailInput = document.getElementById('ride-alert-email');
+const notificationPreferencesSubmit = document.getElementById('notification-preferences-submit');
+const notificationPreferencesMessage = document.getElementById('notification-preferences-message');
+const notificationPreferencesError = document.getElementById('notification-preferences-error');
 const profileSidebarButtons = document.querySelectorAll('.profile-sidebar-button');
 const profilePanels = document.querySelectorAll('[data-profile-panel]');
 const profilePictureInput = document.getElementById('profile-picture-input');
@@ -2121,6 +2127,31 @@ function clearFriendInviteMessages() {
   }
 }
 
+function getNotificationPreferences(user = {}) {
+  const preferences = user.notificationPreferences || {};
+  return {
+    weeklyRecapEmail: preferences.weeklyRecapEmail !== false,
+    rideAlertEmail: preferences.rideAlertEmail !== false,
+  };
+}
+
+function clearNotificationPreferenceMessages() {
+  if (notificationPreferencesMessage) {
+    notificationPreferencesMessage.textContent = '';
+    notificationPreferencesMessage.classList.remove('show');
+  }
+  if (notificationPreferencesError) {
+    notificationPreferencesError.textContent = '';
+    notificationPreferencesError.classList.remove('show');
+  }
+}
+
+function fillNotificationPreferencesForm(user = {}) {
+  const preferences = getNotificationPreferences(user);
+  if (weeklyRecapEmailInput) weeklyRecapEmailInput.checked = preferences.weeklyRecapEmail;
+  if (rideAlertEmailInput) rideAlertEmailInput.checked = preferences.rideAlertEmail;
+}
+
 function fillProfileForm(user) {
   const birthdayInput = document.getElementById('profile-birthday');
   const genderInput = document.getElementById('profile-gender');
@@ -2162,6 +2193,7 @@ function fillProfileForm(user) {
   if (friendInviteLink) {
     friendInviteLink.value = user.friendInviteUrl || '';
   }
+  fillNotificationPreferencesForm(user);
   refreshRideAudienceControls();
 }
 
@@ -2346,6 +2378,7 @@ function showProfileTab(tabName) {
   if (!profilePage.classList.contains('hidden')) setAppRoute(profileRouteForTab(tabName));
   profileSidebarButtons.forEach((button) => button.classList.toggle('active', button.dataset.profileTab === tabName));
   profilePanels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.profilePanel !== tabName));
+  if (tabName === 'notifications') fillNotificationPreferencesForm(currentUser || {});
   if (tabName === 'payment') fillDefaultPaymentForm(currentUser || {});
   if (tabName === 'payouts') fillDriverPayoutForm(currentUser || {});
   if (tabName === 'policies') fillPolicyConsentForm(currentUser || {});
@@ -2792,6 +2825,18 @@ function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter, 
     bar.className = 'leaderboard-bar';
     bar.style.width = Math.max(8, Math.round((value / maxValue) * 100)) + '%';
 
+    const segments = typeof options.segments === 'function' ? options.segments(item) : null;
+    if (segments && segments.length) {
+      bar.classList.add('leaderboard-bar-segmented');
+      bar.innerHTML = '';
+      segments.forEach((segment) => {
+        const segmentEl = document.createElement('span');
+        segmentEl.className = 'leaderboard-bar-segment leaderboard-bar-segment-' + segment.type;
+        segmentEl.style.width = Math.max(0, Math.min(100, Number(segment.percent) || 0)) + '%';
+        bar.appendChild(segmentEl);
+      });
+    }
+
     track.appendChild(bar);
 
     const meta = document.createElement('div');
@@ -2804,6 +2849,19 @@ function renderLeaderboardRows(items, chartElement, valueLabel, valueFormatter, 
     row.append(rank, content);
     chartElement.appendChild(row);
   });
+}
+
+function getWaitlistIntentSegments(school) {
+  const total = Number(school.userCount) || 0;
+  if (!total) return [];
+  const counts = {
+    rider: Number(school.riderCount) || 0,
+    driver: Number(school.driverCount) || 0,
+    unsure: Number(school.unsureCount) || 0,
+  };
+  return ['rider', 'driver', 'unsure']
+    .map((type) => ({ type, percent: (counts[type] / total) * 100 }))
+    .filter((segment) => segment.percent > 0);
 }
 
 function renderSchoolLeaderboard(data) {
@@ -2844,6 +2902,7 @@ function renderWaitlistLeaderboard(data) {
   renderLeaderboardRows(schools, waitlistLeaderboardChart, 'userCount', (school) => school.userCount + ' student' + (school.userCount === 1 ? '' : 's'), {
     rowClassName: (school) => String(school.domain || '').toLowerCase() === currentSchoolDomain ? 'current-school' : '',
     extraMeta: (school) => String(school.domain || '').toLowerCase() === currentSchoolDomain ? 'Your school' : '',
+    segments: getWaitlistIntentSegments,
   });
 
   if (waitlistLeaderboardReview) {
@@ -3710,6 +3769,7 @@ function showProfilePage(tabName = 'info') {
   setAppRoute(profileRouteForTab(tabName));
   clearCartMessages();
   clearProfileMessages();
+  clearNotificationPreferenceMessages();
   clearPolicyMessages();
   hideDashboardPages();
   fillProfileForm(currentUser || {});
@@ -5166,6 +5226,7 @@ function restoreAppRoute() {
     else if (route === 'profile-school-transfer') showProfilePage('school-transfer');
     else if (route === 'profile-payouts') showProfilePage('payouts');
     else if (route === 'profile-security') showProfilePage('security');
+    else if (route === 'profile-notifications') showProfilePage('notifications');
     else if (route === 'profile-policies') showProfilePage('policies');
     else if (route === 'profile-appearance') showProfilePage('appearance');
     else if (route === 'profile-release-notes') showProfilePage('release-notes');
@@ -10314,6 +10375,32 @@ profileForm.addEventListener('submit', async (event) => {
   } catch (err) {
     profileError.textContent = err.message;
     profileError.classList.add('show');
+  }
+});
+
+notificationPreferencesForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearNotificationPreferenceMessages();
+  const notificationPreferences = {
+    weeklyRecapEmail: Boolean(weeklyRecapEmailInput?.checked),
+    rideAlertEmail: Boolean(rideAlertEmailInput?.checked),
+  };
+  setButtonLoading(notificationPreferencesSubmit, true);
+  try {
+    const data = await fetchJson('/api/profile/notifications', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificationPreferences }),
+    });
+    currentUser = { ...(currentUser || {}), notificationPreferences: data.notificationPreferences };
+    fillNotificationPreferencesForm(currentUser);
+    notificationPreferencesMessage.textContent = data.message || 'Notification preferences saved.';
+    notificationPreferencesMessage.classList.add('show');
+  } catch (err) {
+    notificationPreferencesError.textContent = err.message || 'Unable to save notification preferences.';
+    notificationPreferencesError.classList.add('show');
+  } finally {
+    setButtonLoading(notificationPreferencesSubmit, false);
   }
 });
 

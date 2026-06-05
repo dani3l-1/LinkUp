@@ -3984,6 +3984,73 @@ button:disabled::before { display: none; }
   margin-top: 0.75rem;
 }
 
+.notification-settings-card {
+  padding: 1.25rem;
+  border: 1px solid rgba(62,207,207,0.14);
+  border-radius: var(--radius-md);
+  background: rgba(62,207,207,0.04);
+}
+
+.notification-settings-header {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.notification-settings-header h4 {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+}
+
+.notification-settings-header p {
+  margin: 0;
+  max-width: 48rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.notification-preference-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.1rem;
+}
+
+.notification-preference-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 76px;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(62,207,207,0.16);
+  border-radius: var(--radius-md);
+  background: rgba(3,15,16,0.24);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.notification-preference-row input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.notification-preference-row span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.notification-preference-row strong {
+  color: var(--text-primary);
+  font-size: 0.98rem;
+}
+
+.notification-preference-row small {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 /* ─── Leaderboard ───────────────────────────────────────────── */
 .leaderboard-summary {
   margin: 0.6rem 0 1.1rem;
@@ -4128,6 +4195,28 @@ html[data-theme="light"] .leaderboard-bar-track {
   background: linear-gradient(90deg, var(--accent), var(--blue));
   box-shadow: 0 0 10px rgba(62,207,207,0.5);
   transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.leaderboard-bar-segmented {
+  display: flex;
+  overflow: hidden;
+  background: transparent;
+}
+
+.leaderboard-bar-segment {
+  height: 100%;
+}
+
+.leaderboard-bar-segment-rider {
+  background: #3ecfcf;
+}
+
+.leaderboard-bar-segment-driver {
+  background: #f2c94c;
+}
+
+.leaderboard-bar-segment-unsure {
+  background: rgba(154,181,187,0.58);
 }
 
 .leaderboard-meta {
@@ -5671,6 +5760,46 @@ article.card h3 {
 .waitlist-intent-btn:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+.waitlist-role-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem 0.65rem;
+  margin-top: 0.72rem;
+  padding-top: 0.72rem;
+  border-top: 1px solid rgba(62,207,207,0.12);
+}
+
+.waitlist-role-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.waitlist-role-dot {
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.waitlist-role-dot-rider {
+  background: #3ecfcf;
+}
+
+.waitlist-role-dot-driver {
+  background: #f2c94c;
+}
+
+.waitlist-role-dot-unsure {
+  background: rgba(154,181,187,0.72);
 }
 
 .waitlist-intent-message {
@@ -12109,6 +12238,14 @@ html[data-theme="light"] .waitlist-intent-btn.active {
   box-shadow: inset 0 0 0 1px rgba(19,156,163,0.12);
 }
 
+html[data-theme="light"] .waitlist-role-legend {
+  border-top-color: rgba(18,91,97,0.10);
+}
+
+html[data-theme="light"] .waitlist-role-legend span {
+  color: #5b7378;
+}
+
 html[data-theme="light"] .waitlist-intent-message {
   color: #667d82;
 }
@@ -12290,6 +12427,7 @@ html[data-theme="light"] body.dashboard-mode .wallet-panel,
 html[data-theme="light"] body.dashboard-mode .about-linkup-panel,
 html[data-theme="light"] body.dashboard-mode .delete-account-card,
 html[data-theme="light"] body.dashboard-mode .community-safety-panel,
+html[data-theme="light"] body.dashboard-mode .notification-settings-card,
 html[data-theme="light"] body.dashboard-mode .theme-choice-card,
 html[data-theme="light"] body.dashboard-mode .leaderboard-saved-miles,
 html[data-theme="light"] body.dashboard-mode .policy-version-card,
@@ -12340,6 +12478,16 @@ html[data-theme="light"] body.dashboard-mode .history-card {
 html[data-theme="light"] body.dashboard-mode .payment-panel,
 html[data-theme="light"] body.dashboard-mode .checkout-panel {
   box-shadow: none;
+}
+
+html[data-theme="light"] body.dashboard-mode .notification-preference-row {
+  background: rgba(255,255,255,0.72);
+  border-color: rgba(18,91,97,0.14);
+}
+
+html[data-theme="light"] body.dashboard-mode .notification-preference-row small,
+html[data-theme="light"] body.dashboard-mode .notification-settings-header p {
+  color: #4f737b;
 }
 
 /* ── Form labels — slightly less shouty ─────────────────────── */

@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LinkUp Weekly Recap Email Preview</title>
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: 0;
+        background: #edf6f7;
+        font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+        color: #102326;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 36px 16px;
+      }
+
+      /* ── Shell ─────────────────────────────────────────────── */
+      .email {
+        width: min(620px, 100%);
+        background: #ffffff;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 24px 64px rgba(10, 50, 55, 0.13);
+      }
+
+      /* ── Header ────────────────────────────────────────────── */
+      .header {
+        padding: 46px 36px 42px;
+        text-align: center;
+        background: #073b3f;
+      }
+
+      .header-eyebrow {
+        margin: 0 0 16px;
+        color: rgba(97, 238, 238, 0.85);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.38em;
+        text-transform: uppercase;
+      }
+
+      .brand {
+        color: #ffffff;
+        font-size: 42px;
+        font-weight: 900;
+        letter-spacing: 0;
+        line-height: 1;
+      }
+
+      .brand-dot {
+        color: inherit;
+      }
+
+      .header-rule {
+        width: 40px;
+        height: 2px;
+        margin: 20px auto 0;
+        background: rgba(62, 207, 207, 0.4);
+        border: none;
+      }
+
+      /* ── Body ──────────────────────────────────────────────── */
+      .body {
+        padding: 40px 36px 36px;
+      }
+
+      .week-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 13px;
+        background: #edfbfb;
+        border: 1px solid #b8eaeb;
+        border-radius: 999px;
+        color: #0a6368;
+        font-size: 11.5px;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        color: #0b2226;
+        font-size: 30px;
+        line-height: 1.18;
+        font-weight: 900;
+        letter-spacing: -0.01em;
+      }
+
+      .intro {
+        margin: 0 0 32px;
+        color: #4e6268;
+        font-size: 16px;
+        line-height: 1.65;
+      }
+
+      /* ── Stats row ─────────────────────────────────────────── */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 36px;
+      }
+
+      .stat {
+        padding: 24px 16px 22px;
+        background: linear-gradient(180deg, #f0fbfb 0%, #ffffff 100%);
+        border: 1px solid #cdeaeb;
+        border-radius: 18px;
+        text-align: center;
+      }
+
+      .stat-icon {
+        font-size: 14px;
+        line-height: 1;
+        margin-bottom: 10px;
+        color: #0c747a;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .stat strong {
+        display: block;
+        color: #0c747a;
+        font-size: 30px;
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+
+      .stat span {
+        display: block;
+        margin-top: 8px;
+        color: #7a9ea3;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      /* ── Section ───────────────────────────────────────────── */
+      .section {
+        padding-top: 28px;
+        border-top: 1px solid #e6f4f4;
+        margin-top: 0;
+      }
+
+      .section + .section {
+        margin-top: 28px;
+      }
+
+      .section-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+        color: #0b2226;
+        font-size: 17px;
+        font-weight: 900;
+        letter-spacing: -0.01em;
+      }
+
+      .section-count {
+        padding: 3px 9px;
+        background: #edfbfb;
+        border: 1px solid #b8eaeb;
+        border-radius: 999px;
+        color: #0a6368;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      /* ── Ride card ─────────────────────────────────────────── */
+      .ride {
+        position: relative;
+        margin-top: 10px;
+        padding: 16px 18px 16px 22px;
+        background: #fafefe;
+        border: 1px solid #ddf0f0;
+        border-left: 3px solid #0c747a;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .ride.pending {
+        border-left-color: #d97706;
+        background: #fffdf8;
+        border-color: #f0e2b8;
+        border-left-color: #d97706;
+      }
+
+      .ride-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-bottom: 8px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .ride-status.completed {
+        background: #e6fafa;
+        color: #0a6368;
+      }
+
+      .ride-status.pending {
+        background: #fff4d6;
+        color: #92600a;
+      }
+
+      .ride-status-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+
+      .ride strong {
+        display: block;
+        color: #0d2224;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.35;
+        margin-bottom: 5px;
+      }
+
+      .ride-detail {
+        color: #567278;
+        font-size: 13.5px;
+        line-height: 1.5;
+      }
+
+      .ride-action {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 6px 14px;
+        background: #d97706;
+        border-radius: 999px;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 900;
+        text-decoration: none;
+        letter-spacing: 0.04em;
+      }
+
+      /* ── LinkUp chips ──────────────────────────────────────── */
+      .linkup-row {
+        margin-top: 10px;
+        padding: 16px 18px;
+        background: #fafefe;
+        border: 1px solid #ddf0f0;
+        border-radius: 12px;
+      }
+
+      .linkup-chips {
+        margin-bottom: 12px;
+      }
+
+      .profile-chip {
+        display: inline-block;
+        margin: 0 8px 8px 0;
+        padding: 7px 12px;
+        background: #edfbfb;
+        border: 1px solid #b8eaeb;
+        border-radius: 999px;
+        color: #0a6368;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .chip-avatar {
+        display: none;
+      }
+
+      .linkup-desc {
+        margin: 0;
+        color: #567278;
+        font-size: 13.5px;
+        line-height: 1.5;
+      }
+
+      /* ── Tip box ───────────────────────────────────────────── */
+      .tip {
+        margin-top: 28px;
+        padding: 18px 20px;
+        background: #f2fbfb;
+        border: 1px solid #b8eaeb;
+        border-left: 3px solid #3ecfcf;
+        border-radius: 12px;
+        color: #315458;
+        font-size: 14.5px;
+        line-height: 1.6;
+      }
+
+      .tip strong {
+        color: #0a4a50;
+        font-weight: 900;
+      }
+
+      /* ── CTA ───────────────────────────────────────────────── */
+      .cta-wrap {
+        margin-top: 32px;
+        text-align: center;
+      }
+
+      .cta-button {
+        display: inline-block;
+        padding: 15px 36px;
+        background: linear-gradient(135deg, #0c747a 0%, #0a9ea6 100%);
+        border-radius: 999px;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 900;
+        text-decoration: none;
+        letter-spacing: 0.04em;
+        box-shadow: 0 6px 20px rgba(12, 116, 122, 0.35);
+      }
+
+      /* ── Footer ────────────────────────────────────────────── */
+      .footer {
+        padding: 24px 36px;
+        background: #f5fbfb;
+        border-top: 1px solid #e0f0f0;
+        text-align: center;
+      }
+
+      .footer p {
+        margin: 0;
+        color: #8faaae;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .footer a {
+        color: #0c747a;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      /* ── Mobile ────────────────────────────────────────────── */
+      @media (max-width: 520px) {
+        .body { padding: 30px 22px 28px; }
+        .header { padding: 36px 24px 32px; }
+        .footer { padding: 22px 22px; }
+        .stats { grid-template-columns: 1fr; }
+        h1 { font-size: 26px; }
+        .brand { font-size: 36px; }
+        .section-heading { flex-direction: column; align-items: flex-start; gap: 6px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <article class="email" aria-label="Weekly recap email preview">
+
+        <header class="header">
+          <p class="header-eyebrow">Weekly Recap</p>
+          <div class="brand">LinkUp</div>
+          <hr class="header-rule" />
+        </header>
+
+        <section class="body">
+
+          <span class="week-pill">&#128197; June 1 – 7, 2026</span>
+          <h1>Your week on LinkUp</h1>
+          <p class="intro">Hi Daniel, here's your quick LinkUp recap for the week.</p>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-icon">Rides taken</div>
+              <strong>3</strong>
+              <span>Completed this week</span>
+            </div>
+            <div class="stat">
+              <div class="stat-icon">New LinkUps</div>
+              <strong>2</strong>
+              <span>Accepted this week</span>
+            </div>
+          </div>
+
+          <div class="tip">
+            Your recap includes activity from June 1-7, 2026. Keep your profile updated so students know who they're riding with before pickup.
+          </div>
+
+          <div class="cta-wrap">
+            <a class="cta-button" href="https://linkuprides.com">Open LinkUp &rarr;</a>
+          </div>
+
+        </section>
+
+        <footer class="footer">
+          <p>You're receiving this because weekly recap emails are enabled in your <a href="https://linkuprides.com">notification settings</a>.</p>
+        </footer>
+
+      </article>
+    </main>
+  </body>
+</html>
