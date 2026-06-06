@@ -94,6 +94,8 @@ const waitlistPage = document.getElementById('waitlist-page');
 const waitlistTitle = document.getElementById('waitlist-title');
 const waitlistMessage = document.getElementById('waitlist-message');
 const waitlistProfileButton = document.getElementById('waitlist-profile-button');
+const waitlistHowLinkupButton = document.getElementById('waitlist-how-linkup-button');
+const howLinkupModal = document.getElementById('how-linkup-modal');
 const waitlistIntentButtons = document.querySelectorAll('[data-waitlist-intent]');
 const waitlistIntentMessage = document.getElementById('waitlist-intent-message');
 const waitlistLeaderboardCount = document.getElementById('waitlist-leaderboard-count');
@@ -1758,6 +1760,19 @@ async function openLegalModal(type) {
 
 function closeLegalModal() {
   legalModal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+}
+
+function openHowLinkupModal() {
+  if (!howLinkupModal) return;
+  howLinkupModal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+  howLinkupModal.querySelector('.how-linkup-close')?.focus();
+}
+
+function closeHowLinkupModal() {
+  if (!howLinkupModal) return;
+  howLinkupModal.classList.add('hidden');
   document.body.classList.remove('modal-open');
 }
 
@@ -9489,6 +9504,7 @@ leaderboardBackHomeButton.addEventListener('click', () => returnToBrowseRides())
 publicProfileBackHomeButton.addEventListener('click', () => returnToBrowseRides());
 profileButton.addEventListener('click', () => showProfilePage());
 waitlistProfileButton?.addEventListener('click', () => showProfilePage('info'));
+waitlistHowLinkupButton?.addEventListener('click', () => openHowLinkupModal());
 waitlistIntentButtons.forEach((button) => {
   button.addEventListener('click', async () => {
     const waitlistIntent = button.dataset.waitlistIntent || '';
@@ -9526,8 +9542,26 @@ legalInlineLinks.forEach((link) => {
 legalModal?.addEventListener('click', (event) => {
   if (event.target.closest('[data-legal-modal-close]')) closeLegalModal();
 });
+howLinkupModal?.addEventListener('click', (event) => {
+  if (event.target.closest('[data-how-linkup-close]')) closeHowLinkupModal();
+  const navBtn = event.target.closest('[data-guide]');
+  if (navBtn) showGuideSection(Number(navBtn.dataset.guide));
+  const nextBtn = event.target.closest('[data-next]');
+  if (nextBtn) showGuideSection(Number(nextBtn.dataset.next));
+  const prevBtn = event.target.closest('[data-prev]');
+  if (prevBtn) showGuideSection(Number(prevBtn.dataset.prev));
+});
+
+function showGuideSection(n) {
+  if (!howLinkupModal) return;
+  howLinkupModal.querySelectorAll('.guide-section').forEach((el) => el.classList.toggle('active', Number(el.dataset.guide) === n));
+  howLinkupModal.querySelectorAll('.guide-nav-item').forEach((el) => el.classList.toggle('active', Number(el.dataset.guide) === n));
+  const main = howLinkupModal.querySelector('#guide-main');
+  if (main) main.scrollTop = 0;
+}
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !legalModal?.classList.contains('hidden')) closeLegalModal();
+  if (event.key === 'Escape' && !howLinkupModal?.classList.contains('hidden')) closeHowLinkupModal();
 });
 legalBackButtons.forEach((button) => {
   button.addEventListener('click', () => returnFromLegalPage());

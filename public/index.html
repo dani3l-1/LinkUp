@@ -297,7 +297,10 @@
                   <p id="waitlist-leaderboard-review" class="waitlist-leaderboard-review"></p>
                 </div>
               </div>
-              <button id="waitlist-profile-button" type="button" class="waitlist-profile-btn">Edit profile</button>
+              <div class="waitlist-secondary-actions">
+                <button id="waitlist-profile-button" type="button" class="waitlist-profile-btn">Edit profile</button>
+                <button id="waitlist-how-linkup-button" type="button" class="waitlist-profile-btn waitlist-how-btn">How LinkUp works</button>
+              </div>
             </div>
           </section>
 
@@ -1644,6 +1647,430 @@
           <div id="legal-modal-content" class="legal-content legal-modal-content">
             <p class="legal-loading">Loading document...</p>
           </div>
+        </section>
+      </div>
+      <div id="how-linkup-modal" class="how-linkup-modal hidden" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+        <div class="how-linkup-backdrop" data-how-linkup-close></div>
+        <section class="guide-panel">
+          <!-- Sidebar -->
+          <aside class="guide-sidebar" aria-label="Guide navigation">
+            <div class="guide-sidebar-top">
+              <div class="guide-sidebar-brand">
+                <span>LinkUp</span>
+                <span class="guide-sidebar-badge">Guide</span>
+              </div>
+              <button type="button" class="guide-close-btn how-linkup-close" data-how-linkup-close aria-label="Close guide">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <nav class="guide-nav" aria-label="Guide sections">
+              <button class="guide-nav-item active" data-guide="1" type="button">
+                <span class="guide-nav-num">01</span>
+                <div class="guide-nav-text"><strong>Getting started</strong><span>Sign up &amp; join</span></div>
+              </button>
+              <button class="guide-nav-item" data-guide="2" type="button">
+                <span class="guide-nav-num">02</span>
+                <div class="guide-nav-text"><strong>Find a ride</strong><span>Browse &amp; book</span></div>
+              </button>
+              <button class="guide-nav-item" data-guide="3" type="button">
+                <span class="guide-nav-num">03</span>
+                <div class="guide-nav-text"><strong>Request a ride</strong><span>Post a need</span></div>
+              </button>
+              <button class="guide-nav-item" data-guide="4" type="button">
+                <span class="guide-nav-num">04</span>
+                <div class="guide-nav-text"><strong>List a ride</strong><span>Drive &amp; earn</span></div>
+              </button>
+              <button class="guide-nav-item" data-guide="5" type="button">
+                <span class="guide-nav-num">05</span>
+                <div class="guide-nav-text"><strong>Your dashboard</strong><span>Boarding pass</span></div>
+              </button>
+              <button class="guide-nav-item" data-guide="6" type="button">
+                <span class="guide-nav-num">06</span>
+                <div class="guide-nav-text"><strong>Driver tools</strong><span>Route &amp; manifest</span></div>
+              </button>
+              <button class="guide-nav-item" data-guide="7" type="button">
+                <span class="guide-nav-num">07</span>
+                <div class="guide-nav-text"><strong>Safety</strong><span>Tracking &amp; support</span></div>
+              </button>
+            </nav>
+            <div class="guide-sidebar-footer">
+              <p>Questions? <a href="mailto:ridewlinkup@gmail.com">ridewlinkup@gmail.com</a></p>
+            </div>
+          </aside>
+
+          <!-- Main content -->
+          <div class="guide-main" id="guide-main">
+
+            <!-- 01 Getting Started -->
+            <div class="guide-section active" data-guide="1">
+              <div class="guide-section-body">
+                <div class="guide-section-text">
+                  <span class="guide-eyebrow">Getting started</span>
+                  <h2 class="guide-title" id="guide-title">Sign up and join your university network</h2>
+                  <p class="guide-desc">LinkUp is for verified university students only. Create an account with your .edu email and you're in — or on the waitlist until your campus goes live.</p>
+                  <ul class="guide-bullets">
+                    <li><span>📧</span><span><strong>University email only.</strong> Sign up with your .edu address — personal emails like Gmail are not accepted. This keeps the network verified and student-only.</span></li>
+                    <li><span>🎫</span><span><strong>Your member number.</strong> You instantly receive a unique member number that tracks your place in your school's launch queue — it never changes.</span></li>
+                    <li><span>🏫</span><span><strong>School leaderboard.</strong> See real-time demand across campuses. The more students from your school join, the higher it ranks — and the faster rides launch there.</span></li>
+                    <li><span>🔔</span><span><strong>Launch notification.</strong> We email you the moment ride access opens at your university — you won't miss it and don't need to keep checking.</span></li>
+                    <li><span>👤</span><span><strong>Build your profile now.</strong> Add a photo, bio, gender, and preferred ride role (rider vs. driver) while you wait — everything is ready on day one.</span></li>
+                    <li><span>🔗</span><span><strong>Invite classmates.</strong> Share your unique invite link with friends. Each signup from your school builds demand and moves your campus up the leaderboard faster.</span></li>
+                    <li><span>🎚️</span><span><strong>Ride preferences.</strong> Set same-gender, same-school, or no-smoking preferences on your profile so the right rides surface for you automatically.</span></li>
+                    <li><span>✅</span><span><strong>Approved school?</strong> If LinkUp already runs at your campus, your account activates immediately after you verify your email — no wait needed.</span></li>
+                  </ul>
+                  <div class="guide-tip">
+                    <strong>Tip</strong> Complete your profile before your campus goes live — the first riders to book when access opens are usually the ones who were already set up and ready.
+                  </div>
+                </div>
+                <div class="guide-shot-wrap">
+                  <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                  <img class="guide-shot guide-shot-light" src="assets/images/walkthrough/waitlist-page-light.png" alt="LinkUp waitlist page" loading="lazy" />
+                  <img class="guide-shot guide-shot-dark" src="assets/images/walkthrough/waitlist-page-dark.png" alt="LinkUp waitlist page" loading="lazy" />
+                </div>
+              </div>
+              <div class="guide-footer">
+                <div class="guide-dots" aria-hidden="true">
+                  <span class="active"></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="guide-footer-nav">
+                  <button class="guide-prev-btn" type="button" disabled>← Back</button>
+                  <button class="guide-next-btn" type="button" data-next="2">Next →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 02 Find a Ride -->
+            <div class="guide-section" data-guide="2">
+              <div class="guide-section-body">
+                <div class="guide-section-text">
+                  <span class="guide-eyebrow">As a rider</span>
+                  <h2 class="guide-title">Browse and book open seats from verified drivers</h2>
+                  <p class="guide-desc">Every ride listed on LinkUp is from a verified student in your university network. You see every detail — driver, vehicle, passengers, and price — before committing to anything.</p>
+                  <ul class="guide-bullets">
+                    <li><span>🗺️</span><span><strong>Filter by what matters.</strong> Search by destination, date, and time. Rides update live — refresh to see the latest listings as drivers post them.</span></li>
+                    <li><span>🚗</span><span><strong>Full driver transparency.</strong> See the driver's name, star rating, vehicle make, model, color, and license plate before you even click reserve.</span></li>
+                    <li><span>👥</span><span><strong>See who's already in the car.</strong> Every confirmed passenger's name and profile is visible before you book — you always know your ride companions in advance.</span></li>
+                    <li><span>💺</span><span><strong>Pick your seat.</strong> The interactive seat map lets you choose front passenger, rear left, rear right, or middle during checkout — first come, first pick.</span></li>
+                    <li><span>📍</span><span><strong>Flexible pickup.</strong> If the driver allows it, you can set your exact pickup location within their permitted pickup radius — useful for airport rides or multi-stop routes.</span></li>
+                    <li><span>💳</span><span><strong>Wallet-first checkout.</strong> Your LinkUp wallet balance applies automatically at checkout. Any amount not covered by your wallet is charged to your saved card.</span></li>
+                    <li><span>🎟️</span><span><strong>Instant confirmation.</strong> After checkout you receive your seat assignment, a 6-digit arrival code, and a full receipt — everything you need for the ride day.</span></li>
+                    <li><span>💬</span><span><strong>Chat with your driver.</strong> Use in-app ride chat to coordinate pickup details, share your number, or ask questions — without leaving LinkUp.</span></li>
+                  </ul>
+                  <div class="guide-tip">
+                    <strong>Tip</strong> Tap the driver's name on any listing to open their full profile and see past ride ratings — a great way to check their history before you reserve.
+                  </div>
+                </div>
+                <div class="guide-shot-wrap">
+                  <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                  <img class="guide-shot guide-shot-light" src="assets/images/walkthrough/core-features-light.png" alt="LinkUp browse rides" loading="lazy" />
+                  <img class="guide-shot guide-shot-dark" src="assets/images/walkthrough/core-features-dark.png" alt="LinkUp browse rides" loading="lazy" />
+                </div>
+              </div>
+              <div class="guide-footer">
+                <div class="guide-dots" aria-hidden="true">
+                  <span></span><span class="active"></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="guide-footer-nav">
+                  <button class="guide-prev-btn" type="button" data-prev="1">← Back</button>
+                  <button class="guide-next-btn" type="button" data-next="3">Next →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 03 Request a Ride -->
+            <div class="guide-section" data-guide="3">
+              <div class="guide-section-body">
+                <div class="guide-section-text guide-section-text--wide">
+                  <span class="guide-eyebrow">As a rider</span>
+                  <h2 class="guide-title">Step 3: Post a ride request when no listing fits</h2>
+                  <p class="guide-desc">If no listed ride works, use Request Ride. Fill out the route, time, rider count, offer price, preferences, and notes so drivers know exactly what you need.</p>
+                  <div class="guide-card-grid">
+                    <div class="guide-card">
+                      <span class="guide-card-icon">📍</span>
+                      <strong>Set your route</strong>
+                      <p>Enter your exact pickup, drop-off, date, and time. Drivers planning that route will see your request and can respond if it fits their trip.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">💰</span>
+                      <strong>Name your price</strong>
+                      <p>Set the cost-share amount you're willing to pay per seat. Drivers see your offer and decide whether the price works — no haggling needed.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">👥</span>
+                      <strong>Group size</strong>
+                      <p>Specify how many seats your group needs — from 1 to 4. Drivers can respond to fill your full group or part of it.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">🎚️</span>
+                      <strong>Ride preferences</strong>
+                      <p>Mark same school only, same gender driver, or no smoking. Requests with preferences are only shown to drivers who qualify.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">📝</span>
+                      <strong>Add a note</strong>
+                      <p>Leave a message for drivers — where you'll be waiting, luggage details, airport terminal, or anything a driver needs to know before responding.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">👀</span>
+                      <strong>Visible to your network</strong>
+                      <p>Your request is shown to verified drivers in your university network who are planning that route — not the general public.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">🔔</span>
+                      <strong>Instant match alerts</strong>
+                      <p>Get a push notification the moment a driver posts a ride that matches your request route, date, and preferences.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">↩️</span>
+                      <strong>Smart ride matching</strong>
+                      <p>LinkUp also alerts you when existing listed rides closely match your request timing and destination — you may not even need to wait.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">❌</span>
+                      <strong>Cancel anytime</strong>
+                      <p>No fees for canceling an open request. Your request stays active and visible until a driver fills it or you remove it.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="guide-shot-wrap">
+                  <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                  <img class="guide-shot guide-shot-light" src="assets/images/walkthrough/request-ride-light.png" alt="LinkUp request ride form" loading="lazy" />
+                  <img class="guide-shot guide-shot-dark" src="assets/images/walkthrough/request-ride-dark.png" alt="LinkUp request ride form" loading="lazy" />
+                </div>
+              </div>
+              <div class="guide-footer">
+                <div class="guide-dots" aria-hidden="true">
+                  <span></span><span></span><span class="active"></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="guide-footer-nav">
+                  <button class="guide-prev-btn" type="button" data-prev="2">← Back</button>
+                  <button class="guide-next-btn" type="button" data-next="4">Next →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 04 List a Ride -->
+            <div class="guide-section" data-guide="4">
+              <div class="guide-section-body">
+                <div class="guide-section-text guide-section-text--wide">
+                  <span class="guide-eyebrow">As a driver</span>
+                  <h2 class="guide-title">Step 4: List a ride and fill your empty seats</h2>
+                  <p class="guide-desc">If you are already making a trip, use List Ride. Add your route, seats, price, parking fee, vehicle details, seat inventory, and rules before publishing.</p>
+                  <div class="guide-card-grid">
+                    <div class="guide-card">
+                      <span class="guide-card-icon">🚗</span>
+                      <strong>Post your ride</strong>
+                      <p>Add your vehicle details, origin, destination, departure time, number of open seats, and an optional trip description or route notes.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">💵</span>
+                      <strong>Set your price</strong>
+                      <p>You decide the cost-share amount per seat. Optionally add a separate parking or airport fee — riders see the full breakdown before booking.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">🎚️</span>
+                      <strong>Set your rules</strong>
+                      <p>Offer the ride to same school only, same gender riders, or no smoking. Only riders who match your criteria can book.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">👁️</span>
+                      <strong>Review every rider</strong>
+                      <p>See each person's name, university, profile photo, and past ride rating before you leave — you know exactly who's in your car.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">🎫</span>
+                      <strong>Seat assignment</strong>
+                      <p>Assign riders to specific seats — front passenger, rear left, rear right, or middle. Mark any seat unavailable to block it from booking.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">🔔</span>
+                      <strong>Instant booking alerts</strong>
+                      <p>Get a push notification every time a rider books or cancels a seat — you always know your current headcount before departure.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">💬</span>
+                      <strong>Chat with riders</strong>
+                      <p>Message each confirmed passenger through in-app ride chat to coordinate pickup location, timing, or luggage details before the trip.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">✅</span>
+                      <strong>Collect arrival codes</strong>
+                      <p>At each drop-off, ask the rider for their unique 6-digit arrival code. Enter it in-app to confirm that stop and build toward your payout.</p>
+                    </div>
+                    <div class="guide-card">
+                      <span class="guide-card-icon">💳</span>
+                      <strong>Weekly wallet payout</strong>
+                      <p>Earnings land in your LinkUp wallet after the trip confirms. Cash out to your bank account any time from your profile — processed via Stripe.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="guide-shot-wrap guide-shot-wrap--compact">
+                  <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                  <img class="guide-shot guide-shot-light" src="assets/images/walkthrough/list-ride-light.png" alt="LinkUp list ride form" loading="lazy" />
+                  <img class="guide-shot guide-shot-dark" src="assets/images/walkthrough/list-ride-dark.png" alt="LinkUp list ride form" loading="lazy" />
+                </div>
+              </div>
+              <div class="guide-footer">
+                <div class="guide-dots" aria-hidden="true">
+                  <span></span><span></span><span></span><span class="active"></span><span></span><span></span><span></span>
+                </div>
+                <div class="guide-footer-nav">
+                  <button class="guide-prev-btn" type="button" data-prev="3">← Back</button>
+                  <button class="guide-next-btn" type="button" data-next="5">Next →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 05 Your Dashboard -->
+            <div class="guide-section" data-guide="5">
+              <div class="guide-section-body">
+                <div class="guide-section-text">
+                  <span class="guide-eyebrow">Boarding pass &amp; checklist</span>
+                  <h2 class="guide-title">Your dashboard tells you exactly what to do</h2>
+                  <p class="guide-desc">After booking, your dashboard shows a boarding pass with all your ride details and a step-by-step checklist that walks you through the entire ride — from pickup to rating.</p>
+                  <ul class="guide-bullets">
+                    <li><span>🎟️</span><span><strong>Boarding pass.</strong> Shows your reserved seat, vehicle make/model/color, license plate, driver name, departure time, distance, duration, and your arrival code all in one card.</span></li>
+                    <li><span>🚗</span><span><strong>Verify the driver at pickup.</strong> Before getting in, confirm the driver's name, car color, and license plate exactly match what's on your boarding pass — never skip this step.</span></li>
+                    <li><span>🚪</span><span><strong>Door check.</strong> The checklist prompts you to confirm your door opens from the inside and the child lock is off before the car moves. This is a real safety step, not a formality.</span></li>
+                    <li><span>📍</span><span><strong>Track My Trip.</strong> Share a live location link with anyone — a roommate, parent, or friend. The link auto-expires the moment you stop sharing, leaving no permanent access.</span></li>
+                    <li><span>🎙️</span><span><strong>Safety mode.</strong> Start a discreet audio recording from your dashboard if you feel unsafe at any point. Stored for 30 days — only reviewed if you file a safety report.</span></li>
+                    <li><span>🔢</span><span><strong>Arrival code.</strong> Your unique 6-digit code is shown on your dashboard before departure. Share it with the driver at your drop-off to confirm the trip is complete.</span></li>
+                    <li><span>✅</span><span><strong>Checklist progress.</strong> The rider checklist tracks every step — seat reserved, driver verified, door checked, tracking shared, code given, driver rated — so you always know what's next.</span></li>
+                    <li><span>⭐</span><span><strong>Rate after the ride.</strong> Leave a 1–5 star rating for your driver after arrival. Ratings are public and help future riders decide whether to book with that driver.</span></li>
+                  </ul>
+                  <div class="guide-tip">
+                    <strong>Tip</strong> Even if you feel fine, completing the full checklist protects you — a completed checklist is your record that you followed every safety step on this ride.
+                  </div>
+                </div>
+                <div class="guide-shot-wrap">
+                  <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                  <img class="guide-shot guide-shot-light" src="assets/images/walkthrough/dashboard-ride-light.png" alt="LinkUp rider dashboard" loading="lazy" />
+                  <img class="guide-shot guide-shot-dark" src="assets/images/walkthrough/dashboard-ride-dark.png" alt="LinkUp rider dashboard" loading="lazy" />
+                </div>
+              </div>
+              <div class="guide-footer">
+                <div class="guide-dots" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span class="active"></span><span></span><span></span>
+                </div>
+                <div class="guide-footer-nav">
+                  <button class="guide-prev-btn" type="button" data-prev="4">← Back</button>
+                  <button class="guide-next-btn" type="button" data-next="6">Next →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 06 Driver Tools -->
+            <div class="guide-section" data-guide="6">
+              <div class="guide-section-body">
+                <div class="guide-section-text">
+                  <span class="guide-eyebrow">Driver view</span>
+                  <h2 class="guide-title">Every tool you need before and during the drive</h2>
+                  <p class="guide-desc">Your driver dashboard gives you a complete picture of who's in the car, where everyone is going, and a ready-to-navigate route — so you can focus on driving.</p>
+                  <ul class="guide-bullets">
+                    <li><span>🎟️</span><span><strong>Driver boarding pass.</strong> Shows confirmed rider count, your vehicle, the full route, departure time, distance, duration — plus your role badge so riders recognize you're the driver.</span></li>
+                    <li><span>🗂️</span><span><strong>Seat manifest.</strong> Lists every confirmed passenger by name, their assigned seat, their rating, and their specific drop-off address — all in one place before you leave.</span></li>
+                    <li><span>👤</span><span><strong>Tap any passenger.</strong> Tap a rider's name in the manifest to open their full public profile, see their rating history, and access their contact info.</span></li>
+                    <li><span>🗺️</span><span><strong>One-tap navigation.</strong> Open your full multi-stop drop-off route in Google Maps or Apple Maps with a single tap — the route is pre-loaded with every passenger's drop-off in the optimal order.</span></li>
+                    <li><span>📍</span><span><strong>Next stop display.</strong> The dashboard highlights your immediate next drop-off — rider name and destination — so you always know where you're heading without opening Maps.</span></li>
+                    <li><span>🔔</span><span><strong>Live booking notifications.</strong> Get a push notification every time a rider books or cancels — you always know your confirmed headcount before you leave.</span></li>
+                    <li><span>📋</span><span><strong>Driver checklist.</strong> Walks you through: ride posted → riders reviewed → departure confirmed → codes collected → trip complete. Each step marked off as you go.</span></li>
+                    <li><span>🔢</span><span><strong>Arrival code collection.</strong> At each drop-off, ask the rider for their 6-digit code and enter it in-app. Once all codes are collected, the trip confirms and your payout is released.</span></li>
+                    <li><span>💰</span><span><strong>Wallet payout.</strong> Your earnings land in your LinkUp wallet after the trip is confirmed. Cash out to your linked bank account at any time from your profile — processed through Stripe.</span></li>
+                  </ul>
+                  <div class="guide-tip">
+                    <strong>Tip</strong> Review the seat manifest before leaving home — each rider's exact drop-off address is listed so you can plan the most efficient stop order before you start driving.
+                  </div>
+                </div>
+                <div class="guide-shot-wrap">
+                  <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                  <img class="guide-shot guide-shot-light" src="assets/images/walkthrough/driver-route-light.png" alt="LinkUp driver dashboard" loading="lazy" />
+                  <img class="guide-shot guide-shot-dark" src="assets/images/walkthrough/driver-route-dark.png" alt="LinkUp driver dashboard" loading="lazy" />
+                </div>
+              </div>
+              <div class="guide-footer">
+                <div class="guide-dots" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span><span class="active"></span><span></span>
+                </div>
+                <div class="guide-footer-nav">
+                  <button class="guide-prev-btn" type="button" data-prev="5">← Back</button>
+                  <button class="guide-next-btn" type="button" data-next="7">Next →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 07 Safety -->
+            <div class="guide-section" data-guide="7">
+              <div class="guide-section-body">
+                <div class="guide-section-text guide-section-text--wide">
+                  <span class="guide-eyebrow">Always on</span>
+                  <h2 class="guide-title">Step 7: Use safety tools during the ride</h2>
+                  <p class="guide-desc">During an active ride, riders and drivers can use live tracking, safety recording, arrival codes, reporting, ratings, and direct support.</p>
+                  <div class="guide-card-grid">
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">📍</span>
+                      <strong>Live location sharing</strong>
+                      <p>Share a real-time tracking link with anyone — a parent, roommate, or friend — before or during your ride. The link auto-expires the moment you stop sharing. No permanent access is granted.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">🎙️</span>
+                      <strong>Safety recording</strong>
+                      <p>Start a discreet audio recording from your dashboard if you feel unsafe at any point during the ride. Recordings are stored securely for 30 days and are only reviewed if you file a safety report.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">🔢</span>
+                      <strong>Arrival codes</strong>
+                      <p>Every rider has a unique 6-digit code. Drivers need it to confirm each drop-off and receive their payout. This creates mutual accountability at the end of every stop — not just the final destination.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">🚪</span>
+                      <strong>Door check reminder</strong>
+                      <p>Your rider checklist explicitly prompts you to test that your door opens from the inside and that the child lock is not engaged before the car moves. A simple step that matters.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">✅</span>
+                      <strong>Verified .edu accounts only</strong>
+                      <p>Every person on LinkUp verified their university email address to create an account. No anonymous profiles, no outsiders — everyone in your ride is a real student from a real campus.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">🚩</span>
+                      <strong>In-app reporting</strong>
+                      <p>Report unsafe behavior, a policy violation, or a concerning interaction directly through the app. Every report is reviewed by the LinkUp team and acted on — typically within 24 hours.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">⭐</span>
+                      <strong>Public driver ratings</strong>
+                      <p>Every rider rates their driver after the trip. Ratings are visible on a driver's public profile — future riders see them before booking. Bad actors lose access through low ratings and reports.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">🚫</span>
+                      <strong>Account suspension</strong>
+                      <p>Drivers or riders who violate the Terms of Service are suspended. Serious or repeated violations result in permanent removal from the platform — no appeal for severe safety incidents.</p>
+                    </div>
+                    <div class="guide-card guide-card--accent">
+                      <span class="guide-card-icon">📧</span>
+                      <strong>Direct support</strong>
+                      <p>Email ridewlinkup@gmail.com anytime with safety concerns, report follow-ups, or account questions. In an active emergency — always call 911 first. LinkUp support is not a substitute for emergency services.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="guide-shot-wrap">
+                  <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                  <img class="guide-shot guide-shot-light" src="assets/images/walkthrough/safety-tools-light.png" alt="LinkUp safety tools" loading="lazy" />
+                  <img class="guide-shot guide-shot-dark" src="assets/images/walkthrough/safety-tools-dark.png" alt="LinkUp safety tools" loading="lazy" />
+                </div>
+              </div>
+              <div class="guide-footer">
+                <div class="guide-dots" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span class="active"></span>
+                </div>
+                <div class="guide-footer-nav">
+                  <button class="guide-prev-btn" type="button" data-prev="6">← Back</button>
+                  <button class="guide-done-btn" type="button" data-how-linkup-close>Done ✓</button>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /guide-main -->
         </section>
       </div>
     </div>
