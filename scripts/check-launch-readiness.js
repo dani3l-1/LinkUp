@@ -126,9 +126,9 @@ async function checkAuthSmoke() {
       lastName: 'Waitlist',
       birthday: '2000-01-01',
       gender: 'prefer-not-to-say',
-      email: 'startup.waitlist@uci.edu',
-      university: 'University of California, Irvine',
-      universityDomain: 'uci.edu',
+      email: 'startup.waitlist@ucla.edu',
+      university: 'University of California, Los Angeles',
+      universityDomain: 'ucla.edu',
       serviceApproved: false,
       waitlistedAt: new Date(Date.now() - 86400000).toISOString(),
       passwordHash: 'unused',
@@ -192,7 +192,7 @@ async function checkAuthSmoke() {
     try {
       startupOutbox = JSON.parse(fs.readFileSync(path.join(dataDir, 'email-outbox.json'), 'utf8'));
     } catch (_) {}
-    if (!startupOutbox.some((email) => email.to === 'startup.waitlist@uci.edu' && /school is approved/i.test(email.subject || ''))) {
+    if (!startupOutbox.some((email) => email.to === 'startup.waitlist@ucla.edu' && /school is approved/i.test(email.subject || ''))) {
       fail('Startup approved-school email was not sent to a waitlisted supported-school user.');
     }
     const signin = await requestJson({

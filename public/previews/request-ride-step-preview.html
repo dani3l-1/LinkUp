@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Request Ride Step Preview</title>
+    <link rel="stylesheet" href="../styles.css?v=request-ride-step-preview" />
+    <style>
+      body { min-height: 100vh; margin: 0; padding: 28px; background: var(--bg); color: var(--text-primary); }
+      .step-shot { width: min(980px, 100%); margin: 0 auto; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-soft); }
+      .step-shot h1 { margin: 0 0 6px; font-size: 1.35rem; }
+      .step-shot p { margin: 0 0 18px; color: var(--text-secondary); }
+      .step-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .step-field { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+      .step-field span { display: block; margin-bottom: 6px; color: var(--accent); font-family: var(--font-display); font-size: 0.66rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; }
+      .step-field strong { display: block; font-size: 1.05rem; }
+      .step-wide { grid-column: 1 / -1; }
+      .preference-row { display: flex; flex-wrap: wrap; gap: 8px; }
+      .preference-row b { padding: 8px 10px; border: 1px solid rgba(62,207,207,0.22); border-radius: 999px; color: var(--text-primary); background: rgba(62,207,207,0.08); font-size: 0.82rem; }
+      @media (max-width: 720px) { .step-grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <section class="step-shot" aria-label="Request ride step">
+      <h1>Step 3: Request a ride</h1>
+      <p>Tell drivers exactly where you need to go, when you need to leave, and what preferences matter.</p>
+      <div class="step-grid">
+        <div class="step-field"><span>Pickup</span><strong>UCLA Ackerman Union</strong></div>
+        <div class="step-field"><span>Drop-off</span><strong>LAX Terminal 7</strong></div>
+        <div class="step-field"><span>Date and time</span><strong>Jun 12 · 8:30 AM</strong></div>
+        <div class="step-field"><span>Riders and offer</span><strong>1 rider · $20</strong></div>
+        <div class="step-field step-wide">
+          <span>Preferences</span>
+          <div class="preference-row">
+            <b>Same school driver</b>
+            <b>Same gender driver</b>
+            <b>No smoking</b>
+            <b>Flexible pickup radius</b>
+          </div>
+        </div>
+        <div class="step-field step-wide"><span>Notes for drivers</span><strong>Airport ride. I have one carry-on and can meet by the main entrance.</strong></div>
+      </div>
+    </section>
+  </body>
+</html>

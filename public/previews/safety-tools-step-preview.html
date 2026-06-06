@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Safety Tools Step Preview</title>
+    <link rel="stylesheet" href="../styles.css?v=safety-tools-step-preview" />
+    <style>
+      body { min-height: 100vh; margin: 0; padding: 28px; background: var(--bg); color: var(--text-primary); }
+      .step-shot { width: min(980px, 100%); margin: 0 auto; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-soft); }
+      .step-shot h1 { margin: 0 0 6px; font-size: 1.35rem; }
+      .step-shot p { margin: 0 0 18px; color: var(--text-secondary); }
+      .safety-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .safety-card { min-height: 150px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+      .safety-card span { display: block; margin-bottom: 8px; color: var(--accent); font-family: var(--font-display); font-size: 0.66rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; }
+      .safety-card strong { display: block; margin-bottom: 7px; font-size: 1.04rem; }
+      .safety-card p { margin: 0; font-size: 0.86rem; line-height: 1.5; }
+      @media (max-width: 720px) { .safety-grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <section class="step-shot" aria-label="Safety tools step">
+      <h1>Step 7: Use safety tools during the ride</h1>
+      <p>Safety tools are available to riders and drivers during every active trip.</p>
+      <div class="safety-grid">
+        <article class="safety-card"><span>Track</span><strong>Share live location</strong><p>Send a trip link to someone you trust. The link expires when sharing stops.</p></article>
+        <article class="safety-card"><span>Record</span><strong>Safety recording</strong><p>Start audio recording if something feels wrong. Stored for 30 days for reports.</p></article>
+        <article class="safety-card"><span>Verify</span><strong>Arrival code</strong><p>Give or collect the 6-digit code so each stop is confirmed.</p></article>
+        <article class="safety-card"><span>Check</span><strong>Door safety</strong><p>Riders confirm the door opens from inside and child lock is off.</p></article>
+        <article class="safety-card"><span>Report</span><strong>Contact LinkUp</strong><p>Report unsafe behavior directly to LinkUp support from the ride flow.</p></article>
+        <article class="safety-card"><span>Trust</span><strong>Verified students</strong><p>Profiles, ratings, and .edu verification help students choose safer rides.</p></article>
+      </div>
+    </section>
+  </body>
+</html>

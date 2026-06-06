@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How LinkUp Works Preview</title>
+    <link rel="stylesheet" href="../styles.css?v=how-linkup-standalone-preview" />
+    <style>
+      body {
+        min-height: 100vh;
+        margin: 0;
+        padding: 24px;
+        background: var(--bg);
+      }
+
+      .preview-guide-wrap {
+        width: min(1380px, 100%);
+        height: calc(100vh - 48px);
+        margin: 0 auto;
+      }
+
+      .preview-guide-wrap .guide-panel {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+      }
+
+      .guide-shot-wrap--compact {
+        width: min(84%, 660px);
+        justify-self: center;
+      }
+
+      @media (max-width: 860px) {
+        .guide-shot-wrap--compact {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body class="dashboard-mode">
+    <main class="preview-guide-wrap">
+      <section class="guide-panel" aria-label="How LinkUp works preview">
+        <aside class="guide-sidebar" aria-label="Guide navigation">
+          <div class="guide-sidebar-top">
+            <div class="guide-sidebar-brand">
+              <span>LinkUp</span>
+              <span class="guide-sidebar-badge">Guide</span>
+            </div>
+          </div>
+          <nav class="guide-nav" aria-label="Guide sections">
+            <button class="guide-nav-item active" data-guide="1" type="button"><span class="guide-nav-num">01</span><div class="guide-nav-text"><strong>Getting started</strong><span>Sign up and join</span></div></button>
+            <button class="guide-nav-item" data-guide="2" type="button"><span class="guide-nav-num">02</span><div class="guide-nav-text"><strong>Find a ride</strong><span>Browse and book</span></div></button>
+            <button class="guide-nav-item" data-guide="3" type="button"><span class="guide-nav-num">03</span><div class="guide-nav-text"><strong>Request a ride</strong><span>Post a need</span></div></button>
+            <button class="guide-nav-item" data-guide="4" type="button"><span class="guide-nav-num">04</span><div class="guide-nav-text"><strong>List a ride</strong><span>Drive and earn</span></div></button>
+            <button class="guide-nav-item" data-guide="5" type="button"><span class="guide-nav-num">05</span><div class="guide-nav-text"><strong>Your dashboard</strong><span>Checklist</span></div></button>
+            <button class="guide-nav-item" data-guide="6" type="button"><span class="guide-nav-num">06</span><div class="guide-nav-text"><strong>Driver tools</strong><span>Route and manifest</span></div></button>
+            <button class="guide-nav-item" data-guide="7" type="button"><span class="guide-nav-num">07</span><div class="guide-nav-text"><strong>Safety</strong><span>Tracking and support</span></div></button>
+          </nav>
+          <div class="guide-sidebar-footer">
+            <p>Questions? <a href="mailto:ridewlinkup@gmail.com">ridewlinkup@gmail.com</a></p>
+          </div>
+        </aside>
+
+        <div class="guide-main">
+          <div class="guide-section active" data-guide="1">
+            <div class="guide-section-body">
+              <div class="guide-section-text">
+                <span class="guide-eyebrow">Step 1</span>
+                <h2 class="guide-title">Sign up and join your university network</h2>
+                <p class="guide-desc">Create an account with your university email. If your campus is not active yet, LinkUp saves your account and places you on the waitlist.</p>
+                <ul class="guide-bullets">
+                  <li><span>1</span><span><strong>Create your account.</strong> Use your .edu email so LinkUp can keep the network student-only.</span></li>
+                  <li><span>2</span><span><strong>Keep your member number.</strong> Your waitlist page confirms your account and shows campus demand.</span></li>
+                  <li><span>3</span><span><strong>Edit your profile.</strong> Add details before your campus opens so you are ready to ride or drive.</span></li>
+                </ul>
+              </div>
+              <div class="guide-shot-wrap">
+                <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                <img class="guide-shot guide-shot-light" src="../assets/images/walkthrough/waitlist-page-light.png" alt="LinkUp waitlist page" />
+                <img class="guide-shot guide-shot-dark" src="../assets/images/walkthrough/waitlist-page-dark.png" alt="LinkUp waitlist page" />
+              </div>
+            </div>
+          </div>
+
+          <div class="guide-section" data-guide="2">
+            <div class="guide-section-body">
+              <div class="guide-section-text">
+                <span class="guide-eyebrow">Step 2</span>
+                <h2 class="guide-title">Find a ride and review it before booking</h2>
+                <p class="guide-desc">Browse available seats from verified drivers and inspect the ride before you reserve.</p>
+                <ul class="guide-bullets">
+                  <li><span>1</span><span><strong>Open Find a ride.</strong> Search listings by route, date, and time.</span></li>
+                  <li><span>2</span><span><strong>Review the car.</strong> Check driver details, vehicle info, seat availability, price, rules, and booked passengers.</span></li>
+                  <li><span>3</span><span><strong>Reserve your seat.</strong> Pick the seat you want and complete checkout.</span></li>
+                </ul>
+              </div>
+              <div class="guide-shot-wrap">
+                <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                <img class="guide-shot guide-shot-light" src="../assets/images/walkthrough/core-features-light.png" alt="Find a ride close-up" />
+                <img class="guide-shot guide-shot-dark" src="../assets/images/walkthrough/core-features-dark.png" alt="Find a ride close-up" />
+              </div>
+            </div>
+          </div>
+
+          <div class="guide-section" data-guide="3">
+            <div class="guide-section-body">
+              <div class="guide-section-text">
+                <span class="guide-eyebrow">Step 3</span>
+                <h2 class="guide-title">Request a ride when no listing fits</h2>
+                <p class="guide-desc">If you cannot find the right ride, post what you need so drivers can respond.</p>
+                <ul class="guide-bullets">
+                  <li><span>1</span><span><strong>Set your route.</strong> Enter pickup, drop-off, date, and time.</span></li>
+                  <li><span>2</span><span><strong>Add ride details.</strong> Include rider count, price willing to pay, preferences, and notes.</span></li>
+                  <li><span>3</span><span><strong>Post the request.</strong> Verified drivers can see it and offer a matching ride.</span></li>
+                </ul>
+              </div>
+              <div class="guide-shot-wrap">
+                <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                <img class="guide-shot guide-shot-light" src="../assets/images/walkthrough/request-ride-light.png" alt="Request ride close-up" />
+                <img class="guide-shot guide-shot-dark" src="../assets/images/walkthrough/request-ride-dark.png" alt="Request ride close-up" />
+              </div>
+            </div>
+          </div>
+
+          <div class="guide-section" data-guide="4">
+            <div class="guide-section-body">
+              <div class="guide-section-text">
+                <span class="guide-eyebrow">Step 4</span>
+                <h2 class="guide-title">List a ride if you are driving</h2>
+                <p class="guide-desc">Drivers can post empty seats for a trip they are already taking.</p>
+                <ul class="guide-bullets">
+                  <li><span>1</span><span><strong>Add the trip.</strong> Enter route, departure time, vehicle details, and seat inventory.</span></li>
+                  <li><span>2</span><span><strong>Set pricing.</strong> Add seat price and optional parking or airport fee.</span></li>
+                  <li><span>3</span><span><strong>Publish rules.</strong> Set no smoking, same school, pickup radius, and other rider-facing details.</span></li>
+                </ul>
+              </div>
+              <div class="guide-shot-wrap guide-shot-wrap--compact">
+                <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                <img class="guide-shot guide-shot-light" src="../assets/images/walkthrough/list-ride-light.png" alt="List ride close-up" />
+                <img class="guide-shot guide-shot-dark" src="../assets/images/walkthrough/list-ride-dark.png" alt="List ride close-up" />
+              </div>
+            </div>
+          </div>
+
+          <div class="guide-section" data-guide="5">
+            <div class="guide-section-body">
+              <div class="guide-section-text">
+                <span class="guide-eyebrow">Step 5</span>
+                <h2 class="guide-title">Use the ride dashboard before pickup</h2>
+                <p class="guide-desc">After booking, your dashboard gives you the next steps for a safer ride.</p>
+                <ul class="guide-bullets">
+                  <li><span>1</span><span><strong>Check your ride details.</strong> Confirm driver, vehicle, seat, time, and arrival code.</span></li>
+                  <li><span>2</span><span><strong>Follow the checklist.</strong> Verify the driver, check door safety, and optionally share live tracking.</span></li>
+                  <li><span>3</span><span><strong>Finish the ride.</strong> Give the arrival code and rate the driver after the trip.</span></li>
+                </ul>
+              </div>
+              <div class="guide-shot-wrap">
+                <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                <img class="guide-shot guide-shot-light" src="../assets/images/walkthrough/dashboard-ride-light.png" alt="Ride dashboard close-up" />
+                <img class="guide-shot guide-shot-dark" src="../assets/images/walkthrough/dashboard-ride-dark.png" alt="Ride dashboard close-up" />
+              </div>
+            </div>
+          </div>
+
+          <div class="guide-section" data-guide="6">
+            <div class="guide-section-body">
+              <div class="guide-section-text">
+                <span class="guide-eyebrow">Step 6</span>
+                <h2 class="guide-title">Use driver tools during the trip</h2>
+                <p class="guide-desc">Drivers get a route, passenger manifest, checklist, and map links in one place.</p>
+                <ul class="guide-bullets">
+                  <li><span>1</span><span><strong>Review riders.</strong> Check names, seats, and drop-off locations before leaving.</span></li>
+                  <li><span>2</span><span><strong>Open the route.</strong> Launch Google Maps or Apple Maps with the stops already entered.</span></li>
+                  <li><span>3</span><span><strong>Collect codes.</strong> Ask each rider for their arrival code at drop-off.</span></li>
+                </ul>
+              </div>
+              <div class="guide-shot-wrap">
+                <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                <img class="guide-shot guide-shot-light" src="../assets/images/walkthrough/driver-route-light.png" alt="Driver route close-up" />
+                <img class="guide-shot guide-shot-dark" src="../assets/images/walkthrough/driver-route-dark.png" alt="Driver route close-up" />
+              </div>
+            </div>
+          </div>
+
+          <div class="guide-section" data-guide="7">
+            <div class="guide-section-body">
+              <div class="guide-section-text">
+                <span class="guide-eyebrow">Step 7</span>
+                <h2 class="guide-title">Use safety tools when needed</h2>
+                <p class="guide-desc">Safety tools are available to riders and drivers during every active trip.</p>
+                <ul class="guide-bullets">
+                  <li><span>1</span><span><strong>Share tracking.</strong> Send your live trip to someone you trust.</span></li>
+                  <li><span>2</span><span><strong>Record if needed.</strong> Start safety recording if something feels wrong.</span></li>
+                  <li><span>3</span><span><strong>Report issues.</strong> Contact LinkUp support after unsafe behavior or policy violations.</span></li>
+                </ul>
+              </div>
+              <div class="guide-shot-wrap">
+                <div class="guide-browser-chrome"><span></span><span></span><span></span></div>
+                <img class="guide-shot guide-shot-light" src="../assets/images/walkthrough/safety-tools-light.png" alt="Safety tools close-up" />
+                <img class="guide-shot guide-shot-dark" src="../assets/images/walkthrough/safety-tools-dark.png" alt="Safety tools close-up" />
+              </div>
+            </div>
+          </div>
+
+          <div class="guide-footer">
+            <div class="guide-dots" aria-hidden="true">
+              <span class="active"></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="guide-footer-nav">
+              <button class="guide-prev-btn" type="button" disabled>Back</button>
+              <button class="guide-next-btn" type="button" data-next="2">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const guideSections = [...document.querySelectorAll('.guide-section')];
+      const navItems = [...document.querySelectorAll('.guide-nav-item')];
+      const dots = [...document.querySelectorAll('.guide-dots span')];
+      const prevButton = document.querySelector('.guide-prev-btn');
+      const nextButton = document.querySelector('.guide-next-btn');
+
+      function showGuide(step) {
+        guideSections.forEach((section) => section.classList.toggle('active', Number(section.dataset.guide) === step));
+        navItems.forEach((item) => item.classList.toggle('active', Number(item.dataset.guide) === step));
+        dots.forEach((dot, index) => dot.classList.toggle('active', index + 1 === step));
+        prevButton.disabled = step === 1;
+        prevButton.dataset.prev = String(Math.max(1, step - 1));
+        nextButton.textContent = step === 7 ? 'Done' : 'Next';
+        nextButton.dataset.next = String(Math.min(7, step + 1));
+      }
+
+      document.addEventListener('click', (event) => {
+        const guideTarget = event.target.closest('[data-guide], [data-next], [data-prev]');
+        if (!guideTarget) return;
+        const step = Number(guideTarget.dataset.guide || guideTarget.dataset.next || guideTarget.dataset.prev);
+        if (step >= 1 && step <= 7) showGuide(step);
+      });
+    </script>
+  </body>
+</html>

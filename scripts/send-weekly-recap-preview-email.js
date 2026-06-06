@@ -27,7 +27,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const text = [
-  'Hi Daniel,',
+  'Hi Xnonymous,',
   '',
   'Here is what happened with your rides and LinkUps this week.',
   '',

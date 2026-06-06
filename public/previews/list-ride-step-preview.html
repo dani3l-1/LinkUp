@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>List Ride Step Preview</title>
+    <link rel="stylesheet" href="../styles.css?v=list-ride-step-preview" />
+    <style>
+      body { min-height: 100vh; margin: 0; padding: 28px; background: var(--bg); color: var(--text-primary); }
+      .step-shot { width: min(980px, 100%); margin: 0 auto; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-soft); }
+      .step-shot h1 { margin: 0 0 6px; font-size: 1.35rem; }
+      .step-shot p { margin: 0 0 18px; color: var(--text-secondary); }
+      .step-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .step-field { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+      .step-field span { display: block; margin-bottom: 6px; color: var(--accent); font-family: var(--font-display); font-size: 0.66rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; }
+      .step-field strong { display: block; font-size: 1.05rem; }
+      .step-wide { grid-column: 1 / -1; }
+      .seat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .seat-row b { padding: 10px; border: 1px solid rgba(62,207,207,0.22); border-radius: var(--radius-sm); text-align: center; background: rgba(62,207,207,0.08); font-size: 0.82rem; }
+      @media (max-width: 720px) { .step-grid, .seat-row { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <section class="step-shot" aria-label="List ride step">
+      <h1>Step 4: List a ride</h1>
+      <p>Post the trip you are already taking, choose your seat inventory, set the price, and publish rules riders see before booking.</p>
+      <div class="step-grid">
+        <div class="step-field"><span>Route</span><strong>UCLA → LAX</strong></div>
+        <div class="step-field"><span>Seats</span><strong>3 open</strong></div>
+        <div class="step-field"><span>Price</span><strong>$18 + $4 parking</strong></div>
+        <div class="step-field"><span>Vehicle</span><strong>Blue Toyota Camry</strong></div>
+        <div class="step-field"><span>Plate</span><strong>8ABC123</strong></div>
+        <div class="step-field"><span>Departure</span><strong>Jun 12 · 8:30 AM</strong></div>
+        <div class="step-field step-wide">
+          <span>Seat inventory</span>
+          <div class="seat-row">
+            <b>Front passenger</b>
+            <b>Rear left</b>
+            <b>Rear right</b>
+            <b>Middle blocked</b>
+          </div>
+        </div>
+        <div class="step-field step-wide"><span>Rules shown to riders</span><strong>No smoking · Same school only · Pickup within 2 miles</strong></div>
+      </div>
+    </section>
+  </body>
+</html>
