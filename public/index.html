@@ -1232,15 +1232,18 @@
                   </div>
                   <label id="request-price-label">Price willing to pay ($) <input type="number" id="request-price" min="0.50" step="0.01" placeholder="10.00" required /></label>
                 </div>
-                <div id="request-share-field">
-                  <label class="checkbox-label"><input type="checkbox" id="request-share-ride" /> I am willing to share this ride with other riders</label>
+                <div class="request-prefs-section">
+                  <h4 class="offer-section-label">Preferences</h4>
+                  <div id="request-share-field">
+                    <label class="checkbox-label"><input type="checkbox" id="request-share-ride" /> I am willing to share this ride with other riders</label>
+                  </div>
+                  <div class="request-preference-grid" id="request-preference-field">
+                    <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
+                    <label class="checkbox-label"><input type="checkbox" id="request-same-school-driver" /> Same school driver only</label>
+                    <label class="checkbox-label"><input type="checkbox" id="request-no-smoking" /> No smoking during ride</label>
+                  </div>
+                  <label>Notes <textarea id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." rows="3"></textarea></label>
                 </div>
-                <div class="request-preference-grid" id="request-preference-field">
-                  <label class="checkbox-label"><input type="checkbox" id="request-same-gender-driver" /> Same gender driver only</label>
-                  <label class="checkbox-label"><input type="checkbox" id="request-same-school-driver" /> Same school driver only</label>
-                  <label class="checkbox-label"><input type="checkbox" id="request-no-smoking" /> No smoking during ride</label>
-                </div>
-                <label>Notes <textarea id="request-notes" maxlength="300" placeholder="Luggage, timing flexibility, pickup details..." rows="3"></textarea></label>
                 <button type="submit" id="request-submit-btn">Post request</button>
                 <div id="request-ride-message" class="success-message"></div>
                 <div id="request-ride-error" class="error-message"></div>
@@ -1284,102 +1287,125 @@
                     <button id="change-ride-provider" type="button">Change</button>
                   </div>
                   <input type="hidden" id="ride-provider-type" required />
-                  <div class="location-picker">
-                    <label>Pick-up location</label>
-                    <input type="text" id="origin-search" placeholder="Search address or landmark…" />
-                    <input type="hidden" id="origin" required />
-                    <input type="hidden" id="origin-lat" />
-                    <input type="hidden" id="origin-lng" />
-                    <div id="origin-selected" class="selected-location"></div>
-                  </div>
 
-                  <div class="location-picker">
-                    <label>Drop-off location</label>
-                    <input type="text" id="destination-search" placeholder="Search address or landmark…" />
-                    <input type="hidden" id="destination" required />
-                    <input type="hidden" id="destination-lat" />
-                    <input type="hidden" id="destination-lng" />
-                    <div id="destination-selected" class="selected-location"></div>
-                  </div>
-
-                  <div class="route-map-block offer-route-map-block">
-                    <div class="route-map-heading">
-                      <span>Route map</span>
+                  <div class="offer-section">
+                    <h4 class="offer-section-label">Route</h4>
+                    <div class="offer-locations-row">
+                      <div class="location-picker">
+                        <label>Pick-up location</label>
+                        <input type="text" id="origin-search" placeholder="Search address or landmark…" />
+                        <input type="hidden" id="origin" required />
+                        <input type="hidden" id="origin-lat" />
+                        <input type="hidden" id="origin-lng" />
+                        <div id="origin-selected" class="selected-location"></div>
+                      </div>
+                      <div class="location-picker">
+                        <label>Drop-off location</label>
+                        <input type="text" id="destination-search" placeholder="Search address or landmark…" />
+                        <input type="hidden" id="destination" required />
+                        <input type="hidden" id="destination-lat" />
+                        <input type="hidden" id="destination-lng" />
+                        <div id="destination-selected" class="selected-location"></div>
+                      </div>
                     </div>
-                    <div id="origin-map" class="map-container route-map"></div>
+                    <div class="route-map-block offer-route-map-block">
+                      <div class="route-map-heading">
+                        <span>Route map</span>
+                      </div>
+                      <div id="origin-map" class="map-container route-map"></div>
+                    </div>
+                    <div class="radius-preference-grid">
+                      <label>Pickup detour radius (mi) <input type="number" id="offer-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
+                      <label>Drop-off detour radius (mi) <input type="number" id="offer-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
+                    </div>
                   </div>
 
-                  <div class="radius-preference-grid">
-                    <label>Pickup detour radius (mi) <input type="number" id="offer-pickup-radius" min="0" step="0.5" placeholder="0" /></label>
-                    <label>Drop-off detour radius (mi) <input type="number" id="offer-dropoff-radius" min="0" step="0.5" placeholder="0" /></label>
+                  <div class="offer-section">
+                    <h4 class="offer-section-label">Schedule</h4>
+                    <div class="offer-datetime-row">
+                      <label>Date <input type="date" id="ride-date" required /></label>
+                      <label>Departure time <input type="time" id="ride-time" required /></label>
+                    </div>
+                    <div class="offer-prefs-row">
+                      <label class="checkbox-label"><input type="checkbox" id="same-gender-only-ride" /> Same gender riders only</label>
+                      <label class="checkbox-label"><input type="checkbox" id="same-school-only-ride" /> Same school riders only</label>
+                    </div>
                   </div>
 
-                  <label>Date <input type="date" id="ride-date" required /></label>
-                  <label>Departure time <input type="time" id="ride-time" required /></label>
-                  <label class="checkbox-label"><input type="checkbox" id="same-gender-only-ride" /> Same gender riders only</label>
-                  <label class="checkbox-label"><input type="checkbox" id="same-school-only-ride" /> Same school riders only</label>
-                  <div id="rideshare-service-fields" class="vehicle-grid hidden">
-                    <label>Rideshare Service
-                      <input type="text" id="rideshare-service" placeholder="Uber, Lyft, Alto..." />
-                    </label>
-                    <label>Available rider spots <input type="number" id="rideshare-seat-count" min="1" max="7" value="1" /></label>
-                  </div>
-                  <div id="moving-service-fields" class="vehicle-grid hidden">
-                    <label>Vehicle type
-                      <select id="moving-vehicle-type">
-                        <option value="">Select vehicle…</option>
-                        <option value="Pickup Truck">Pickup Truck</option>
-                        <option value="Cargo Van">Cargo Van</option>
-                        <option value="Box Truck">Box Truck</option>
-                        <option value="SUV / Minivan">SUV / Minivan</option>
-                        <option value="Standard Car">Standard Car (small loads)</option>
+                  <div class="offer-section">
+                    <h4 class="offer-section-label">Vehicle</h4>
+                    <div id="rideshare-service-fields" class="vehicle-grid hidden">
+                      <label>Rideshare Service
+                        <input type="text" id="rideshare-service" placeholder="Uber, Lyft, Alto..." />
+                      </label>
+                      <label>Available rider spots <input type="number" id="rideshare-seat-count" min="1" max="7" value="1" /></label>
+                    </div>
+                    <div id="moving-service-fields" class="vehicle-grid hidden">
+                      <label>Vehicle type
+                        <select id="moving-vehicle-type">
+                          <option value="">Select vehicle…</option>
+                          <option value="Pickup Truck">Pickup Truck</option>
+                          <option value="Cargo Van">Cargo Van</option>
+                          <option value="Box Truck">Box Truck</option>
+                          <option value="SUV / Minivan">SUV / Minivan</option>
+                          <option value="Standard Car">Standard Car (small loads)</option>
+                        </select>
+                      </label>
+                      <label>Cargo capacity
+                        <select id="moving-capacity">
+                          <option value="Small">Small — bags &amp; boxes</option>
+                          <option value="Medium">Medium — small furniture + boxes</option>
+                          <option value="Large">Large — full room or more</option>
+                        </select>
+                      </label>
+                      <label class="checkbox-label"><input type="checkbox" id="moving-loading-help" /> I'll help load &amp; unload</label>
+                      <label class="checkbox-label"><input type="checkbox" id="moving-furniture" /> Can move large/heavy furniture</label>
+                    </div>
+                    <div id="personal-car-fields" class="vehicle-grid hidden">
+                      <label>Car maker <input type="text" id="car-maker" placeholder="Tesla" required /></label>
+                      <label>Car model <input type="text" id="car-model" placeholder="Model Y" required /></label>
+                      <label>Car color <input type="text" id="car-color" placeholder="Dark Gray" required /></label>
+                      <label>License plate <input type="text" id="license-plate" placeholder="ABC1234" required /><span class="field-note">License plate will only be visible to riders after they reserve a seat.</span></label>
+                    </div>
+                    <label id="vehicle-layout-field">Vehicle layout
+                      <select id="vehicle-seat-count">
+                        <option value="2">2 seater</option>
+                        <option value="4">4 seater</option>
+                        <option value="5" selected>5 seater</option>
+                        <option value="6">6 seater</option>
+                        <option value="7">7 seater</option>
                       </select>
                     </label>
-                    <label>Cargo capacity
-                      <select id="moving-capacity">
-                        <option value="Small">Small — bags &amp; boxes</option>
-                        <option value="Medium">Medium — small furniture + boxes</option>
-                        <option value="Large">Large — full room or more</option>
-                      </select>
-                    </label>
-                    <label class="checkbox-label"><input type="checkbox" id="moving-loading-help" /> I'll help load &amp; unload</label>
-                    <label class="checkbox-label"><input type="checkbox" id="moving-furniture" /> Can move large/heavy furniture</label>
-                  </div>
-                  <div id="personal-car-fields" class="vehicle-grid hidden">
-                    <label>Car maker <input type="text" id="car-maker" placeholder="Tesla" required /></label>
-                    <label>Car model <input type="text" id="car-model" placeholder="Model Y" required /></label>
-                    <label>Car color <input type="text" id="car-color" placeholder="Dark Gray" required /></label>
-                    <label>License plate <input type="text" id="license-plate" placeholder="ABC1234" required /><span class="field-note">License plate will only be visible to riders after they reserve a seat.</span></label>
-                  </div>
-                  <label id="vehicle-layout-field">Vehicle layout
-                    <select id="vehicle-seat-count">
-                      <option value="2">2 seater</option>
-                      <option value="4">4 seater</option>
-                      <option value="5" selected>5 seater</option>
-                      <option value="6">6 seater</option>
-                      <option value="7">7 seater</option>
-                    </select>
-                  </label>
-                  <div id="personal-seat-selection" class="seat-picker-block hidden">
-                    <div class="seat-picker-header">
-                      <label>Available passenger seats</label>
-                      <span id="selected-seat-count">0 selected</span>
+                    <div id="personal-seat-selection" class="seat-picker-block hidden">
+                      <div class="seat-picker-header">
+                        <label>Available passenger seats</label>
+                        <span id="selected-seat-count">0 selected</span>
+                      </div>
+                      <div id="driver-seat-layout" class="seat-layout driver-seat-layout"></div>
+                      <input type="hidden" id="seats" value="0" required />
                     </div>
-                    <div id="driver-seat-layout" class="seat-layout driver-seat-layout"></div>
-                    <input type="hidden" id="seats" value="0" required />
                   </div>
-                  <label id="price-field-label">Price per seat ($) <input type="number" id="ride-price" min="0.50" step="0.01" placeholder="5.00" required /></label>
-                  <label>Parking / airport fee ($) <input type="number" id="ride-parking-fee" min="0" step="0.01" placeholder="0.00" /></label>
-                  <label>Notes <textarea id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." rows="3"></textarea></label>
-                  <label class="checkbox-label terms-agreement">
-                    <input type="checkbox" id="ride-terms-agree" required />
-                    I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> as a driver.
-                  </label>
-                  <label class="checkbox-label terms-agreement">
-                    <input type="checkbox" id="ride-driver-disclaimer" required />
-                    I have a valid driver's license and current auto insurance. I understand LinkUp is a peer-to-peer platform — not a commercial transportation service.
-                  </label>
-                  <button type="submit">Post ride</button>
+
+                  <div class="offer-section">
+                    <h4 class="offer-section-label">Pricing &amp; notes</h4>
+                    <div class="offer-pricing-row">
+                      <label id="price-field-label">Price per seat ($) <input type="number" id="ride-price" min="0.50" step="0.01" placeholder="5.00" required /></label>
+                      <label>Parking / airport fee ($) <input type="number" id="ride-parking-fee" min="0" step="0.01" placeholder="0.00" /></label>
+                    </div>
+                    <label>Notes <textarea id="notes" maxlength="300" placeholder="Music OK, study-friendly, etc." rows="3"></textarea></label>
+                  </div>
+
+                  <div class="offer-section offer-section-confirm">
+                    <label class="checkbox-label terms-agreement">
+                      <input type="checkbox" id="ride-terms-agree" required />
+                      I agree to LinkUp's <button type="button" class="legal-inline-link" data-legal-modal="terms">Terms and Conditions</button> as a driver.
+                    </label>
+                    <label class="checkbox-label terms-agreement">
+                      <input type="checkbox" id="ride-driver-disclaimer" required />
+                      I have a valid driver's license and current auto insurance. I understand LinkUp is a peer-to-peer platform — not a commercial transportation service.
+                    </label>
+                    <button type="submit">Post ride</button>
+                  </div>
                 </form>
               </article>
 

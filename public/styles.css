@@ -1583,10 +1583,10 @@ button:disabled::before { display: none; }
   height: 400px;
   margin: 1.25rem 0 0.5rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-hover);
+  border: 1px solid rgba(62, 207, 207, 0.14);
   overflow: hidden;
-  background: #1a1a2e;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(62,207,207,0.08);
+  background: #0c1618;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(62,207,207,0.05);
 }
 
 /* ─── Browse rider two-column layout ───────────────────────── */
@@ -1609,18 +1609,18 @@ button:disabled::before { display: none; }
 }
 
 .browse-map-panel {
-  background: #1a1a2e;
+  background: #0c1618;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-hover);
+  border: 1px solid rgba(62, 207, 207, 0.16);
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(62,207,207,0.08);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(62,207,207,0.05);
   position: relative;
 }
 
 .browse-radius-map-fullpanel {
   width: 100%;
   height: 420px;
-  background: #1a1a2e;
+  background: #0c1618;
 }
 
 .map-error-state {
@@ -2171,6 +2171,95 @@ button:disabled::before { display: none; }
 #offer-form button[type="submit"]:hover {
   background: linear-gradient(135deg, #5cdede, #3ecfcf);
   box-shadow: 0 6px 28px rgba(62,207,207,0.45);
+}
+
+/* ─── Offer form sections ───────────────────────────────────── */
+.offer-section {
+  padding: 1.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.offer-section:last-child,
+.offer-section-confirm {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.offer-section-label {
+  display: block;
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Pickup + dropoff side-by-side */
+.offer-locations-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0;
+}
+
+.offer-locations-row .location-picker {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* Date + time side-by-side */
+.offer-datetime-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.offer-datetime-row label { margin-top: 0; }
+
+/* Rider preference checkboxes in a row */
+.offer-prefs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+
+.offer-prefs-row .checkbox-label { margin-top: 0; }
+
+/* Pricing fields side-by-side */
+.offer-pricing-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0;
+}
+
+.offer-pricing-row label { margin-top: 0; }
+
+/* Request ride preferences section */
+.request-prefs-section {
+  padding-top: 1.2rem;
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.request-prefs-section .offer-section-label {
+  margin-bottom: 0.85rem;
+}
+
+.request-prefs-section > label:last-of-type {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 560px) {
+  .offer-locations-row,
+  .offer-datetime-row,
+  .offer-pricing-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ─── Seat layout ───────────────────────────────────────────── */
@@ -2776,7 +2865,7 @@ button:disabled::before { display: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   margin-bottom: 0.8rem;
-  background: #1a1a2e;
+  background: #0c1618;
   overflow: hidden;
   position: relative;
 }
@@ -3002,7 +3091,7 @@ button:disabled::before { display: none; }
   height: 100%;
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-lg);
-  background: #1a1a2e;
+  background: #0c1618;
   color: var(--text-muted);
   font-size: 0.9rem;
   overflow: hidden;
@@ -9040,41 +9129,47 @@ html[data-theme="light"] #policy-required-message {
 
 .route-map-block {
   display: grid;
-  gap: 0.65rem;
-  margin: 0.35rem 0 1.1rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
+  gap: 0;
+  margin: 1rem 0 1.1rem;
+  padding: 0;
+  border: 1px solid rgba(62, 207, 207, 0.18);
   border-radius: var(--radius-lg);
-  background: rgba(6, 16, 18, 0.42);
+  background: rgba(4, 14, 16, 0.70);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(62, 207, 207, 0.06);
 }
 
 .route-map-heading {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid rgba(62, 207, 207, 0.10);
+  background: rgba(3, 10, 12, 0.55);
 }
 
 .route-map-heading span {
-  color: var(--text-secondary);
+  color: var(--accent);
   font-family: var(--font-display);
-  font-size: 0.78rem;
+  font-size: 0.70rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .route-map-heading small {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   text-align: right;
 }
 
 .route-map {
-  height: clamp(300px, 42vh, 480px);
+  height: clamp(340px, 46vh, 520px);
   margin-bottom: 0;
-  border-color: rgba(103, 215, 217, 0.28);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28);
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
 }
 
 #destination-map,
@@ -9088,7 +9183,7 @@ html[data-theme="light"] #policy-required-message {
 }
 
 @media (min-width: 760px) {
-  #offer-form > .location-picker,
+  #offer-form .offer-locations-row .location-picker,
   #request-ride-form .request-ride-grid > .location-picker {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
