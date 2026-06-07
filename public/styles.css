@@ -5696,6 +5696,8 @@ a.waitlist-profile-btn {
   text-decoration: none;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  border: 1px solid rgba(62,207,207,0.22);
+  font-family: var(--font-display);
 }
 
 .waitlist-secondary-actions {
