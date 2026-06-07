@@ -5694,6 +5694,8 @@ a.waitlist-profile-btn {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .waitlist-secondary-actions {
