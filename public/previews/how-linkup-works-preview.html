@@ -94,10 +94,12 @@
         justify-content: space-between;
         gap: 10px;
         margin-bottom: 16px;
-        color: var(--guide-text);
-        font-size: 1.05rem;
-        font-weight: 900;
-        letter-spacing: -0.01em;
+      }
+
+      .guide-logo {
+        height: 26px;
+        width: auto;
+        filter: var(--logo-filter);
       }
 
       .guide-sidebar-badge {
@@ -111,41 +113,50 @@
         text-transform: uppercase;
       }
 
+      /* ─── Header bar (top of content panel) ─── */
+      .guide-header {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        padding: 10px clamp(20px, 3.5vw, 52px);
+        border-bottom: 1px solid var(--guide-border);
+      }
+
       /* ─── Return link ─── */
       .guide-return-link {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 100%;
-        min-height: 42px;
-        margin: 0 0 16px;
-        padding: 10px 13px;
+        width: auto;
+        min-height: 36px;
+        margin: 0;
+        padding: 7px 14px;
         border: 1px solid var(--guide-border-strong);
-        border-radius: 13px;
+        border-radius: 10px;
         background: rgba(255, 255, 255, 0.05);
         color: var(--guide-accent-dark);
-        font: 900 0.70rem/1 var(--font-display, inherit);
-        letter-spacing: 0.13em;
+        font: 900 0.68rem/1 var(--font-display, inherit);
+        letter-spacing: 0.12em;
         text-decoration: none;
         text-transform: uppercase;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-        transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+        white-space: nowrap;
+        transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
       }
 
       html[data-theme="light"] .guide-return-link {
         background: #fff;
-        box-shadow: 0 6px 18px rgba(18, 91, 97, 0.09);
+        box-shadow: 0 2px 10px rgba(18, 91, 97, 0.08);
       }
 
       .guide-return-link:hover {
         background: rgba(62, 207, 207, 0.10);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.20);
         transform: translateY(-1px);
       }
 
       html[data-theme="light"] .guide-return-link:hover {
         background: rgba(220, 248, 249, 0.92);
-        box-shadow: 0 8px 22px rgba(18, 91, 97, 0.12);
+        box-shadow: 0 6px 16px rgba(18, 91, 97, 0.10);
       }
 
       /* ─── Nav items ─── */
@@ -278,7 +289,7 @@
       /* ─── Main area ─── */
       .guide-main {
         display: grid;
-        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-rows: auto minmax(0, 1fr) auto;
         min-width: 0;
         min-height: 0;
       }
@@ -589,6 +600,8 @@
 
         .guide-sidebar-footer { display: none; }
 
+        .guide-header { padding: 9px 15px; }
+
         .guide-section-body {
           grid-template-columns: 1fr;
           padding: 20px 16px 26px;
@@ -606,12 +619,9 @@
     <main class="preview-guide-wrap">
       <section class="guide-panel" aria-label="How LinkUp works">
         <aside class="guide-sidebar" aria-label="Guide navigation">
-          <div class="guide-sidebar-top">
-            <div class="guide-sidebar-brand">
-              <span>LinkUp</span>
-              <span class="guide-sidebar-badge">Guide</span>
-            </div>
-            <a class="guide-return-link" href="/" aria-label="Return to waitlist page">← Back to waitlist</a>
+          <div class="guide-sidebar-brand">
+            <img class="guide-logo" src="../assets/images/LinkUp-wordmark.png" alt="LinkUp" />
+            <span class="guide-sidebar-badge">Guide</span>
           </div>
           <nav class="guide-nav" aria-label="Guide sections">
             <button class="guide-nav-item active" data-guide="1" type="button"><span class="guide-nav-num">01</span><div class="guide-nav-text"><strong>Getting started</strong><span>Sign up and join</span></div></button>
@@ -628,6 +638,10 @@
         </aside>
 
         <div class="guide-main">
+          <div class="guide-header">
+            <a class="guide-return-link" href="/" aria-label="Return to waitlist page">← Back to waitlist</a>
+          </div>
+
           <div class="guide-section active" data-guide="1">
             <div class="guide-section-body">
               <div class="guide-section-text">
