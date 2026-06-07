@@ -1266,13 +1266,26 @@ async function lookupTypedLocation(input, onResolved) {
 function wireTypedLocationLookup(input, onResolved) {
   if (!input || input.dataset.lookupWired === 'true') return;
   input.dataset.lookupWired = 'true';
-  const lookup = () => lookupTypedLocation(input, onResolved);
+  let debounceTimer = null;
+  const doLookup = () => lookupTypedLocation(input, onResolved);
   input.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
-    lookup();
+    clearTimeout(debounceTimer);
+    doLookup();
   });
-  input.addEventListener('blur', () => lookup());
+  // Geocode 650 ms after the user stops typing — makes the map feel live
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(doLookup, 650);
+  });
+  // Small delay on blur so autocomplete place_changed can fire first when the
+  // user clicks a suggestion (autocomplete fills the input before place_changed,
+  // but the blur fires synchronously before that on some browsers)
+  input.addEventListener('blur', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(doLookup, 150);
+  });
 }
 
 function clearOfferLocationCoordinates(kind) {
