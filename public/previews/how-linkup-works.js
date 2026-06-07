@@ -1,6 +1,12 @@
 (function () {
   const THEME_KEY = 'linkup.theme';
   const TOTAL = 7;
+  const fromProfile = new URLSearchParams(location.search).get('from') === 'profile';
+
+  function goBack() {
+    if (fromProfile) history.back();
+    else window.location.href = '/';
+  }
 
   /* ── Theme ── */
   function resolveTimeTheme() {
@@ -22,6 +28,13 @@
   });
 
   /* ── Guide navigation ── */
+  const returnLink = document.querySelector('.guide-return-link');
+  if (fromProfile) {
+    returnLink.textContent = '← Back to profile';
+    returnLink.setAttribute('aria-label', 'Return to profile page');
+    returnLink.addEventListener('click', (e) => { e.preventDefault(); goBack(); });
+  }
+
   const guideSections = [...document.querySelectorAll('.guide-section')];
   const navItems      = [...document.querySelectorAll('.guide-nav-item')];
   const dots          = [...document.querySelectorAll('.guide-dots span')];
@@ -60,9 +73,9 @@
     // Ignore clicks that land on the section content containers
     if (target.classList.contains('guide-section')) return;
 
-    // "Done" on last step → back to waitlist
+    // "Done" on last step → back
     if (target === nextBtn && current === TOTAL) {
-      window.location.href = '/';
+      goBack();
       return;
     }
 
