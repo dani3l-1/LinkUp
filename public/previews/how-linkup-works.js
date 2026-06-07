@@ -1,7 +1,8 @@
 (function () {
   const THEME_KEY = 'linkup.theme';
   const TOTAL = 7;
-  const fromProfile = new URLSearchParams(location.search).get('from') === 'profile';
+  const from = new URLSearchParams(location.search).get('from');
+  const fromProfile = from === 'profile';
 
   function goBack() {
     if (fromProfile) history.back();
@@ -29,10 +30,13 @@
 
   /* ── Guide navigation ── */
   const returnLink = document.querySelector('.guide-return-link');
-  if (fromProfile) {
+  if (from === 'profile') {
     returnLink.textContent = '← Back to profile';
     returnLink.setAttribute('aria-label', 'Return to profile page');
     returnLink.addEventListener('click', (e) => { e.preventDefault(); goBack(); });
+  } else if (from === 'waitlist') {
+    returnLink.textContent = '← Back to waitlist';
+    returnLink.setAttribute('aria-label', 'Return to waitlist page');
   }
 
   const guideSections = [...document.querySelectorAll('.guide-section')];
