@@ -187,10 +187,15 @@
           <form id="verification-form" class="tab-content">
             <h2>Check your inbox</h2>
             <p id="verification-email-label"></p>
-            <div class="form-field">
-              <label for="verification-code">6-Digit Code</label>
-              <input type="text" id="verification-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" required />
+            <div class="otp-group" data-target="verification-code">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
             </div>
+            <input type="hidden" id="verification-code">
             <button type="submit" class="btn-primary">Verify →</button>
             <button type="button" id="resend-verification" class="text-button">Resend code</button>
             <button type="button" id="verification-back-to-signin" class="text-button">Back to sign in</button>
@@ -229,11 +234,15 @@
           <div id="twofa-form" class="tab-content">
             <h2>Two-factor verification</h2>
             <p id="twofa-login-desc" class="twofa-login-desc">Enter the 6-digit code from your authenticator app.</p>
-            <div class="form-field">
-              <label for="twofa-login-code">Authenticator code</label>
-              <input type="text" id="twofa-login-code" inputmode="numeric" maxlength="6"
-                     placeholder="000000" autocomplete="one-time-code" />
+            <div class="otp-group" data-target="twofa-login-code">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
+              <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" placeholder="·">
             </div>
+            <input type="hidden" id="twofa-login-code">
             <button type="button" id="twofa-login-submit" class="btn-primary">Verify →</button>
             <div id="twofa-resend-wrap" class="hidden">
               <button type="button" id="twofa-resend-btn" class="text-button">Resend code</button>

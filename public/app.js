@@ -633,6 +633,7 @@ document.addEventListener('click', async (event) => {
     'twofa-login-back': () => {
       document.getElementById('twofa-login-error').textContent = '';
       document.getElementById('twofa-login-code').value = '';
+      document.querySelectorAll('#twofa-form .otp-digit').forEach(d => { d.value = ''; });
       showAuthForm('signin-form');
     },
   };
@@ -1543,6 +1544,77 @@ function attachSigninHandler() {
 
 attachSigninHandler();
 
+// ── OTP digit-box behavior ────────────────────────────────────
+function syncOtpGroup(group) {
+  const digits = [...group.querySelectorAll('.otp-digit')];
+  const value = digits.map(d => d.value).join('');
+  const targetId = group.dataset.target;
+  if (targetId) {
+    const hidden = document.getElementById(targetId);
+    if (hidden) hidden.value = value;
+  }
+  if (value.length === 6) {
+    const container = group.closest('form, [id$="-form"]');
+    if (container?.id === 'twofa-form') {
+      document.getElementById('twofa-login-submit')?.click();
+    } else if (container?.id === 'verification-form') {
+      container.requestSubmit?.();
+    }
+  }
+}
+
+document.addEventListener('input', (e) => {
+  if (!e.target.classList.contains('otp-digit')) return;
+  const group = e.target.closest('.otp-group');
+  if (!group) return;
+  const digits = [...group.querySelectorAll('.otp-digit')];
+  const idx = digits.indexOf(e.target);
+  const raw = e.target.value.replace(/\D/g, '');
+  if (raw.length > 1) {
+    raw.split('').forEach((ch, i) => { if (digits[idx + i]) digits[idx + i].value = ch; });
+    (digits[Math.min(idx + raw.length, digits.length - 1)] || digits[digits.length - 1]).focus();
+  } else {
+    e.target.value = raw;
+    if (raw && idx < digits.length - 1) digits[idx + 1].focus();
+  }
+  syncOtpGroup(group);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!e.target.classList.contains('otp-digit')) return;
+  const group = e.target.closest('.otp-group');
+  if (!group) return;
+  const digits = [...group.querySelectorAll('.otp-digit')];
+  const idx = digits.indexOf(e.target);
+  if (e.key === 'Backspace') {
+    if (e.target.value) { e.target.value = ''; }
+    else if (idx > 0) { digits[idx - 1].value = ''; digits[idx - 1].focus(); }
+    syncOtpGroup(group);
+  } else if (e.key === 'ArrowLeft' && idx > 0) {
+    digits[idx - 1].focus();
+  } else if (e.key === 'ArrowRight' && idx < digits.length - 1) {
+    digits[idx + 1].focus();
+  }
+});
+
+document.addEventListener('paste', (e) => {
+  if (!e.target.classList.contains('otp-digit')) return;
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+  const group = e.target.closest('.otp-group');
+  if (!group || !text) return;
+  const digits = [...group.querySelectorAll('.otp-digit')];
+  const idx = digits.indexOf(e.target);
+  text.split('').forEach((ch, i) => { if (digits[idx + i]) digits[idx + i].value = ch; });
+  (digits[Math.min(idx + text.length, digits.length - 1)] || digits[digits.length - 1]).focus();
+  syncOtpGroup(group);
+});
+
+document.addEventListener('focus', (e) => {
+  if (!e.target.classList.contains('otp-digit')) return;
+  e.target.select?.();
+}, true);
+
 function enterDashboard(user) {
   try {
     showDashboard(user);
@@ -1888,6 +1960,8 @@ function showAuthForm(formId) {
   const tabName = formId.replace('-form', '');
   const matchingTab = document.querySelector('[data-tab="' + tabName + '"]');
   if (matchingTab) matchingTab.classList.add('active');
+  const showTabs = formId === 'signin-form' || formId === 'signup-form';
+  document.querySelector('.auth-tabs')?.classList.toggle('hidden', !showTabs);
 }
 
 async function loadFriendInviteBanner(inviteCode) {

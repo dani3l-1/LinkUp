@@ -808,6 +808,41 @@ strong { font-weight: 600; color: var(--text-primary); }
   line-height: 1.35;
 }
 
+/* ── OTP digit boxes ─────────────────────────────────────── */
+.otp-group {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 1.5rem 0 1rem;
+}
+
+.otp-digit {
+  width: 48px;
+  height: 58px;
+  text-align: center;
+  font-size: 1.55rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  letter-spacing: 0;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  caret-color: var(--accent);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.otp-digit::placeholder { color: rgba(255,255,255,0.15); font-size: 1.1rem; }
+.otp-digit:focus {
+  border-color: var(--accent);
+  background: rgba(62,207,207,0.06);
+  box-shadow: 0 0 0 3px rgba(62,207,207,0.14);
+}
+.otp-digit:not(:placeholder-shown) { border-color: rgba(62,207,207,0.35); }
+
 /* Auth tabs */
 .auth-tabs {
   display: flex;
