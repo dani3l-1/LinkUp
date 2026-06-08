@@ -12876,79 +12876,101 @@ html[data-theme="light"] .tracking-map {
 }
 
 .lu-splash-scene {
-  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  width: 360px;
-  height: 80px;
+  gap: 2rem;
 }
 
-.lu-dot {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #3ecfcf;
-  box-shadow: 0 0 18px rgba(62,207,207,0.7);
+.lu-route-svg {
+  width: min(340px, 82vw);
+  height: auto;
+  overflow: visible;
 }
 
-.lu-dot--left  { animation: lu-dot-from-left  0.85s cubic-bezier(0.4, 0, 0.2, 1) both; }
-.lu-dot--right { animation: lu-dot-from-right 0.85s cubic-bezier(0.4, 0, 0.2, 1) both; }
-
-.lu-dot-flash {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(62,207,207,0.28) 0%, transparent 70%);
+.lu-route-line {
+  stroke: #3ecfcf;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 330;
+  stroke-dashoffset: 330;
   opacity: 0;
-  animation: lu-flash 0.42s ease 0.48s both;
+  animation: lu-route-draw 0.65s cubic-bezier(0.4, 0, 0.2, 1) 0.32s both;
 }
+
+.lu-pin-ring {
+  stroke: #3ecfcf;
+  stroke-width: 1.5;
+  fill: rgba(62,207,207,0.08);
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+
+.lu-pin-ring--a { animation: lu-pin-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0s both; }
+.lu-pin-ring--b { animation: lu-pin-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.14s both; }
+
+.lu-pin-dot {
+  fill: #3ecfcf;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+
+.lu-pin-dot--a { animation: lu-pin-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both; }
+.lu-pin-dot--b { animation: lu-pin-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.24s both; }
+
+.lu-pin-ping {
+  stroke: #3ecfcf;
+  stroke-width: 1;
+  fill: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+
+.lu-pin-ping--a { animation: lu-ping 0.7s ease-out 0.3s forwards; }
+.lu-pin-ping--b { animation: lu-ping 0.7s ease-out 0.44s forwards; }
 
 .lu-splash-wordmark {
-  position: absolute;
-  height: 38px;
+  height: 44px;
   width: auto;
   opacity: 0;
-  animation: lu-wordmark-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) 0.54s both;
+  filter: drop-shadow(0 0 20px rgba(62,207,207,0.25));
+  animation: lu-wordmark-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.78s both;
 }
 
 #lu-login-splash.lu-splash--exit {
   animation: lu-overlay-exit 0.35s ease forwards;
 }
 
-#lu-login-splash.lu-splash--exit .lu-dot,
-#lu-login-splash.lu-splash--exit .lu-dot-flash,
+#lu-login-splash.lu-splash--exit .lu-route-line,
+#lu-login-splash.lu-splash--exit .lu-pin-ring,
+#lu-login-splash.lu-splash--exit .lu-pin-dot,
+#lu-login-splash.lu-splash--exit .lu-pin-ping,
 #lu-login-splash.lu-splash--exit .lu-splash-wordmark {
   animation: none;
   opacity: 0;
 }
 
-@keyframes lu-dot-from-left {
-  0%  { transform: translateX(-200px); opacity: 0; }
-  8%  { opacity: 1; }
-  62% { transform: translateX(0); opacity: 1; }
-  80% { transform: translateX(0); opacity: 0; }
-  100%{ transform: translateX(0); opacity: 0; }
+@keyframes lu-route-draw {
+  0%   { stroke-dashoffset: 330; opacity: 0; }
+  6%   { opacity: 1; }
+  100% { stroke-dashoffset: 0;   opacity: 1; }
 }
 
-@keyframes lu-dot-from-right {
-  0%  { transform: translateX(200px); opacity: 0; }
-  8%  { opacity: 1; }
-  62% { transform: translateX(0); opacity: 1; }
-  80% { transform: translateX(0); opacity: 0; }
-  100%{ transform: translateX(0); opacity: 0; }
+@keyframes lu-pin-in {
+  0%   { opacity: 0; transform: scale(0); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
-@keyframes lu-flash {
-  0%   { opacity: 0; transform: scale(0.5); }
-  45%  { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.6); }
+@keyframes lu-ping {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
 }
 
 @keyframes lu-wordmark-in {
-  from { opacity: 0; transform: translateY(5px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 

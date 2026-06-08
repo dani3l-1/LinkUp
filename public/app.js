@@ -1513,9 +1513,15 @@ function playLoginSplash(callback) {
   splash.id = 'lu-login-splash';
   splash.innerHTML = `
     <div class="lu-splash-scene">
-      <span class="lu-dot lu-dot--left"></span>
-      <span class="lu-dot lu-dot--right"></span>
-      <span class="lu-dot-flash"></span>
+      <svg class="lu-route-svg" viewBox="0 0 340 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path class="lu-route-line" d="M 28 34 C 120 6, 220 6, 312 34"/>
+        <circle class="lu-pin-ring lu-pin-ring--a" cx="28" cy="34" r="12"/>
+        <circle class="lu-pin-ring lu-pin-ring--b" cx="312" cy="34" r="12"/>
+        <circle class="lu-pin-ping lu-pin-ping--a" cx="28" cy="34" r="12"/>
+        <circle class="lu-pin-ping lu-pin-ping--b" cx="312" cy="34" r="12"/>
+        <circle class="lu-pin-dot lu-pin-dot--a" cx="28" cy="34" r="5"/>
+        <circle class="lu-pin-dot lu-pin-dot--b" cx="312" cy="34" r="5"/>
+      </svg>
       <img class="lu-splash-wordmark" src="assets/images/LinkUp-wordmark.png" alt="" aria-hidden="true">
     </div>
   `;
@@ -1525,7 +1531,7 @@ function playLoginSplash(callback) {
     callback();
     splash.classList.add('lu-splash--exit');
     setTimeout(() => splash.remove(), 380);
-  }, 950);
+  }, 1100);
 }
 
 function attachSigninHandler() {
