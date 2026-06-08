@@ -200,11 +200,16 @@
       try {
         await apiJson('/api/auth/signout', { method: 'POST' });
       } catch (_) {}
-      document.body?.classList.remove('dashboard-mode');
-      document.getElementById('dashboard')?.classList.add('hidden');
-      document.getElementById('auth-section')?.classList.remove('hidden');
-      document.getElementById('header-actions')?.classList.add('hidden');
-      document.getElementById('header-left-actions')?.classList.add('hidden');
+      if (window.__linkupShowPublicWaitlist) {
+        window.__linkupShowPublicWaitlist();
+      } else {
+        document.body?.classList.remove('dashboard-mode');
+        document.getElementById('dashboard')?.classList.add('hidden');
+        document.getElementById('waitlist-page')?.classList.remove('hidden');
+        document.getElementById('auth-section')?.classList.add('hidden');
+        document.getElementById('header-actions')?.classList.add('hidden');
+        document.getElementById('header-left-actions')?.classList.add('hidden');
+      }
       return;
     }
     await action();

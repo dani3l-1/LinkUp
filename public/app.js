@@ -5075,6 +5075,7 @@ function showPublicWaitlistPage() {
   waitlistPage.classList.add('waitlist-guest-mode');
   loadWaitlistLeaderboard();
 }
+window.__linkupShowPublicWaitlist = showPublicWaitlistPage;
 
 function showWaitlistPage(user) {
   setAppRoute('waitlist');
