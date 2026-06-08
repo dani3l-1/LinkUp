@@ -1513,17 +1513,26 @@ function playLoginSplash(callback) {
   const splash = document.createElement('div');
   splash.id = 'lu-login-splash';
   splash.innerHTML = `
-    <div class="lu-splash-scene">
-      <svg class="lu-route-svg" viewBox="0 0 340 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path class="lu-route-line" d="M 28 34 C 120 6, 220 6, 312 34"/>
-        <circle class="lu-pin-ring lu-pin-ring--a" cx="28" cy="34" r="12"/>
-        <circle class="lu-pin-ring lu-pin-ring--b" cx="312" cy="34" r="12"/>
-        <circle class="lu-pin-ping lu-pin-ping--a" cx="28" cy="34" r="12"/>
-        <circle class="lu-pin-ping lu-pin-ping--b" cx="312" cy="34" r="12"/>
-        <circle class="lu-pin-dot lu-pin-dot--a" cx="28" cy="34" r="5"/>
-        <circle class="lu-pin-dot lu-pin-dot--b" cx="312" cy="34" r="5"/>
-      </svg>
-    </div>
+    <svg class="lu-warp-svg" viewBox="-100 -60 200 120" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <line class="lu-warp-line lw-a" x1="-100" y1="-60" x2="0" y2="0" style="--len:117"/>
+      <line class="lu-warp-line lw-b" x1="-50"  y1="-60" x2="0" y2="0" style="--len:78"/>
+      <line class="lu-warp-line lw-c" x1="0"    y1="-60" x2="0" y2="0" style="--len:60"/>
+      <line class="lu-warp-line lw-b" x1="50"   y1="-60" x2="0" y2="0" style="--len:78"/>
+      <line class="lu-warp-line lw-a" x1="100"  y1="-60" x2="0" y2="0" style="--len:117"/>
+      <line class="lu-warp-line lw-b" x1="100"  y1="-30" x2="0" y2="0" style="--len:105"/>
+      <line class="lu-warp-line lw-c" x1="100"  y1="0"   x2="0" y2="0" style="--len:100"/>
+      <line class="lu-warp-line lw-b" x1="100"  y1="30"  x2="0" y2="0" style="--len:105"/>
+      <line class="lu-warp-line lw-a" x1="100"  y1="60"  x2="0" y2="0" style="--len:117"/>
+      <line class="lu-warp-line lw-b" x1="50"   y1="60"  x2="0" y2="0" style="--len:78"/>
+      <line class="lu-warp-line lw-c" x1="0"    y1="60"  x2="0" y2="0" style="--len:60"/>
+      <line class="lu-warp-line lw-b" x1="-50"  y1="60"  x2="0" y2="0" style="--len:78"/>
+      <line class="lu-warp-line lw-a" x1="-100" y1="60"  x2="0" y2="0" style="--len:117"/>
+      <line class="lu-warp-line lw-b" x1="-100" y1="30"  x2="0" y2="0" style="--len:105"/>
+      <line class="lu-warp-line lw-c" x1="-100" y1="0"   x2="0" y2="0" style="--len:100"/>
+      <line class="lu-warp-line lw-b" x1="-100" y1="-30" x2="0" y2="0" style="--len:105"/>
+      <circle class="lu-warp-burst" cx="0" cy="0" r="22"/>
+      <circle class="lu-warp-ring"  cx="0" cy="0" r="8"/>
+    </svg>
     <img class="lu-splash-wordmark" src="assets/images/LinkUp-wordmark.png" alt="" aria-hidden="true">
   `;
   document.body.appendChild(splash);
