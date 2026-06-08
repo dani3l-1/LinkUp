@@ -12880,16 +12880,17 @@ html[data-theme="light"] .tracking-map {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 200px;
-  height: 40px;
+  width: 360px;
+  height: 80px;
 }
 
 .lu-dot {
   position: absolute;
-  width: 7px;
-  height: 7px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #3ecfcf;
+  box-shadow: 0 0 18px rgba(62,207,207,0.7);
 }
 
 .lu-dot--left  { animation: lu-dot-from-left  0.85s cubic-bezier(0.4, 0, 0.2, 1) both; }
@@ -12897,17 +12898,17 @@ html[data-theme="light"] .tracking-map {
 
 .lu-dot-flash {
   position: absolute;
-  width: 48px;
-  height: 48px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(62,207,207,0.22) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(62,207,207,0.28) 0%, transparent 70%);
   opacity: 0;
-  animation: lu-flash 0.38s ease 0.48s both;
+  animation: lu-flash 0.42s ease 0.48s both;
 }
 
 .lu-splash-wordmark {
   position: absolute;
-  height: 19px;
+  height: 38px;
   width: auto;
   opacity: 0;
   animation: lu-wordmark-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) 0.54s both;
@@ -12925,7 +12926,7 @@ html[data-theme="light"] .tracking-map {
 }
 
 @keyframes lu-dot-from-left {
-  0%  { transform: translateX(-110px); opacity: 0; }
+  0%  { transform: translateX(-200px); opacity: 0; }
   8%  { opacity: 1; }
   62% { transform: translateX(0); opacity: 1; }
   80% { transform: translateX(0); opacity: 0; }
@@ -12933,7 +12934,7 @@ html[data-theme="light"] .tracking-map {
 }
 
 @keyframes lu-dot-from-right {
-  0%  { transform: translateX(110px); opacity: 0; }
+  0%  { transform: translateX(200px); opacity: 0; }
   8%  { opacity: 1; }
   62% { transform: translateX(0); opacity: 1; }
   80% { transform: translateX(0); opacity: 0; }
