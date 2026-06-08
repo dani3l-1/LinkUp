@@ -5798,6 +5798,42 @@ a.waitlist-profile-btn {
   color: var(--accent);
 }
 
+.waitlist-guest-cta {
+  display: none;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.waitlist-guest-mode .waitlist-guest-cta { display: flex; }
+
+.waitlist-guest-signup-btn {
+  min-width: 180px;
+  margin: 0.2rem 0 0;
+  padding: 0.78rem 1.15rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent) 0%, #2fb8b8 100%);
+  color: #041414;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(62,207,207,0.3);
+}
+
+.waitlist-guest-signup-btn:hover {
+  background: linear-gradient(135deg, #5cdede 0%, #3ecfcf 100%);
+  box-shadow: 0 6px 28px rgba(62,207,207,0.45);
+}
+
+.waitlist-guest-mode .waitlist-status-pill,
+.waitlist-guest-mode #waitlist-title,
+.waitlist-guest-mode #waitlist-message,
+.waitlist-guest-mode .waitlist-intent-panel,
+.waitlist-guest-mode #waitlist-profile-button { display: none; }
+
 .waitlist-notify-msg {
   max-width: 530px;
   margin: 0;
@@ -12722,7 +12758,7 @@ html[data-theme="light"] .tracking-map {
 #lu-login-splash {
   position: fixed;
   inset: 0;
-  background: #0d1517;
+  background: #080e10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12730,86 +12766,85 @@ html[data-theme="light"] .tracking-map {
   pointer-events: none;
 }
 
-.lu-splash-glow {
-  position: absolute;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(62,207,207,0.18) 0%, transparent 70%);
-  animation: lu-glow-pulse 0.8s ease-out 0.1s both;
-}
-
-.lu-splash-ring {
-  position: absolute;
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  border: 2px solid #3ecfcf;
-  opacity: 0;
-}
-
-.lu-splash-ring--1 {
-  animation: lu-ring-out 0.75s cubic-bezier(0.2, 0.6, 0.4, 1) 0.3s forwards;
-}
-
-.lu-splash-ring--2 {
-  animation: lu-ring-out 0.75s cubic-bezier(0.2, 0.6, 0.4, 1) 0.52s forwards;
-}
-
-.lu-splash-ring--3 {
-  animation: lu-ring-out 0.75s cubic-bezier(0.2, 0.6, 0.4, 1) 0.74s forwards;
-}
-
-.lu-splash-logo {
-  width: 88px;
-  height: 88px;
-  border-radius: 20px;
+.lu-splash-scene {
   position: relative;
-  z-index: 1;
-  animation: lu-logo-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  filter: drop-shadow(0 0 18px rgba(62,207,207,0.35));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 40px;
 }
 
-/* exit state */
+.lu-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3ecfcf;
+}
+
+.lu-dot--left  { animation: lu-dot-from-left  0.85s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.lu-dot--right { animation: lu-dot-from-right 0.85s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+.lu-dot-flash {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(62,207,207,0.22) 0%, transparent 70%);
+  opacity: 0;
+  animation: lu-flash 0.38s ease 0.48s both;
+}
+
+.lu-splash-wordmark {
+  position: absolute;
+  height: 19px;
+  width: auto;
+  opacity: 0;
+  animation: lu-wordmark-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) 0.54s both;
+}
+
 #lu-login-splash.lu-splash--exit {
-  animation: lu-overlay-exit 0.55s ease-in-out forwards;
+  animation: lu-overlay-exit 0.35s ease forwards;
 }
 
-#lu-login-splash.lu-splash--exit .lu-splash-logo {
-  animation: lu-logo-shoot 0.45s cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-
-#lu-login-splash.lu-splash--exit .lu-splash-ring,
-#lu-login-splash.lu-splash--exit .lu-splash-glow {
+#lu-login-splash.lu-splash--exit .lu-dot,
+#lu-login-splash.lu-splash--exit .lu-dot-flash,
+#lu-login-splash.lu-splash--exit .lu-splash-wordmark {
   animation: none;
   opacity: 0;
 }
 
-@keyframes lu-logo-in {
-  0%   { transform: scale(0.25) rotate(-15deg); opacity: 0; }
-  100% { transform: scale(1)    rotate(0deg);   opacity: 1; }
+@keyframes lu-dot-from-left {
+  0%  { transform: translateX(-110px); opacity: 0; }
+  8%  { opacity: 1; }
+  62% { transform: translateX(0); opacity: 1; }
+  80% { transform: translateX(0); opacity: 0; }
+  100%{ transform: translateX(0); opacity: 0; }
 }
 
-@keyframes lu-glow-pulse {
-  0%   { transform: scale(0.3); opacity: 0; }
-  60%  { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(1);   opacity: 0.7; }
+@keyframes lu-dot-from-right {
+  0%  { transform: translateX(110px); opacity: 0; }
+  8%  { opacity: 1; }
+  62% { transform: translateX(0); opacity: 1; }
+  80% { transform: translateX(0); opacity: 0; }
+  100%{ transform: translateX(0); opacity: 0; }
 }
 
-@keyframes lu-ring-out {
-  0%   { transform: scale(1);   opacity: 0.55; }
-  100% { transform: scale(4.2); opacity: 0;    }
+@keyframes lu-flash {
+  0%   { opacity: 0; transform: scale(0.5); }
+  45%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
 }
 
-@keyframes lu-logo-shoot {
-  0%   { transform: scale(1);  opacity: 1; }
-  35%  { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(9);  opacity: 0; }
+@keyframes lu-wordmark-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes lu-overlay-exit {
-  0%   { opacity: 1; }
-  100% { opacity: 0; }
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 /* ── Request type toggle (Ride / Moving) ────────────────────────── */

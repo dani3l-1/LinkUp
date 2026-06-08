@@ -601,6 +601,8 @@ document.addEventListener('click', async (event) => {
     'chat-back-home': () => returnToBrowseRides(),
     'your-rides-back-home': () => returnToBrowseRides(),
     'continue-shopping': () => returnToBrowseRides(),
+    'waitlist-guest-signup': () => { showAuthSection(); showAuthForm('signup-form'); },
+    'waitlist-guest-signin': () => { showAuthSection(); showAuthForm('signin-form'); },
     'privacy-link': () => showLegalPage('privacy'),
     'terms-link': () => showLegalPage('terms'),
     'forgot-auth-link': () => {
@@ -1510,18 +1512,19 @@ function playLoginSplash(callback) {
   const splash = document.createElement('div');
   splash.id = 'lu-login-splash';
   splash.innerHTML = `
-    <span class="lu-splash-glow"></span>
-    <span class="lu-splash-ring lu-splash-ring--1"></span>
-    <span class="lu-splash-ring lu-splash-ring--2"></span>
-    <span class="lu-splash-ring lu-splash-ring--3"></span>
-    <img class="lu-splash-logo" src="icon-192.png" alt="" aria-hidden="true">
+    <div class="lu-splash-scene">
+      <span class="lu-dot lu-dot--left"></span>
+      <span class="lu-dot lu-dot--right"></span>
+      <span class="lu-dot-flash"></span>
+      <img class="lu-splash-wordmark" src="assets/images/LinkUp-wordmark.png" alt="" aria-hidden="true">
+    </div>
   `;
   document.body.appendChild(splash);
 
   setTimeout(() => {
     callback();
     splash.classList.add('lu-splash--exit');
-    setTimeout(() => splash.remove(), 600);
+    setTimeout(() => splash.remove(), 380);
   }, 950);
 }
 
@@ -1797,7 +1800,7 @@ async function checkAuth() {
     if (authCheckVersion !== authFlowVersion || currentUser) return;
     const route = getAppRoute();
     if (route === 'privacy' || route === 'terms') showLegalPage(route);
-    else showAuthSection();
+    else showPublicWaitlistPage();
   }
 }
 
@@ -4971,11 +4974,25 @@ function renderWaitlistIntent(intent = '') {
   });
 }
 
+function showPublicWaitlistPage() {
+  setAppRoute('waitlist');
+  hideLegalPages();
+  authSection.classList.add('hidden');
+  dashboard.classList.add('hidden');
+  document.body.classList.remove('dashboard-mode');
+  headerLeftActions.classList.add('hidden');
+  headerActions.classList.add('hidden');
+  waitlistPage.classList.remove('hidden');
+  waitlistPage.classList.add('waitlist-guest-mode');
+  loadWaitlistLeaderboard();
+}
+
 function showWaitlistPage(user) {
   setAppRoute('waitlist');
   hideDashboardPages();
   dashboard.classList.add('waitlist-lock-mode');
   waitlistPage.classList.remove('hidden');
+  waitlistPage.classList.remove('waitlist-guest-mode');
 
   const memberLabel = formatMemberNumber(user?.memberNumber);
   if (waitlistTitle) {

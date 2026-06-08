@@ -7645,7 +7645,7 @@ app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
   res.json({ schools, mileageSchools, totalUsers: leaderboardUsers.length, totalMilesSaved });
 });
 
-app.get('/api/leaderboard/waitlist-schools', requireAuth, (req, res) => {
+app.get('/api/leaderboard/waitlist-schools', (req, res) => {
   const db = normalizeUserAccess(loadDb());
   const schoolCounts = new Map();
   const needsReviewSchools = new Map();
