@@ -4996,7 +4996,7 @@ function showPublicWaitlistPage() {
 function showWaitlistPage(user) {
   setAppRoute('waitlist');
   hideDashboardPages();
-  dashboard.classList.add('hidden');
+  dashboard.classList.add('waitlist-lock-mode');
   waitlistPage.classList.remove('hidden');
   waitlistPage.classList.remove('waitlist-guest-mode');
 
