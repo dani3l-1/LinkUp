@@ -1523,8 +1523,8 @@ function playLoginSplash(callback) {
         <circle class="lu-pin-dot lu-pin-dot--a" cx="28" cy="34" r="5"/>
         <circle class="lu-pin-dot lu-pin-dot--b" cx="312" cy="34" r="5"/>
       </svg>
-      <img class="lu-splash-wordmark" src="assets/images/LinkUp-wordmark.png" alt="" aria-hidden="true">
     </div>
+    <img class="lu-splash-wordmark" src="assets/images/LinkUp-wordmark.png" alt="" aria-hidden="true">
   `;
   document.body.appendChild(splash);
 

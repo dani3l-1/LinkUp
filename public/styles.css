@@ -12902,19 +12902,16 @@ html[data-theme="light"] .tracking-map {
 #lu-login-splash {
   position: fixed;
   inset: 0;
-  background: #080e10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: var(--bg);
   z-index: 9999;
   pointer-events: none;
 }
 
 .lu-splash-scene {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rem;
+  position: absolute;
+  top: calc(50% - 130px);
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .lu-route-svg {
@@ -12968,6 +12965,9 @@ html[data-theme="light"] .tracking-map {
 .lu-pin-ping--b { animation: lu-ping 0.7s ease-out 0.44s forwards; }
 
 .lu-splash-wordmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   height: 44px;
   width: auto;
   opacity: 0;
@@ -12982,10 +12982,15 @@ html[data-theme="light"] .tracking-map {
 #lu-login-splash.lu-splash--exit .lu-route-line,
 #lu-login-splash.lu-splash--exit .lu-pin-ring,
 #lu-login-splash.lu-splash--exit .lu-pin-dot,
-#lu-login-splash.lu-splash--exit .lu-pin-ping,
+#lu-login-splash.lu-splash--exit .lu-pin-ping {
+  animation: none;
+  opacity: 0;
+}
+
 #lu-login-splash.lu-splash--exit .lu-splash-wordmark {
   animation: none;
   opacity: 0;
+  transform: translate(-50%, -50%);
 }
 
 @keyframes lu-route-draw {
@@ -13005,8 +13010,8 @@ html[data-theme="light"] .tracking-map {
 }
 
 @keyframes lu-wordmark-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
 }
 
 @keyframes lu-overlay-exit {
