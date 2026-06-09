@@ -2,6 +2,25 @@
 
 ---
 
+## v2026.06.08 BETA
+
+### New
+- **Public landing page.** Visitors who aren't signed in now see a proper landing page instead of the login form. The page shows the app's value proposition, three benefit points, and a live waitlist leaderboard with real school counts — everything you need to decide whether to join. Clicking Sign Out also brings you here instead of the login screen.
+- **Hyperspace warp login animation.** After signing in, 16 glowing teal lines converge simultaneously from every edge of the screen toward the center — diagonal, cardinal, and in-between directions — creating a warp-drive effect. On impact, a radial burst expands, then the LinkUp logo materializes at the center of the screen. The background matches your chosen dark or light theme. The white logo automatically inverts to dark on light backgrounds.
+- **iOS-style 6-digit code input.** Email verification and two-factor authentication now use six individual digit boxes instead of a single text field. Typing fills and advances automatically, backspace moves back, paste distributes digits across all boxes, and the form submits the moment the sixth digit is entered — no need to tap Verify.
+- **Verification tabs hidden.** The Sign In / Create Account tab bar disappears when you're entering a verification or 2FA code so the screen stays focused on the task at hand, then reappears when you go back.
+
+### Improvements
+- **Ride cards look like cards.** Browse results now display each ride as a proper floating card with a background, full rounded border, teal left accent, and a shadow — replacing the flat left-border strip from before. Cards lift with a glow on hover.
+- **Dashboard stat values stand out.** The numbers on your ride stats strip are now teal instead of plain white, making them instantly readable at a glance.
+- **Footer is more compact.** The footer's vertical padding, column gaps, logo size, trust pill height, and social icon size have all been reduced so the footer takes less space without removing any of its content.
+- **Waitlist landing page is cleaner.** The "How it works" tutorial section was removed from the landing page — it was interrupting the pitch before visitors had decided to join. The remaining sections (headline, three benefits, leaderboard, CTA) now have more breathing room and deliver the message in one clean pass. The "How LinkUp works" guide is still one tap away at the bottom.
+- **Headline is sentence case.** The landing page headline is no longer all-caps, which reads more like a confident statement and less like a shout.
+- **Sign In is a text link.** On the landing page, Sign In no longer renders as a bordered button competing with Create Account — it's a plain text link beneath the primary CTA, matching standard conversion design.
+- **Bullet markers are quieter.** The ✦ glyph in the benefit list has been replaced with a small teal dot, reducing visual noise while keeping the list scannable.
+
+---
+
 ## v2026.06.04 BETA
 
 ### New
