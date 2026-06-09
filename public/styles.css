@@ -14095,3 +14095,73 @@ html[data-theme="light"] .dashboard-stat {
 .waitlist-guest-mode .waitlist-guest-h1     { font-size: clamp(1.45rem, 4vw, 1.85rem); line-height: 1.08; }
 .waitlist-guest-mode .waitlist-guest-sub    { font-size: 0.86rem; }
 .waitlist-guest-mode .waitlist-perks li     { font-size: 0.83rem; line-height: 1.45; }
+
+/* ── Guest page UI improvements ──────────────────────────────── */
+
+/* Headline: sentence case, not all-caps — feels more premium */
+.waitlist-guest-h1 {
+  text-transform: none;
+  font-size: clamp(1.65rem, 4.5vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+/* Sub-copy: slightly stronger contrast */
+.waitlist-guest-sub {
+  color: var(--text-secondary);
+}
+
+/* Tag: tighter, more pill-like */
+.waitlist-guest-tag {
+  font-size: 0.65rem;
+  padding: 0.28rem 0.85rem;
+  letter-spacing: 0.12em;
+}
+
+/* Perks: replace noisy ✦ with a clean dot, better line spacing */
+.waitlist-perks li::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.7;
+  flex-shrink: 0;
+  margin-top: 0.42em;
+}
+
+.waitlist-perks li {
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+/* Leaderboard: stronger header label, subtle section feel */
+.waitlist-leaderboard-header span {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+}
+
+/* SIGN IN: plain text link — shouldn't compete with primary CTA */
+#waitlist-guest-signin {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  padding: 0.45rem !important;
+  box-shadow: none !important;
+}
+
+#waitlist-guest-signin:hover {
+  color: var(--text-primary) !important;
+  background: transparent !important;
+}
+
+/* CREATE ACCOUNT: slightly more weight */
+.waitlist-guest-signup-btn {
+  letter-spacing: 0.1em;
+  font-size: 0.82rem;
+  border-radius: var(--radius-md);
+}
