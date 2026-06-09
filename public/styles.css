@@ -6018,6 +6018,89 @@ a.waitlist-profile-btn {
 
 .waitlist-guest-mode .waitlist-trust-note { display: block; }
 
+/* ── How it works steps ──────────────────────────────────── */
+.waitlist-how-it-works {
+  display: none;
+  width: 100%;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.waitlist-guest-mode .waitlist-how-it-works { display: block; }
+
+.waitlist-how-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-family: var(--font-display);
+  margin: 0 0 1.1rem;
+}
+
+.waitlist-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.waitlist-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+  padding-bottom: 1.1rem;
+}
+
+.waitlist-step:last-child { padding-bottom: 0; }
+
+.waitlist-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 28px;
+  bottom: 0;
+  width: 1px;
+  background: rgba(62,207,207,0.18);
+}
+
+.waitlist-step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid rgba(62,207,207,0.28);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.waitlist-step-body { padding-top: 0.18rem; }
+
+.waitlist-step-body strong {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.22rem;
+  line-height: 1.3;
+}
+
+.waitlist-step-body span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 .waitlist-notify-msg {
   max-width: 530px;
   margin: 0;
