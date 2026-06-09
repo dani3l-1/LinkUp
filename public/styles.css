@@ -13867,3 +13867,98 @@ html[data-theme="light"] .bp-tear        { border-top-color: #c5d8dc; }
 html[data-theme="light"] .bp-tear::before,
 html[data-theme="light"] .bp-tear::after { background: #f4fbfb; border-color: #c5d8dc; }
 html[data-theme="light"] .bp-barcode     { color: rgba(12,116,122,0.2); }
+
+/* ── UI Polish ───────────────────────────────────────────────── */
+
+/* Ride cards: full card chrome instead of flat left-border strip */
+.ride-card {
+  background: rgba(255,255,255,0.022);
+  border: 1px solid var(--border);
+  border-left: 2.5px solid rgba(62,207,207,0.2);
+  border-radius: var(--radius-md);
+  margin-bottom: 0.55rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+
+.ride-card:hover {
+  border-color: rgba(62,207,207,0.18);
+  border-left-color: var(--accent);
+  background: rgba(62,207,207,0.032);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.16), 0 0 0 1px rgba(62,207,207,0.07);
+  transform: none;
+}
+
+.ride-card h4 {
+  font-size: 0.94rem;
+  letter-spacing: 0.03em;
+}
+
+/* Stat cards: accent values, richer background */
+.dashboard-stat {
+  background: linear-gradient(135deg, rgba(62,207,207,0.05) 0%, rgba(255,255,255,0.018) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.dashboard-stat-value { color: var(--accent); }
+
+/* Discovery section: rounder, more defined border */
+.dashboard-discovery-section {
+  border-radius: var(--radius-md);
+  border-color: rgba(62,207,207,0.16);
+}
+
+/* Browse role buttons: depth shadow */
+.browse-role-actions button {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}
+
+.browse-role-actions button.active {
+  box-shadow: 0 0 0 1px rgba(62,207,207,0.28), 0 2px 10px rgba(62,207,207,0.12);
+}
+
+/* Cards: richer layered shadow, subtle top highlight */
+.card {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.032);
+  border-color: rgba(62,207,207,0.09);
+}
+
+/* Dashboard home: lighter, more floating shadow */
+#dashboard-home {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.28), 0 1px 6px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* Header: slightly stronger separator */
+body.dashboard-mode header {
+  box-shadow: 0 1px 0 rgba(62,207,207,0.09), 0 2px 8px rgba(0,0,0,0.18);
+}
+
+/* Top row: slightly stronger separator */
+.top-row {
+  border-color: rgba(62,207,207,0.1);
+  background: rgba(255,255,255,0.02);
+}
+
+/* Browse section label spacing */
+.browse-results-header { margin-bottom: 0.9rem; }
+
+/* Cart / section headers: consistent padding */
+.cart-header {
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Light mode: ride card needs adjusted background */
+html[data-theme="light"] .ride-card {
+  background: rgba(0,0,0,0.018);
+  box-shadow: 0 1px 4px rgba(18,91,97,0.08);
+}
+
+html[data-theme="light"] .ride-card:hover {
+  background: rgba(11,110,117,0.04);
+  box-shadow: 0 4px 16px rgba(18,91,97,0.1), 0 0 0 1px rgba(11,110,117,0.08);
+}
+
+html[data-theme="light"] .dashboard-stat {
+  background: linear-gradient(135deg, rgba(11,110,117,0.06) 0%, rgba(255,255,255,0.5) 100%);
+}
