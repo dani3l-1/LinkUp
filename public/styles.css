@@ -14084,3 +14084,14 @@ html[data-theme="light"] .dashboard-stat {
 .waitlist-guest-mode .waitlist-guide-btn:hover {
   padding: 0.15rem;
 }
+
+/* ── Guest page: cleaner, message-first layout ───────────────── */
+/* Remove How it works — it belongs in the guide, not the pitch  */
+.waitlist-guest-mode .waitlist-how-it-works { display: none; }
+
+/* Restore breathing room now that the steps section is gone */
+.waitlist-guest-mode .waitlist-inner        { gap: 0.95rem; }
+.waitlist-guest-mode .waitlist-guest-hero   { gap: 0.55rem; padding-bottom: 0.9rem; }
+.waitlist-guest-mode .waitlist-guest-h1     { font-size: clamp(1.45rem, 4vw, 1.85rem); line-height: 1.08; }
+.waitlist-guest-mode .waitlist-guest-sub    { font-size: 0.86rem; }
+.waitlist-guest-mode .waitlist-perks li     { font-size: 0.83rem; line-height: 1.45; }
