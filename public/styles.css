@@ -5976,6 +5976,158 @@ a.waitlist-profile-btn {
   margin: 0;
 }
 
+/* ── App mockup ──────────────────────────────────────────── */
+.waitlist-mockup-wrap {
+  display: none;
+  justify-content: center;
+  width: 100%;
+}
+
+.waitlist-guest-mode .waitlist-mockup-wrap { display: flex; }
+
+.waitlist-mockup {
+  width: 240px;
+  background: #0a1214;
+  border-radius: 24px;
+  border: 6px solid #162024;
+  box-shadow:
+    0 0 0 1px rgba(62,207,207,0.08),
+    0 24px 64px rgba(0,0,0,0.45),
+    0 8px 24px rgba(0,0,0,0.3);
+  overflow: hidden;
+  user-select: none;
+}
+
+.wm-bar {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 10px 14px 6px;
+  background: #0d1517;
+}
+
+.wm-bar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+}
+
+.wm-bar-dot:first-child { background: #3ecfcf; }
+
+.wm-screen { padding: 10px 12px 14px; }
+
+.wm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.wm-screen-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #e2f0f1;
+  letter-spacing: 0.04em;
+  font-family: var(--font-display);
+}
+
+.wm-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #0a1214;
+  background: #3ecfcf;
+  padding: 2px 7px;
+  border-radius: 100px;
+}
+
+.wm-ride-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(62,207,207,0.1);
+  border-radius: 10px;
+  padding: 9px 10px;
+  margin-bottom: 7px;
+}
+
+.wm-ride-card--active {
+  background: rgba(62,207,207,0.08);
+  border-color: rgba(62,207,207,0.28);
+}
+
+.wm-ride-card:last-child { margin-bottom: 0; }
+
+.wm-route-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.wm-pin {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wm-pin-a { background: #3ecfcf; }
+.wm-pin-b { background: #f2c94c; }
+
+.wm-route-labels {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wm-origin, .wm-dest {
+  font-size: 0.6rem;
+  color: #a8c8cc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 62px;
+}
+
+.wm-arrow {
+  font-size: 0.55rem;
+  color: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+
+.wm-price {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #3ecfcf;
+  font-family: var(--font-display);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.wm-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wm-school-badge {
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: #3ecfcf;
+  background: rgba(62,207,207,0.12);
+  border: 1px solid rgba(62,207,207,0.2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.wm-detail {
+  font-size: 0.58rem;
+  color: rgba(255,255,255,0.28);
+}
+
 .waitlist-perks {
   display: none;
   list-style: none;
