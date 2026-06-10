@@ -296,6 +296,10 @@ body.dashboard-mode .dashboard-greeting-bar {
   padding: 0.6rem 1.25rem 0.65rem;
 }
 
+body.dashboard-mode #dashboard > .card {
+  border-color: transparent;
+}
+
 .dashboard-greeting-bar h2 {
   font-size: 0.95rem;
   font-weight: 700;
