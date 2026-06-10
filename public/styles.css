@@ -239,7 +239,7 @@ body.dashboard-mode header {
   gap: 1rem;
   margin-bottom: 0;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   border-radius: 0;
   background: var(--bg);
   backdrop-filter: none;
@@ -294,7 +294,6 @@ body.dashboard-mode .dashboard-greeting-bar {
   z-index: 90;
   background: var(--bg);
   padding: 0.6rem 1.25rem 0.65rem;
-  border-bottom: 1px solid var(--border);
 }
 
 .dashboard-greeting-bar h2 {
@@ -12601,7 +12600,7 @@ html[data-theme="light"] body.dashboard-mode header {
   top: auto;
   z-index: 2;
   margin-bottom: 0;
-  border-bottom: 1px solid rgba(18,91,97,0.10);
+  border-bottom: none;
 }
 
 html[data-theme="light"] body.dashboard-mode .top-row {
@@ -12612,7 +12611,6 @@ html[data-theme="light"] body.dashboard-mode .dashboard-greeting-bar {
   position: relative;
   top: auto;
   background: transparent;
-  border-bottom: 1px solid rgba(18,91,97,0.10);
 }
 
 html[data-theme="light"] body.dashboard-mode #main-content > .card {
