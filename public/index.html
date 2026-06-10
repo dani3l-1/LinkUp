@@ -50,10 +50,6 @@
     <div class="app-shell">
       <header>
         <div class="header-left-actions hidden" id="header-left-actions">
-          <div class="header-user-greeting">
-            <h2 id="welcome-message"></h2>
-            <p id="student-university-label"></p>
-          </div>
           <button id="chat-button" type="button" aria-label="Chat" title="Chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
           <form id="user-search-form" class="user-search-form" role="search">
             <label for="user-search-input" class="sr-only">Search students</label>
@@ -87,6 +83,11 @@
           <div id="notifications-error" class="error-message"></div>
         </div>
       </header>
+
+      <div class="dashboard-greeting-bar" id="dashboard-greeting-bar">
+        <h2 id="welcome-message"></h2>
+        <p id="student-university-label"></p>
+      </div>
 
       <main id="main-content">
 

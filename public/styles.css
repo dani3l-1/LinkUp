@@ -282,32 +282,36 @@ body.dashboard-mode .site-logo {
 }
 .header-left-actions button svg { flex-shrink: 0; }
 
-.header-user-greeting {
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
-  flex-shrink: 0;
-  margin-right: 0.25rem;
+/* ─── Dashboard greeting bar (sticky row below header) ─────── */
+.dashboard-greeting-bar {
+  display: none;
 }
 
-.header-user-greeting h2 {
-  font-size: 0.88rem;
+body.dashboard-mode .dashboard-greeting-bar {
+  display: block;
+  position: sticky;
+  top: 80px;
+  z-index: 90;
+  background: var(--bg);
+  padding: 0.55rem 1.25rem 0.6rem;
+}
+
+.dashboard-greeting-bar h2 {
+  font-size: 0.95rem;
   font-weight: 700;
   margin: 0;
   color: var(--text-primary);
   text-transform: none;
   letter-spacing: 0.01em;
-  white-space: nowrap;
 }
 
-.header-user-greeting p {
-  font-size: 0.62rem;
+.dashboard-greeting-bar p {
+  font-size: 0.68rem;
   margin: 0;
   color: var(--text-muted);
   letter-spacing: 0.08em;
   font-family: var(--font-display);
   text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .sr-only {
@@ -12601,6 +12605,12 @@ html[data-theme="light"] body.dashboard-mode header {
 
 html[data-theme="light"] body.dashboard-mode .top-row {
   border-bottom: 1px solid rgba(18,91,97,0.10);
+}
+
+html[data-theme="light"] body.dashboard-mode .dashboard-greeting-bar {
+  position: relative;
+  top: auto;
+  background: transparent;
 }
 
 html[data-theme="light"] body.dashboard-mode #main-content > .card {
