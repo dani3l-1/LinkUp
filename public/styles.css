@@ -300,6 +300,11 @@ body.dashboard-mode #dashboard > .card {
   border-color: transparent;
 }
 
+body.dashboard-mode #dashboard > .card::before,
+body.dashboard-mode #dashboard > .card::after {
+  display: none;
+}
+
 .dashboard-greeting-bar h2 {
   font-size: 0.95rem;
   font-weight: 700;
