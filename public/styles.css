@@ -5708,7 +5708,6 @@ article.card h3 {
 }
 
 .waitlist-lock-mode .top-actions { display: none; }
-.waitlist-lock-mode .top-row { display: none; }
 
 .waitlist-lock-mode [data-waitlist-hidden="true"] {
   display: none;
