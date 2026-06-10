@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="LinkUp — Student rides, built around trust" />
     <meta name="twitter:description" content="Verified university ride sharing for students who want safer, simpler campus travel." />
     <meta name="twitter:image" content="https://linkuprides.com/assets/images/LinkUp-header.png" />
-    <link rel="stylesheet" href="styles.css?v=20260604-notifications" />
+    <link rel="stylesheet" href="styles.css?v=20260609-eats-3" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -267,6 +267,7 @@
               <button id="request-ride-button" type="button">Request ride</button>
               <button id="list-ride-button" type="button">+ List ride</button>
               <button id="your-rides-button" type="button">Your rides</button>
+              <button id="eats-button" type="button">LinkUp Eats</button>
               <button id="leaderboard-button" type="button">Leaderboard</button>
               <button id="admin-button" class="hidden" type="button">Admin</button>
             </div>
@@ -1420,6 +1421,161 @@
             <div id="your-rides-list">Loading your reserved rides...</div>
           </section>
 
+          <!-- LinkUp Eats page -->
+          <section id="eats-page" class="card hidden">
+            <div class="cart-header">
+              <div>
+                <h3>LinkUp Eats</h3>
+                <p>Students helping students grab dining hall food.</p>
+              </div>
+              <button id="eats-back-home" type="button">← Home</button>
+            </div>
+            <div class="eats-tabs" id="eats-tabs">
+              <button id="eats-browse-tab" type="button" class="active">Browse</button>
+              <button id="eats-post-tab" type="button">List</button>
+              <button id="eats-requests-tab" type="button">Requests</button>
+            </div>
+
+            <!-- Eats waitlist (shown when eatsApproved is false) -->
+            <div id="eats-waitlist" class="eats-waitlist hidden">
+              <div class="eats-waitlist-inner">
+                <div class="eats-waitlist-badge">✦ Coming soon</div>
+                <h3 class="eats-waitlist-headline">LinkUp Eats isn't at your school yet.</h3>
+                <p class="eats-waitlist-sub">We're rolling out dining hall food pickup one school at a time. You'll be notified as soon as Eats is available at <strong id="eats-waitlist-school"></strong>.</p>
+                <div class="eats-waitlist-details">
+                  <div class="eats-waitlist-detail">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span>Dining hall pickup only — no off-campus restaurants to start</span>
+                  </div>
+                  <div class="eats-waitlist-detail">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span>Students pick up for students — same verified school network as rides</span>
+                  </div>
+                  <div class="eats-waitlist-detail">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span>Verified .edu accounts only — same trust and safety standards</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="eats-browse-panel" class="eats-panel">
+              <div class="eats-browse-layout" id="eats-browse-layout">
+                <div class="eats-browse-left">
+                  <div id="eats-browse-list" class="eats-browse-list">
+                    <p class="eats-empty">Loading pickups...</p>
+                  </div>
+                </div>
+                <div class="eats-browse-map-panel" id="eats-browse-map-panel">
+                  <div id="eats-browse-map" class="eats-browse-map"></div>
+                  <div class="eats-browse-map-hint" id="eats-browse-map-hint">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Tap a pin to see pickup details
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+            <div id="eats-post-panel" class="eats-panel hidden">
+              <form id="eats-post-form" class="eats-post-form">
+                <p class="eats-post-intro">Going to a dining hall? Let your fellow students know — they can request a pickup while you're there.</p>
+                <div class="form-row-2">
+                  <div class="form-field">
+                    <label for="eats-dining-hall">Dining hall</label>
+                    <input type="text" id="eats-dining-hall" maxlength="80" placeholder="e.g. De Neve, Crossroads…" required />
+                  </div>
+                  <div class="form-field">
+                    <label for="eats-pickup-location">Pickup location</label>
+                    <input type="text" id="eats-pickup-location" maxlength="120" placeholder="Where you'll hand off the food" required autocomplete="off" />
+                    <input type="hidden" id="eats-pickup-location-lat" />
+                    <input type="hidden" id="eats-pickup-location-lng" />
+                    <div id="eats-pickup-location-map-wrap" class="eats-inline-map-wrap hidden">
+                      <div id="eats-pickup-location-map" class="eats-inline-map"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row-2">
+                  <div class="form-field">
+                    <label for="eats-pickup-at">Pickup time</label>
+                    <input type="datetime-local" id="eats-pickup-at" required />
+                  </div>
+                  <div class="form-field">
+                    <label for="eats-price">Price ($)</label>
+                    <input type="number" id="eats-price" min="0" max="50" step="0.5" placeholder="0.00" />
+                  </div>
+                </div>
+                <div class="form-row-2">
+                  <div class="form-field">
+                    <label for="eats-max-orders">Max orders <span class="label-optional">(1–5)</span></label>
+                    <input type="number" id="eats-max-orders" min="1" max="5" value="2" />
+                  </div>
+                  <div class="form-field">
+                    <label for="eats-notes">Notes <span class="label-optional">(optional)</span></label>
+                    <input type="text" id="eats-notes" maxlength="200" placeholder="e.g. Cash or Venmo on delivery" />
+                  </div>
+                </div>
+                <button type="submit" class="btn-primary" id="eats-post-submit">Post pickup offer</button>
+                <div id="eats-post-message" class="success-message"></div>
+                <div id="eats-post-error" class="error-message"></div>
+              </form>
+              <div id="eats-list-offers" class="eats-browse-list" style="margin-top:1.5rem"></div>
+            </div>
+
+            <div id="eats-requests-panel" class="eats-panel hidden">
+              <div class="eats-requests-header">
+                <p class="eats-post-intro">Students post what they need. Pickers claim and fulfill them.</p>
+                <button type="button" id="eats-post-request-btn" class="eats-post-request-toggle">+ Post a request</button>
+              </div>
+              <div id="eats-request-form-wrap" class="eats-request-form-wrap hidden">
+                <form id="eats-food-request-form" class="eats-post-form">
+                  <div class="form-row-2">
+                    <div class="form-field">
+                      <label for="eats-req-dining-hall">Dining hall</label>
+                      <input type="text" id="eats-req-dining-hall" maxlength="80" placeholder="e.g. De Neve, Crossroads…" required />
+                    </div>
+                    <div class="form-field">
+                      <label for="eats-req-delivery-location">Deliver to</label>
+                      <input type="text" id="eats-req-delivery-location" maxlength="120" placeholder="Where should they bring it?" required autocomplete="off" />
+                      <input type="hidden" id="eats-req-delivery-lat" />
+                      <input type="hidden" id="eats-req-delivery-lng" />
+                      <div id="eats-req-delivery-map-wrap" class="eats-inline-map-wrap hidden">
+                        <div id="eats-req-delivery-map" class="eats-inline-map"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label for="eats-req-items">What do you want?</label>
+                    <textarea id="eats-req-items" rows="2" maxlength="300" placeholder="e.g. Grilled chicken sandwich, a side salad, and a Sprite…" required></textarea>
+                  </div>
+                  <div class="form-row-2">
+                    <div class="form-field">
+                      <label for="eats-req-needed-by">Needed by</label>
+                      <input type="datetime-local" id="eats-req-needed-by" required />
+                    </div>
+                    <div class="form-field">
+                      <label for="eats-req-price">I'll pay ($)</label>
+                      <input type="number" id="eats-req-price" min="0" max="50" step="0.5" placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label for="eats-req-notes">Notes <span class="label-optional">(optional)</span></label>
+                    <input type="text" id="eats-req-notes" maxlength="200" placeholder="Any dietary notes or preferences…" />
+                  </div>
+                  <div class="eats-req-form-actions">
+                    <button type="submit" class="btn-primary" id="eats-food-request-submit">Post request</button>
+                    <button type="button" id="eats-cancel-request-form-btn">Cancel</button>
+                  </div>
+                  <div id="eats-food-request-message" class="success-message"></div>
+                  <div id="eats-food-request-error" class="error-message"></div>
+                </form>
+              </div>
+              <div id="eats-requests-list" class="eats-browse-list">
+                <p class="eats-empty">Loading requests...</p>
+              </div>
+            </div>
+          </section>
+
           <!-- Cart page -->
           <section id="cart-page" class="card hidden">
             <!-- Cart top bar -->
@@ -1479,6 +1635,61 @@
                 </p>
               </aside>
 
+            </div>
+          </section>
+
+          <!-- Eats checkout page -->
+          <section id="eats-checkout-page" class="card hidden">
+            <div class="cart-topbar">
+              <div class="cart-topbar-left">
+                <button id="eats-checkout-back" type="button" class="cart-back-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                  Back to pickups
+                </button>
+                <h3 class="cart-page-title">Review Order</h3>
+              </div>
+              <div class="checkout-stepper cart-stepper" aria-label="Eats checkout steps">
+                <div class="checkout-step step-active">
+                  <div class="step-circle">1</div>
+                  <span class="step-label">Order</span>
+                </div>
+                <div class="checkout-step">
+                  <div class="step-circle">2</div>
+                  <span class="step-label">Confirmed</span>
+                </div>
+              </div>
+            </div>
+            <div class="cart-two-col">
+              <div class="cart-items-col">
+                <div id="eats-checkout-offer-details" class="eats-checkout-offer-details"></div>
+                <div id="eats-checkout-map-wrap" class="eats-checkout-map-wrap hidden">
+                  <div id="eats-checkout-map" class="eats-checkout-map"></div>
+                  <p class="eats-checkout-map-label">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span id="eats-checkout-map-label-text">Meeting location</span>
+                  </p>
+                </div>
+                <form id="eats-checkout-form" class="eats-checkout-form">
+                  <div class="form-field">
+                    <label for="eats-checkout-items">What do you want?</label>
+                    <textarea id="eats-checkout-items" rows="3" maxlength="300" placeholder="e.g. Cheeseburger, fries, and a Sprite…" required></textarea>
+                  </div>
+                  <div class="form-field">
+                    <label for="eats-checkout-message">Message to picker <span class="label-optional">(optional)</span></label>
+                    <input type="text" id="eats-checkout-message" maxlength="100" placeholder="No onions please, or any other note…" />
+                  </div>
+                </form>
+                <div id="eats-checkout-error" class="error-message"></div>
+              </div>
+              <aside class="cart-summary-panel">
+                <h4 class="cart-summary-title">Order Summary</h4>
+                <div id="eats-checkout-summary" class="eats-checkout-summary"></div>
+                <button type="button" id="eats-checkout-submit">Send request →</button>
+                <p class="cart-summary-note">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  Tip is suggested — coordinate payment with your picker after they confirm.
+                </p>
+              </aside>
             </div>
           </section>
 
@@ -1756,6 +1967,6 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>window.StripeConnect = window.StripeConnect || {};</script>
     <script src="https://connect-js.stripe.com/v1.0/connect.js" async></script>
-    <script src="app.js?v=20260604-notifications"></script>
+    <script src="app.js?v=20260609-eats"></script>
   </body>
 </html>

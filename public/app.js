@@ -125,6 +125,10 @@ const notificationsPopover = document.getElementById('notifications-popover');
 const notificationsList = document.getElementById('notifications-list');
 const notificationsSummary = document.getElementById('notifications-summary');
 const notificationsError = document.getElementById('notifications-error');
+const eatsButton = document.getElementById('eats-button');
+const eatsPage = document.getElementById('eats-page');
+const eatsCheckoutPage = document.getElementById('eats-checkout-page');
+const eatsBackHomeButton = document.getElementById('eats-back-home');
 const leaderboardButton = document.getElementById('leaderboard-button');
 const adminButton = document.getElementById('admin-button');
 const adminPage = document.getElementById('admin-page');
@@ -475,7 +479,7 @@ function clearAppRoute() {
   window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
 }
 
-const NAV_BUTTON_IDS = ['browse-rides-button', 'request-ride-button', 'list-ride-button', 'your-rides-button', 'leaderboard-button'];
+const NAV_BUTTON_IDS = ['browse-rides-button', 'request-ride-button', 'list-ride-button', 'your-rides-button', 'eats-button', 'leaderboard-button'];
 function setActiveNavButton(activeId) {
   NAV_BUTTON_IDS.forEach((id) => {
     const btn = document.getElementById(id);
@@ -2073,6 +2077,8 @@ function hideDashboardPages() {
   listRidePage.classList.add('hidden');
   cartPage.classList.add('hidden');
   yourRidesPage.classList.add('hidden');
+  eatsPage?.classList.add('hidden');
+  eatsCheckoutPage?.classList.add('hidden');
   chatPage.classList.add('hidden');
   paymentPage.classList.add('hidden');
   leaderboardPage.classList.add('hidden');
@@ -3198,6 +3204,7 @@ function renderAdminTable() {
         ${adminCell(user.emailVerified ? 'Verified' : 'Unverified')}
         <td>
           <button type="button" class="admin-user-toggle" data-user-id="${esc(user.id)}" data-approved="${user.serviceApproved ? 'false' : 'true'}">${user.serviceApproved ? 'Move to waitlist' : 'Approve'}</button>
+          <button type="button" class="admin-eats-toggle" data-user-id="${esc(user.id)}" data-eats-approved="${user.eatsApproved ? 'false' : 'true'}">${user.eatsApproved ? 'Remove Eats' : 'Approve Eats'}</button>
           <button type="button" class="admin-user-suspend danger" data-user-id="${esc(user.id)}" data-suspended="${user.suspended ? 'false' : 'true'}">${user.suspended ? 'Restore' : 'Suspend'}</button>
           <details class="admin-strike-details">
             <summary>Strikes (${strikeTotal})</summary>
@@ -5343,6 +5350,7 @@ function restoreAppRoute() {
     else if (route.startsWith('group-') && isSocialPreviewEnabled()) showGroupWelcomePage(decodeURIComponent(route.replace(/^group-/, '')));
     else if (route === 'request-ride') showRequestRidePage();
     else if (route === 'list-ride') showListRidePage();
+    else if (route === 'eats') showEatsPage();
     else if (route === 'leaderboard') showLeaderboardPage();
     else if (route.startsWith('user-profile-')) showPublicProfilePage(route.replace(/^user-profile-/, ''));
     else if (route === 'profile-payment') showProfilePage('payment');
@@ -9740,6 +9748,28 @@ adminTableWrap?.addEventListener('click', async (event) => {
 });
 
 adminTableWrap?.addEventListener('click', async (event) => {
+  const eatsBtn = event.target.closest?.('.admin-eats-toggle');
+  if (eatsBtn) {
+    clearAdminMessages();
+    setButtonLoading(eatsBtn, true);
+    try {
+      await fetchJson('/api/admin/users/' + encodeURIComponent(eatsBtn.dataset.userId), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eatsApproved: eatsBtn.dataset.eatsApproved === 'true' }),
+      });
+      showAdminMessage('Eats access updated.');
+      await loadAdminOverview();
+    } catch (err) {
+      showAdminMessage(err.message || 'Unable to update Eats access.', 'error');
+    } finally {
+      setButtonLoading(eatsBtn, false);
+    }
+    return;
+  }
+});
+
+adminTableWrap?.addEventListener('click', async (event) => {
   const button = event.target.closest?.('.admin-user-suspend, .admin-user-save-note, .admin-remove-ride, .admin-remove-request');
   if (!button) return;
   clearAdminMessages();
@@ -10883,6 +10913,775 @@ function resetFeedbackPanel() {
   if (successEl) { successEl.textContent = ''; successEl.classList.remove('show'); }
   if (errorEl) { errorEl.textContent = ''; errorEl.classList.remove('show'); }
 }
+
+// ── LinkUp Eats ──────────────────────────────────────────────────
+
+let eatsActiveTab = 'browse';
+
+function setEatsTab(tab) {
+  eatsActiveTab = tab;
+  ['browse', 'post', 'requests'].forEach((t) => {
+    document.getElementById(`eats-${t}-tab`)?.classList.toggle('active', t === tab);
+    document.getElementById(`eats-${t}-panel`)?.classList.toggle('hidden', t !== tab);
+  });
+}
+
+function formatEatsTime(isoString) {
+  const d = new Date(isoString);
+  const now = new Date();
+  const diffMs = d - now;
+  if (diffMs < 0) return 'soon';
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 60) return `in ${diffMin} min`;
+  const diffHr = Math.floor(diffMin / 60);
+  const remMin = diffMin % 60;
+  if (diffHr < 24) return remMin > 0 ? `in ${diffHr}h ${remMin}m` : `in ${diffHr}h`;
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function renderEatsStatusBadge(status) {
+  const labels = { pending: 'Pending', accepted: 'Accepted', picked_up: 'Picked up', cancelled: 'Cancelled' };
+  return `<span class="eats-status-badge eats-status-${status}">${labels[status] || status}</span>`;
+}
+
+let eatsCheckoutOffer = null;
+let eatsBrowseMap = null;
+let eatsBrowseMarkers = [];
+let eatsBrowseInfoWindow = null;
+let eatsCheckoutMap = null;
+let eatsCheckoutMarker = null;
+let eatsPickupLocationMap = null;
+let eatsPickupLocationMarker = null;
+let eatsDeliveryPreviewMap = null;
+let eatsDeliveryPreviewMarker = null;
+
+async function showEatsCheckout(offer) {
+  eatsCheckoutOffer = offer;
+  const activeCount = (offer.requests || []).filter((r) => r.status !== 'cancelled').length;
+  const slotsLeft = offer.maxOrders - activeCount;
+
+  const detailsEl = document.getElementById('eats-checkout-offer-details');
+  if (detailsEl) {
+    detailsEl.innerHTML = `
+      <div class="eats-checkout-offer-card">
+        <div class="eats-checkout-offer-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <div>
+            <span class="eats-checkout-hall">${escapeHtml(offer.diningHall)}</span>
+            <span class="eats-checkout-meta">By <strong>${escapeHtml(offer.userName)}</strong> · ${formatEatsTime(offer.pickupAt)} · ${slotsLeft} slot${slotsLeft !== 1 ? 's' : ''} left</span>
+            ${offer.pickupLocation ? `<span class="eats-checkout-meta">Meet at: <strong>${escapeHtml(offer.pickupLocation)}</strong></span>` : ''}
+            ${offer.notes ? `<span class="eats-checkout-notes">${escapeHtml(offer.notes)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+      <h4 class="eats-checkout-section-label">Your order</h4>`;
+  }
+
+  const summaryEl = document.getElementById('eats-checkout-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div class="eats-checkout-summary-rows">
+        <div class="eats-checkout-summary-row">
+          <span>Dining hall</span>
+          <span>${escapeHtml(offer.diningHall)}</span>
+        </div>
+        ${offer.pickupLocation ? `<div class="eats-checkout-summary-row"><span>Meet at</span><span>${escapeHtml(offer.pickupLocation)}</span></div>` : ''}
+        <div class="eats-checkout-summary-row">
+          <span>Pickup time</span>
+          <span>${formatEatsTime(offer.pickupAt)}</span>
+        </div>
+        <div class="eats-checkout-summary-row">
+          <span>Picker</span>
+          <span>${escapeHtml(offer.userName)}</span>
+        </div>
+        <div class="eats-checkout-summary-row eats-checkout-tip-row">
+          <span>Price</span>
+          <span class="eats-checkout-tip-amount">${offer.price > 0 ? `$${Number(offer.price).toFixed(2)}` : 'Free'}</span>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('eats-checkout-items').value = '';
+  document.getElementById('eats-checkout-message').value = '';
+  const errEl = document.getElementById('eats-checkout-error');
+  if (errEl) { errEl.textContent = ''; errEl.classList.remove('show'); }
+
+  hideDashboardPages();
+  eatsCheckoutPage.classList.remove('hidden');
+  document.getElementById('eats-checkout-items')?.focus();
+
+  // Show meeting-point map if coordinates are available
+  const mapWrap = document.getElementById('eats-checkout-map-wrap');
+  const mapLabelText = document.getElementById('eats-checkout-map-label-text');
+  const lat = Number(offer.pickupLocationLat);
+  const lng = Number(offer.pickupLocationLng);
+  if (mapWrap && Number.isFinite(lat) && Number.isFinite(lng)) {
+    mapWrap.classList.remove('hidden');
+    if (mapLabelText) mapLabelText.textContent = offer.pickupLocation || 'Meeting location';
+    try {
+      await loadGoogleMapsAPI();
+      const mapDiv = document.getElementById('eats-checkout-map');
+      if (!eatsCheckoutMap) {
+        eatsCheckoutMap = new google.maps.Map(mapDiv, {
+          zoom: 16,
+          center: { lat, lng },
+          styles: getGoogleMapStylesForTheme(),
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP },
+        });
+        eatsCheckoutMarker = new google.maps.Marker({
+          position: { lat, lng },
+          map: eatsCheckoutMap,
+          title: offer.pickupLocation || offer.diningHall,
+          icon: makeEatsMarkerIcon(true),
+        });
+      } else {
+        eatsCheckoutMap.setCenter({ lat, lng });
+        eatsCheckoutMap.setZoom(16);
+        if (eatsCheckoutMarker) {
+          eatsCheckoutMarker.setPosition({ lat, lng });
+          eatsCheckoutMarker.setTitle(offer.pickupLocation || offer.diningHall);
+        }
+      }
+    } catch { /* Maps unavailable — map wrap stays visible but empty */ }
+  } else if (mapWrap) {
+    mapWrap.classList.add('hidden');
+  }
+}
+
+function hideEatsCheckout(tab = 'browse') {
+  eatsCheckoutOffer = null;
+  setAppRoute('eats');
+  setActiveNavButton('eats-button');
+  hideDashboardPages();
+  eatsPage.classList.remove('hidden');
+  if (tab === 'requests') {
+    setEatsTab('requests');
+    loadEatsFoodRequests();
+  } else {
+    setEatsTab('browse');
+    loadEatsBrowse();
+  }
+}
+
+function makeEatsMarkerIcon(active) {
+  const color = active ? '#3ecfcf' : '#67d7d9';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 24 16 24s16-13.5 16-24C32 7.163 24.837 0 16 0z" fill="${color}" opacity="${active ? '1' : '0.75'}"/><circle cx="16" cy="16" r="6" fill="white"/></svg>`;
+  return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), anchor: new google.maps.Point(16, 40) };
+}
+
+async function initEatsBrowseMap(offers) {
+  const mapDiv = document.getElementById('eats-browse-map');
+  if (!mapDiv) return;
+  try {
+    await loadGoogleMapsAPI();
+    if (!eatsBrowseMap) {
+      eatsBrowseMap = new google.maps.Map(mapDiv, {
+        zoom: 14,
+        center: getInitialMapCenter(),
+        styles: getGoogleMapStylesForTheme(),
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP },
+      });
+      eatsBrowseInfoWindow = new google.maps.InfoWindow();
+    }
+    // Clear existing markers
+    eatsBrowseMarkers.forEach((m) => m.setMap(null));
+    eatsBrowseMarkers = [];
+
+    const bounds = new google.maps.LatLngBounds();
+    let hasCoords = false;
+    offers.forEach((offer) => {
+      const lat = Number(offer.pickupLocationLat);
+      const lng = Number(offer.pickupLocationLng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const pos = { lat, lng };
+      bounds.extend(pos);
+      hasCoords = true;
+      const marker = new google.maps.Marker({
+        position: pos,
+        map: eatsBrowseMap,
+        title: offer.diningHall,
+        icon: makeEatsMarkerIcon(false),
+      });
+      marker.addListener('click', () => {
+        eatsBrowseMarkers.forEach((m) => m.setIcon(makeEatsMarkerIcon(false)));
+        marker.setIcon(makeEatsMarkerIcon(true));
+        eatsBrowseInfoWindow.setContent(`
+          <div style="font-family:sans-serif;padding:4px 2px;min-width:160px">
+            <strong style="font-size:0.95rem">${escapeHtml(offer.diningHall)}</strong><br>
+            <span style="color:#3ecfcf;font-size:0.82rem">${formatEatsTime(offer.pickupAt)}</span><br>
+            <span style="font-size:0.8rem;color:#888">${escapeHtml(offer.pickupLocation || '')}</span><br>
+            <span style="font-size:0.8rem">${escapeHtml(offer.userName)} · ${offer.price > 0 ? '$' + Number(offer.price).toFixed(2) : 'Free'}</span>
+          </div>`);
+        eatsBrowseInfoWindow.open(eatsBrowseMap, marker);
+        // Scroll to the matching card
+        const card = document.querySelector(`[data-offer-id="${offer.id}"]`);
+        card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        card?.classList.add('eats-offer-card--highlighted');
+        setTimeout(() => card?.classList.remove('eats-offer-card--highlighted'), 1800);
+      });
+      eatsBrowseMarkers.push(marker);
+    });
+    if (hasCoords) eatsBrowseMap.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+  } catch { /* Maps unavailable */ }
+}
+
+function renderEatsBrowseList(offers) {
+  const container = document.getElementById('eats-browse-list');
+  if (!container) return;
+  if (!offers || offers.length === 0) {
+    container.innerHTML = '<p class="eats-empty">No active pickup offers right now. Be the first to offer one!</p>';
+    return;
+  }
+  container.innerHTML = offers.map((offer) => {
+    const activeCount = (offer.requests || []).filter((r) => r.status !== 'cancelled').length;
+    const slotsLeft = offer.maxOrders - activeCount;
+    const hasCoords = Number.isFinite(Number(offer.pickupLocationLat)) && Number.isFinite(Number(offer.pickupLocationLng));
+    return `
+      <article class="eats-offer-card" data-offer-id="${offer.id}">
+        <div class="eats-card-header">
+          <div class="eats-card-hall-row">
+            <span class="eats-dining-hall">${escapeHtml(offer.diningHall)}</span>
+            <span class="eats-pickup-time">${formatEatsTime(offer.pickupAt)}</span>
+          </div>
+          <div class="eats-card-meta-row">
+            <span class="eats-card-picker">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              ${escapeHtml(offer.userName)}
+            </span>
+            <span class="eats-card-slots ${slotsLeft === 0 ? 'eats-card-slots--full' : ''}">${slotsLeft === 0 ? 'Full' : `${slotsLeft} slot${slotsLeft !== 1 ? 's' : ''} left`}</span>
+            <span class="eats-price-badge">${offer.price > 0 ? `$${Number(offer.price).toFixed(2)}` : 'Free'}</span>
+          </div>
+        </div>
+        ${offer.pickupLocation ? `
+        <div class="eats-offer-location eats-card-location ${hasCoords ? 'eats-card-location--mapped' : ''}">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          ${escapeHtml(offer.pickupLocation)}
+        </div>` : ''}
+        ${offer.notes ? `<p class="eats-offer-notes">${escapeHtml(offer.notes)}</p>` : ''}
+        <div class="eats-offer-footer">
+          ${slotsLeft > 0
+            ? `<button type="button" class="eats-request-btn" data-offer-id="${offer.id}">Request pickup →</button>`
+            : '<span class="eats-full-badge">Full</span>'}
+          ${hasCoords ? `<button type="button" class="eats-map-pin-btn" data-offer-id="${offer.id}" title="Show on map" aria-label="Show on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></button>` : ''}
+        </div>
+      </article>`;
+  }).join('');
+
+  const offersById = Object.fromEntries(offers.map((o) => [o.id, o]));
+  container.querySelectorAll('.eats-request-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const offer = offersById[btn.dataset.offerId];
+      if (offer) showEatsCheckout(offer);
+    });
+  });
+  container.querySelectorAll('.eats-map-pin-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const offer = offersById[btn.dataset.offerId];
+      if (!offer || !eatsBrowseMap) return;
+      const lat = Number(offer.pickupLocationLat), lng = Number(offer.pickupLocationLng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      eatsBrowseMap.panTo({ lat, lng });
+      eatsBrowseMap.setZoom(16);
+      const marker = eatsBrowseMarkers.find((m) => {
+        const p = m.getPosition();
+        return Math.abs(p.lat() - lat) < 0.0001 && Math.abs(p.lng() - lng) < 0.0001;
+      });
+      if (marker) google.maps.event.trigger(marker, 'click');
+    });
+  });
+
+  initEatsBrowseMap(offers);
+}
+
+function renderEatsFoodRequests(requests, mine) {
+  const container = document.getElementById('eats-requests-list');
+  if (!container) return;
+  let html = '';
+
+  if (mine && mine.length > 0) {
+    html += '<h4 class="eats-my-section-title">My requests</h4>';
+    html += mine.map((r) => `
+      <div class="eats-offer-card eats-my-offer-card">
+        <div class="eats-offer-top">
+          <div class="eats-offer-main">
+            <span class="eats-dining-hall">${escapeHtml(r.diningHall)}</span>
+            <span class="eats-pickup-time">${formatEatsTime(r.neededBy)}</span>
+          </div>
+          <div class="eats-offer-meta">
+            ${renderEatsStatusBadge(r.status)}
+            ${r.price > 0 ? `<span class="eats-price-badge">$${Number(r.price).toFixed(2)}</span>` : ''}
+          </div>
+          ${r.deliveryLocation ? `<div class="eats-offer-location"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${escapeHtml(r.deliveryLocation)}</div>` : ''}
+          <p class="eats-request-items" style="margin:0.3rem 0 0">${escapeHtml(r.items)}</p>
+          ${r.claimedBy ? `<p class="eats-offer-notes">Claimed by ${escapeHtml(r.claimedBy.userName)}</p>` : ''}
+        </div>
+        ${r.status === 'open' ? `<button type="button" class="eats-cancel-fr-btn" data-id="${r.id}">Cancel request</button>` : ''}
+      </div>`).join('');
+    html += '<div class="eats-requests-divider"></div>';
+  }
+
+  if (requests && requests.length > 0) {
+    html += '<h4 class="eats-my-section-title">Open requests from your school</h4>';
+    html += requests.map((r) => `
+      <div class="eats-offer-card" data-fr-id="${r.id}">
+        <div class="eats-offer-top">
+          <div class="eats-offer-main">
+            <span class="eats-dining-hall">${escapeHtml(r.diningHall)}</span>
+            <span class="eats-pickup-time">needed ${formatEatsTime(r.neededBy)}</span>
+          </div>
+          <div class="eats-offer-meta">
+            <span>${escapeHtml(r.userName)}</span>
+            ${r.price > 0 ? `<span class="eats-price-badge">$${Number(r.price).toFixed(2)}</span>` : '<span>Free</span>'}
+          </div>
+          ${r.deliveryLocation ? `<div class="eats-offer-location"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${escapeHtml(r.deliveryLocation)}</div>` : ''}
+          <p class="eats-request-items" style="margin:0.3rem 0 0">${escapeHtml(r.items)}</p>
+          ${r.notes ? `<p class="eats-offer-notes">${escapeHtml(r.notes)}</p>` : ''}
+        </div>
+        <div class="eats-offer-actions">
+          <button type="button" class="eats-claim-btn" data-id="${r.id}">Claim request →</button>
+        </div>
+      </div>`).join('');
+  } else if (!mine || mine.length === 0) {
+    html = '<p class="eats-empty">No open food requests right now. Post one if you need something!</p>';
+  } else if (!requests || requests.length === 0) {
+    html += '<p class="eats-empty" style="padding-top:1rem">No other open requests right now.</p>';
+  }
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.eats-claim-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Claiming…';
+      try {
+        await fetchJson(`/api/eats/food-requests/${btn.dataset.id}/claim`, { method: 'POST' });
+        showToast('Request claimed! Reach out to the student to coordinate.', 'success');
+        loadEatsFoodRequests();
+      } catch (err) {
+        showToast(err.message || 'Could not claim request.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Claim request →';
+      }
+    });
+  });
+
+  container.querySelectorAll('.eats-cancel-fr-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await fetchJson(`/api/eats/food-requests/${btn.dataset.id}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'cancelled' }),
+        });
+        showToast('Request cancelled.', 'info');
+        loadEatsFoodRequests();
+      } catch (err) {
+        showToast(err.message || 'Could not cancel.', 'error');
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+async function loadEatsBrowse() {
+  const container = document.getElementById('eats-browse-list');
+  if (container) container.innerHTML = '<p class="eats-empty">Loading pickups...</p>';
+  try {
+    const { offers } = await fetchJson('/api/eats');
+    renderEatsBrowseList(offers);
+  } catch (err) {
+    if (container) container.innerHTML = `<p class="eats-empty error-message show">${err.message || 'Could not load pickups.'}</p>`;
+  }
+}
+
+async function loadEatsFoodRequests() {
+  const container = document.getElementById('eats-requests-list');
+  if (container) container.innerHTML = '<p class="eats-empty">Loading requests...</p>';
+  try {
+    const { requests, mine } = await fetchJson('/api/eats/food-requests');
+    renderEatsFoodRequests(requests, mine);
+  } catch (err) {
+    if (container) container.innerHTML = `<p class="eats-empty error-message show">${err.message || 'Could not load requests.'}</p>`;
+  }
+}
+
+async function loadEatsList() {
+  const container = document.getElementById('eats-list-offers');
+  if (!container) return;
+  try {
+    const { myOffers } = await fetchJson('/api/eats/my');
+    if (!myOffers || myOffers.length === 0) { container.innerHTML = ''; return; }
+    container.innerHTML = '<h4 class="eats-my-section-title">Your active offers</h4>' +
+      myOffers.filter((o) => o.status === 'open').map((offer) => {
+        const pendingReqs = (offer.requests || []).filter((r) => r.status === 'pending');
+        const acceptedReqs = (offer.requests || []).filter((r) => r.status === 'accepted');
+        const reqsHtml = (offer.requests || []).filter((r) => r.status !== 'cancelled').map((r) => `
+          <div class="eats-request-row">
+            <div class="eats-request-row-info">
+              <span class="eats-requester-name">${escapeHtml(r.userName)}</span>
+              ${renderEatsStatusBadge(r.status)}
+              <span class="eats-request-items">${escapeHtml(r.items)}</span>
+            </div>
+            <div class="eats-request-row-actions">
+              ${r.status === 'pending' ? `<button type="button" class="eats-status-btn" data-offer="${offer.id}" data-req="${r.id}" data-status="accepted">Accept</button>` : ''}
+              ${r.status === 'accepted' ? `<button type="button" class="eats-status-btn" data-offer="${offer.id}" data-req="${r.id}" data-status="picked_up">Picked up</button>` : ''}
+            </div>
+          </div>`).join('');
+        return `
+          <div class="eats-offer-card eats-my-offer-card">
+            <div class="eats-offer-top">
+              <div class="eats-offer-main">
+                <span class="eats-dining-hall">${escapeHtml(offer.diningHall)}</span>
+                <span class="eats-pickup-time">${formatEatsTime(offer.pickupAt)}</span>
+              </div>
+              <div class="eats-offer-meta">
+                <span>${pendingReqs.length} pending · ${acceptedReqs.length} accepted</span>
+              </div>
+              ${offer.pickupLocation ? `<div class="eats-offer-location"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${escapeHtml(offer.pickupLocation)}</div>` : ''}
+            </div>
+            ${reqsHtml ? `<div class="eats-requests-list">${reqsHtml}</div>` : '<p class="eats-empty eats-no-reqs">No requests yet.</p>'}
+            <button type="button" class="eats-cancel-offer-btn" data-offer-id="${offer.id}">Cancel offer</button>
+          </div>`;
+      }).join('');
+
+    container.querySelectorAll('.eats-status-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await fetchJson(`/api/eats/${btn.dataset.offer}/requests/${btn.dataset.req}/status`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: btn.dataset.status }),
+          });
+          loadEatsList();
+        } catch (err) { showToast(err.message || 'Could not update.', 'error'); btn.disabled = false; }
+      });
+    });
+    container.querySelectorAll('.eats-cancel-offer-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await fetchJson(`/api/eats/${btn.dataset.offerId}`, { method: 'DELETE' });
+          showToast('Offer cancelled.', 'info');
+          loadEatsList();
+        } catch (err) { showToast(err.message || 'Could not cancel.', 'error'); btn.disabled = false; }
+      });
+    });
+  } catch { /* silently skip */ }
+}
+
+function showEatsPage() {
+  if (currentUser && !currentUser.serviceApproved) {
+    showWaitlistPage(currentUser);
+    return;
+  }
+  setAppRoute('eats');
+  setActiveNavButton('eats-button');
+  hideDashboardPages();
+  eatsPage.classList.remove('hidden');
+  eatsCheckoutOffer = null;
+
+  const onWaitlist = !currentUser?.eatsApproved;
+  document.getElementById('eats-tabs')?.classList.toggle('hidden', onWaitlist);
+  document.getElementById('eats-waitlist')?.classList.toggle('hidden', !onWaitlist);
+  document.getElementById('eats-browse-panel')?.classList.toggle('hidden', onWaitlist);
+  document.getElementById('eats-post-panel')?.classList.toggle('hidden', true);
+  document.getElementById('eats-requests-panel')?.classList.toggle('hidden', true);
+
+  if (onWaitlist) {
+    const schoolEl = document.getElementById('eats-waitlist-school');
+    if (schoolEl) schoolEl.textContent = currentUser?.university || 'your school';
+    return;
+  }
+
+  setEatsTab('browse');
+  loadEatsBrowse();
+}
+
+document.getElementById('eats-browse-tab')?.addEventListener('click', () => {
+  setEatsTab('browse');
+  loadEatsBrowse();
+});
+
+let eatsPickupLocationAutocomplete = null;
+
+async function initEatsPickupLocationAutocomplete() {
+  const input = document.getElementById('eats-pickup-location');
+  if (!input || eatsPickupLocationAutocomplete) return;
+  try {
+    await loadGoogleMapsAPI();
+    eatsPickupLocationAutocomplete = new google.maps.places.Autocomplete(input, {
+      componentRestrictions: { country: 'us' },
+    });
+    eatsPickupLocationAutocomplete.addListener('place_changed', async () => {
+      const place = eatsPickupLocationAutocomplete.getPlace();
+      if (place?.formatted_address) input.value = place.formatted_address;
+      const latInput = document.getElementById('eats-pickup-location-lat');
+      const lngInput = document.getElementById('eats-pickup-location-lng');
+      const lat = place?.geometry?.location?.lat();
+      const lng = place?.geometry?.location?.lng();
+      if (latInput) latInput.value = lat ?? '';
+      if (lngInput) lngInput.value = lng ?? '';
+
+      // Show inline map preview
+      const mapWrap = document.getElementById('eats-pickup-location-map-wrap');
+      if (mapWrap && Number.isFinite(lat) && Number.isFinite(lng)) {
+        mapWrap.classList.remove('hidden');
+        try {
+          const mapDiv = document.getElementById('eats-pickup-location-map');
+          if (!eatsPickupLocationMap) {
+            eatsPickupLocationMap = new google.maps.Map(mapDiv, {
+              zoom: 16,
+              center: { lat, lng },
+              styles: getGoogleMapStylesForTheme(),
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: false,
+              zoomControl: false,
+            });
+            eatsPickupLocationMarker = new google.maps.Marker({
+              position: { lat, lng },
+              map: eatsPickupLocationMap,
+              title: place.formatted_address,
+              icon: makeEatsMarkerIcon(true),
+            });
+          } else {
+            eatsPickupLocationMap.setCenter({ lat, lng });
+            eatsPickupLocationMarker?.setPosition({ lat, lng });
+          }
+        } catch { /* Maps unavailable */ }
+      }
+    });
+    input.addEventListener('input', () => {
+      const latInput = document.getElementById('eats-pickup-location-lat');
+      const lngInput = document.getElementById('eats-pickup-location-lng');
+      if (latInput) latInput.value = '';
+      if (lngInput) lngInput.value = '';
+      document.getElementById('eats-pickup-location-map-wrap')?.classList.add('hidden');
+    });
+  } catch {
+    // Maps unavailable — plain text input still works
+  }
+}
+
+document.getElementById('eats-post-tab')?.addEventListener('click', () => {
+  setEatsTab('post');
+  initEatsPickupLocationAutocomplete();
+  loadEatsList();
+  const pickupInput = document.getElementById('eats-pickup-at');
+  if (pickupInput && !pickupInput.value) {
+    const soon = new Date(Date.now() + 30 * 60000);
+    soon.setSeconds(0, 0);
+    pickupInput.value = soon.toISOString().slice(0, 16);
+  }
+});
+
+document.getElementById('eats-requests-tab')?.addEventListener('click', () => {
+  setEatsTab('requests');
+  loadEatsFoodRequests();
+});
+
+document.getElementById('eats-post-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const diningHall = document.getElementById('eats-dining-hall')?.value.trim();
+  const pickupLocation = document.getElementById('eats-pickup-location')?.value.trim();
+  const pickupLocationLat = document.getElementById('eats-pickup-location-lat')?.value;
+  const pickupLocationLng = document.getElementById('eats-pickup-location-lng')?.value;
+  const pickupAt = document.getElementById('eats-pickup-at')?.value;
+  const price = document.getElementById('eats-price')?.value;
+  const maxOrders = document.getElementById('eats-max-orders')?.value;
+  const notes = document.getElementById('eats-notes')?.value.trim();
+  const submitBtn = document.getElementById('eats-post-submit');
+  const msgEl = document.getElementById('eats-post-message');
+  const errEl = document.getElementById('eats-post-error');
+
+  msgEl.textContent = '';
+  msgEl.classList.remove('show');
+  errEl.textContent = '';
+  errEl.classList.remove('show');
+  setButtonLoading(submitBtn, true);
+
+  try {
+    await fetchJson('/api/eats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        diningHall, pickupLocation,
+        pickupLocationLat: pickupLocationLat ? Number(pickupLocationLat) : undefined,
+        pickupLocationLng: pickupLocationLng ? Number(pickupLocationLng) : undefined,
+        pickupAt, price: Number(price), maxOrders: Number(maxOrders), notes,
+      }),
+    });
+    msgEl.textContent = 'Pickup offer posted! Students from your school can now request food.';
+    msgEl.classList.add('show');
+    document.getElementById('eats-post-form').reset();
+    loadEatsList();
+    setTimeout(() => {
+      setEatsTab('browse');
+      loadEatsBrowse();
+    }, 1800);
+  } catch (err) {
+    errEl.textContent = err.message || 'Could not post offer. Try again.';
+    errEl.classList.add('show');
+  } finally {
+    setButtonLoading(submitBtn, false);
+  }
+});
+
+document.getElementById('eats-checkout-back')?.addEventListener('click', () => hideEatsCheckout());
+
+document.getElementById('eats-checkout-submit')?.addEventListener('click', async () => {
+  const offer = eatsCheckoutOffer;
+  if (!offer) return;
+  const items = document.getElementById('eats-checkout-items')?.value.trim();
+  const message = document.getElementById('eats-checkout-message')?.value.trim();
+  const errEl = document.getElementById('eats-checkout-error');
+  const submitBtn = document.getElementById('eats-checkout-submit');
+
+  if (!items) {
+    errEl.textContent = 'Describe what you want before sending.';
+    errEl.classList.add('show');
+    document.getElementById('eats-checkout-items')?.focus();
+    return;
+  }
+
+  errEl.textContent = '';
+  errEl.classList.remove('show');
+  setButtonLoading(submitBtn, true);
+
+  try {
+    await fetchJson(`/api/eats/${offer.id}/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, message }),
+    });
+    showToast('Request sent! Your picker will confirm soon.', 'success');
+    hideEatsCheckout('browse');
+  } catch (err) {
+    errEl.textContent = err.message || 'Could not send request. Try again.';
+    errEl.classList.add('show');
+  } finally {
+    setButtonLoading(submitBtn, false);
+  }
+});
+
+// Requests tab — toggle post form
+document.getElementById('eats-post-request-btn')?.addEventListener('click', () => {
+  const wrap = document.getElementById('eats-request-form-wrap');
+  if (!wrap) return;
+  const opening = wrap.classList.contains('hidden');
+  wrap.classList.toggle('hidden', !opening);
+  if (opening) {
+    const neededBy = document.getElementById('eats-req-needed-by');
+    if (neededBy && !neededBy.value) {
+      const soon = new Date(Date.now() + 60 * 60000);
+      soon.setSeconds(0, 0);
+      neededBy.value = soon.toISOString().slice(0, 16);
+    }
+    initEatsDeliveryLocationAutocomplete();
+    document.getElementById('eats-req-dining-hall')?.focus();
+  }
+});
+
+document.getElementById('eats-cancel-request-form-btn')?.addEventListener('click', () => {
+  document.getElementById('eats-request-form-wrap')?.classList.add('hidden');
+});
+
+let eatsDeliveryLocationAutocomplete = null;
+async function initEatsDeliveryLocationAutocomplete() {
+  const input = document.getElementById('eats-req-delivery-location');
+  if (!input || eatsDeliveryLocationAutocomplete) return;
+  try {
+    await loadGoogleMapsAPI();
+    eatsDeliveryLocationAutocomplete = new google.maps.places.Autocomplete(input, { componentRestrictions: { country: 'us' } });
+    eatsDeliveryLocationAutocomplete.addListener('place_changed', async () => {
+      const place = eatsDeliveryLocationAutocomplete.getPlace();
+      if (place?.formatted_address) input.value = place.formatted_address;
+      const latEl = document.getElementById('eats-req-delivery-lat');
+      const lngEl = document.getElementById('eats-req-delivery-lng');
+      const lat = place?.geometry?.location?.lat();
+      const lng = place?.geometry?.location?.lng();
+      if (latEl) latEl.value = lat ?? '';
+      if (lngEl) lngEl.value = lng ?? '';
+
+      // Show inline delivery map preview
+      const mapWrap = document.getElementById('eats-req-delivery-map-wrap');
+      if (mapWrap && Number.isFinite(lat) && Number.isFinite(lng)) {
+        mapWrap.classList.remove('hidden');
+        try {
+          const mapDiv = document.getElementById('eats-req-delivery-map');
+          if (!eatsDeliveryPreviewMap) {
+            eatsDeliveryPreviewMap = new google.maps.Map(mapDiv, {
+              zoom: 16,
+              center: { lat, lng },
+              styles: getGoogleMapStylesForTheme(),
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: false,
+              zoomControl: false,
+            });
+            eatsDeliveryPreviewMarker = new google.maps.Marker({
+              position: { lat, lng },
+              map: eatsDeliveryPreviewMap,
+              title: place.formatted_address,
+              icon: makeEatsMarkerIcon(true),
+            });
+          } else {
+            eatsDeliveryPreviewMap.setCenter({ lat, lng });
+            eatsDeliveryPreviewMarker?.setPosition({ lat, lng });
+          }
+        } catch { /* Maps unavailable */ }
+      }
+    });
+    input.addEventListener('input', () => {
+      document.getElementById('eats-req-delivery-map-wrap')?.classList.add('hidden');
+    });
+  } catch { /* plain text fallback */ }
+}
+
+document.getElementById('eats-food-request-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const diningHall = document.getElementById('eats-req-dining-hall')?.value.trim();
+  const items = document.getElementById('eats-req-items')?.value.trim();
+  const deliveryLocation = document.getElementById('eats-req-delivery-location')?.value.trim();
+  const neededBy = document.getElementById('eats-req-needed-by')?.value;
+  const price = document.getElementById('eats-req-price')?.value;
+  const notes = document.getElementById('eats-req-notes')?.value.trim();
+  const submitBtn = document.getElementById('eats-food-request-submit');
+  const msgEl = document.getElementById('eats-food-request-message');
+  const errEl = document.getElementById('eats-food-request-error');
+
+  msgEl.textContent = ''; msgEl.classList.remove('show');
+  errEl.textContent = ''; errEl.classList.remove('show');
+  setButtonLoading(submitBtn, true);
+
+  try {
+    await fetchJson('/api/eats/food-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ diningHall, items, deliveryLocation, neededBy, price: Number(price), notes }),
+    });
+    msgEl.textContent = 'Request posted! Pickers from your school can now claim it.';
+    msgEl.classList.add('show');
+    document.getElementById('eats-food-request-form').reset();
+    document.getElementById('eats-request-form-wrap')?.classList.add('hidden');
+    setTimeout(() => { loadEatsFoodRequests(); }, 1200);
+  } catch (err) {
+    errEl.textContent = err.message || 'Could not post request. Try again.';
+    errEl.classList.add('show');
+  } finally {
+    setButtonLoading(submitBtn, false);
+  }
+});
+
+eatsButton?.addEventListener('click', () => showEatsPage());
+eatsBackHomeButton?.addEventListener('click', () => returnToBrowseRides());
 
 document.getElementById('feedback-profile-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
