@@ -259,12 +259,6 @@ body.dashboard-mode .site-logo {
   margin: 0 auto;
 }
 
-body.dashboard-mode .top-row {
-  position: sticky;
-  top: 80px;
-  z-index: 90;
-  background: var(--bg);
-}
 
 .header-left-actions {
   grid-column: 1;
@@ -287,6 +281,34 @@ body.dashboard-mode .top-row {
   font-size: 0.8rem;
 }
 .header-left-actions button svg { flex-shrink: 0; }
+
+.header-user-greeting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  flex-shrink: 0;
+  margin-right: 0.25rem;
+}
+
+.header-user-greeting h2 {
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.header-user-greeting p {
+  font-size: 0.62rem;
+  margin: 0;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
 .sr-only {
   position: absolute;
@@ -5715,6 +5737,7 @@ article.card h3 {
 }
 
 .waitlist-lock-mode .top-actions { display: none; }
+.waitlist-lock-mode .top-row    { display: none; }
 
 .waitlist-lock-mode [data-waitlist-hidden="true"] {
   display: none;
@@ -12577,9 +12600,6 @@ html[data-theme="light"] body.dashboard-mode header {
 }
 
 html[data-theme="light"] body.dashboard-mode .top-row {
-  position: relative;
-  top: auto;
-  background: transparent;
   border-bottom: 1px solid rgba(18,91,97,0.10);
 }
 
