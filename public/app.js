@@ -3029,6 +3029,22 @@ function renderWaitlistLeaderboard(data) {
     segments: getWaitlistIntentSegments,
   });
 
+  const WAITLIST_LEADERBOARD_COLLAPSED_ROWS = 5;
+  const leaderboardToggle = document.getElementById('waitlist-leaderboard-toggle');
+  if (leaderboardToggle) {
+    const collapsible = schools.length > WAITLIST_LEADERBOARD_COLLAPSED_ROWS;
+    leaderboardToggle.classList.toggle('hidden', !collapsible);
+    waitlistLeaderboardChart.classList.toggle('collapsed', collapsible);
+    leaderboardToggle.setAttribute('aria-expanded', 'false');
+    leaderboardToggle.textContent = 'Show all ' + schools.length + ' schools';
+    leaderboardToggle.onclick = () => {
+      const expand = waitlistLeaderboardChart.classList.contains('collapsed');
+      waitlistLeaderboardChart.classList.toggle('collapsed', !expand);
+      leaderboardToggle.setAttribute('aria-expanded', String(expand));
+      leaderboardToggle.textContent = expand ? 'Show less' : 'Show all ' + schools.length + ' schools';
+    };
+  }
+
   if (waitlistLeaderboardReview) {
     const reviewDomains = (data.needsReviewSchools || []).slice(0, 3).map((school) => school.domain).filter(Boolean);
     waitlistLeaderboardReview.textContent = reviewDomains.length

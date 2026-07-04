@@ -1840,11 +1840,6 @@
                     Not sure
                   </button>
                 </div>
-                <div class="waitlist-role-legend" aria-label="Leaderboard line color legend">
-                  <span><i class="waitlist-role-dot waitlist-role-dot-rider"></i>Riders</span>
-                  <span><i class="waitlist-role-dot waitlist-role-dot-driver"></i>Drivers</span>
-                  <span><i class="waitlist-role-dot waitlist-role-dot-unsure"></i>Unsure</span>
-                </div>
                 <p id="waitlist-intent-message" class="waitlist-intent-message" aria-live="polite"></p>
               </div>
               <div class="waitlist-leaderboard-panel" aria-label="Waitlist leaderboard">
@@ -1853,7 +1848,13 @@
                   <strong id="waitlist-leaderboard-count">Loading...</strong>
                 </div>
                 <p id="waitlist-leaderboard-summary" class="waitlist-leaderboard-summary">Loading schools...</p>
+                <div class="waitlist-role-legend" aria-label="Leaderboard line color legend">
+                  <span><i class="waitlist-role-dot waitlist-role-dot-rider"></i>Riders</span>
+                  <span><i class="waitlist-role-dot waitlist-role-dot-driver"></i>Drivers</span>
+                  <span><i class="waitlist-role-dot waitlist-role-dot-unsure"></i>Unsure</span>
+                </div>
                 <div id="waitlist-leaderboard-chart" class="leaderboard-chart waitlist-leaderboard-chart"></div>
+                <button type="button" id="waitlist-leaderboard-toggle" class="waitlist-leaderboard-toggle hidden" aria-expanded="false" aria-controls="waitlist-leaderboard-chart">Show full leaderboard</button>
                 <p id="waitlist-leaderboard-review" class="waitlist-leaderboard-review"></p>
               </div>
             </div>
@@ -1868,6 +1869,21 @@
                   </div>
                   <button type="submit" id="waitlist-quick-submit" class="waitlist-guest-signup-btn">Join waitlist</button>
                 </div>
+                <fieldset class="waitlist-quick-intent">
+                  <legend>Most likely to</legend>
+                  <label>
+                    <input type="radio" name="waitlist-quick-intent" value="rider" checked />
+                    <span>Ride</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="waitlist-quick-intent" value="driver" />
+                    <span>Drive</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="waitlist-quick-intent" value="unsure" />
+                    <span>Not sure</span>
+                  </label>
+                </fieldset>
                 <p class="waitlist-quick-legal">Free for students. By joining, you agree LinkUp may email you about launch access. See our <button type="button" class="legal-inline-link" data-legal-modal="privacy">Privacy Notice</button>.</p>
                 <div id="waitlist-quick-message" class="success-message" aria-live="polite"></div>
                 <div id="waitlist-quick-error" class="error-message" aria-live="polite"></div>
