@@ -3330,6 +3330,7 @@ function getEmptyDb() {
     safetyRecordings: [],
     rideMessages: {},
     userReports: [],
+    waitlistLeads: [],
     adminAuditLog: [],
     userBlocks: [],
     passwordResetTokens: [],
@@ -3513,6 +3514,7 @@ function normalizeDbShape(db) {
     });
   normalized.rideMessages = normalizeRideMessages(normalized.rideMessages);
   normalized.userReports = uniqueById(normalized.userReports);
+  normalized.waitlistLeads = uniqueById(normalized.waitlistLeads).filter(isPlainObject);
   normalized.adminAuditLog = uniqueById(normalized.adminAuditLog).filter(isPlainObject);
   normalized.userBlocks = asArray(normalized.userBlocks).filter(isPlainObject);
   normalized.passwordResetTokens = asArray(normalized.passwordResetTokens).filter(isPlainObject);
@@ -3694,9 +3696,10 @@ function normalizeThemePreference(themePreference) {
   return ['dark', 'light', 'auto'].includes(value) ? value : 'dark';
 }
 
-function normalizeNotificationPreferences(value = {}) {
+function normalizeNotificationPreferences(value = {}, user = null) {
+  const serviceApproved = !user || user.serviceApproved === true;
   return {
-    weeklyRecapEmail: value.weeklyRecapEmail !== false,
+    weeklyRecapEmail: serviceApproved && value.weeklyRecapEmail !== false,
     rideAlertEmail: value.rideAlertEmail !== false,
   };
 }
@@ -4514,7 +4517,7 @@ function renderWeeklyRecapEmail(user, recap) {
 }
 
 function sendWeeklyRecapEmail(db, user, range) {
-  const preferences = normalizeNotificationPreferences(user.notificationPreferences);
+  const preferences = normalizeNotificationPreferences(user.notificationPreferences, user);
   if (!preferences.weeklyRecapEmail || !user.email || isDeletedUser(user) || user.suspendedAt) return false;
   const recap = buildWeeklyRecap(db, user, range);
   const subject = 'Your LinkUp week';
@@ -4540,7 +4543,7 @@ function sendWeeklyRecapsIfDue(now = new Date()) {
   const db = normalizeUserAccess(loadDb());
   db.meta = asPlainObject(db.meta);
   if (db.meta.weeklyRecapLastSentKey === range.key) return;
-  const users = activeUsers(db).filter((user) => normalizeNotificationPreferences(user.notificationPreferences).weeklyRecapEmail);
+  const users = activeUsers(db).filter((user) => normalizeNotificationPreferences(user.notificationPreferences, user).weeklyRecapEmail);
   let sentCount = 0;
   users.forEach((user) => {
     if (sendWeeklyRecapEmail(db, user, range)) sentCount += 1;
@@ -5238,7 +5241,7 @@ function publicUser(user, db = null) {
     classYear: user.classYear || '',
     major: user.major || '',
     themePreference: normalizeThemePreference(user.themePreference),
-    notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences),
+    notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences, user),
     email: user.email,
     university: getUserUniversityDisplay(user),
     universityDomain: user.universityDomain || getEmailDomain(user.email),
@@ -7105,11 +7108,13 @@ app.put('/api/profile/notifications', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  user.notificationPreferences = normalizeNotificationPreferences(req.body.notificationPreferences || {});
+  user.notificationPreferences = normalizeNotificationPreferences(req.body.notificationPreferences || {}, user);
   user.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json({
-    message: 'Notification preferences saved.',
+    message: user.serviceApproved === true
+      ? 'Notification preferences saved.'
+      : 'Notification preferences saved. Weekly recaps are off while you are on the waitlist.',
     notificationPreferences: user.notificationPreferences,
   });
 });
@@ -7566,6 +7571,72 @@ app.post('/api/auth/clear-session', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+app.post('/api/waitlist/join', (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const firstName = String(req.body.firstName || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const waitlistIntent = normalizeWaitlistIntent(req.body.waitlistIntent) || 'unsure';
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Enter a valid university email address' });
+  }
+
+  if (!isUniversityEmail(email)) {
+    return res.status(400).json({ error: 'Please use a valid university email address' });
+  }
+
+  const db = normalizeUserAccess(loadDb());
+  const existingUser = (db.users || []).find((user) => user.email === email);
+  if (existingUser) {
+    return res.json({
+      joined: false,
+      accountExists: true,
+      message: existingUser.serviceApproved === true
+        ? 'That email already has a LinkUp account. Sign in to continue.'
+        : 'That email is already on the LinkUp waitlist. Sign in to view your spot.',
+    });
+  }
+
+  const universityDomain = getEmailDomain(email);
+  const schoolInfo = getUniversityInfoFromDomain(universityDomain);
+  const knownDomain = isKnownUniversityDomain(universityDomain);
+  const now = new Date().toISOString();
+  db.waitlistLeads = asArray(db.waitlistLeads);
+  let lead = db.waitlistLeads.find((entry) => normalizeEmail(entry.email) === email);
+
+  if (lead) {
+    lead.firstName = firstName || lead.firstName || '';
+    lead.waitlistIntent = waitlistIntent;
+    lead.universityDomain = universityDomain;
+    lead.university = knownDomain ? schoolInfo.name : universityDomain;
+    lead.updatedAt = now;
+  } else {
+    lead = {
+      id: uuidv4(),
+      firstName,
+      email,
+      university: knownDomain ? schoolInfo.name : universityDomain,
+      universityDomain,
+      waitlistIntent,
+      createdAt: now,
+      updatedAt: now,
+    };
+    db.waitlistLeads.push(lead);
+  }
+
+  saveDb(db);
+  res.json({
+    joined: true,
+    message: 'You are on the waitlist. Create an account now if you want to reserve your member number.',
+    lead: {
+      firstName: lead.firstName,
+      email: lead.email,
+      university: lead.university,
+      universityDomain: lead.universityDomain,
+      waitlistIntent: lead.waitlistIntent,
+    },
+  });
+});
+
 app.get('/api/leaderboard/schools', requireAuth, (req, res) => {
   const db = normalizeUserAccess(loadDb());
   const schoolCounts = new Map();
@@ -7649,13 +7720,17 @@ app.get('/api/leaderboard/waitlist-schools', (req, res) => {
   const db = normalizeUserAccess(loadDb());
   const schoolCounts = new Map();
   const needsReviewSchools = new Map();
-  const leaderboardUsers = activeUsers(db).filter((user) => !isAdminUser(user) && user.serviceApproved !== true);
+  const seenEmails = new Set();
 
-  leaderboardUsers.forEach((user) => {
-    const domain = user.universityDomain || getEmailDomain(user.email);
+  function addWaitlistEntry(entry) {
+    const email = normalizeEmail(entry.email);
+    if (!email || seenEmails.has(email)) return;
+    seenEmails.add(email);
+
+    const domain = entry.universityDomain || getEmailDomain(email);
     const knownDomain = isKnownUniversityDomain(domain);
     const schoolInfo = getUniversityInfoFromDomain(domain);
-    const school = knownDomain ? (user.university || schoolInfo.name || domain) : (domain || 'Unknown school');
+    const school = knownDomain ? (entry.university || schoolInfo.name || domain) : (domain || 'Unknown school');
     const key = domain || school;
 
     if (!schoolCounts.has(key)) {
@@ -7674,20 +7749,25 @@ app.get('/api/leaderboard/waitlist-schools', (req, res) => {
       });
     }
 
-    const entry = schoolCounts.get(key);
-    entry.userCount += 1;
-    const waitlistIntent = normalizeWaitlistIntent(user.waitlistIntent) || 'unsure';
-    if (waitlistIntent === 'driver') entry.driverCount += 1;
-    else if (waitlistIntent === 'rider') entry.riderCount += 1;
-    else entry.unsureCount += 1;
-    entry.needsReview = entry.needsReview || !knownDomain;
+    const schoolEntry = schoolCounts.get(key);
+    schoolEntry.userCount += 1;
+    const waitlistIntent = normalizeWaitlistIntent(entry.waitlistIntent) || 'unsure';
+    if (waitlistIntent === 'driver') schoolEntry.driverCount += 1;
+    else if (waitlistIntent === 'rider') schoolEntry.riderCount += 1;
+    else schoolEntry.unsureCount += 1;
+    schoolEntry.needsReview = schoolEntry.needsReview || !knownDomain;
     if (!knownDomain && domain) {
       needsReviewSchools.set(domain, {
         domain,
         userCount: (needsReviewSchools.get(domain)?.userCount || 0) + 1,
       });
     }
-  });
+  }
+
+  activeUsers(db)
+    .filter((user) => !isAdminUser(user) && user.serviceApproved !== true)
+    .forEach(addWaitlistEntry);
+  asArray(db.waitlistLeads).forEach(addWaitlistEntry);
 
   const schools = Array.from(schoolCounts.values()).sort((a, b) => {
     if (b.userCount !== a.userCount) return b.userCount - a.userCount;
@@ -7698,7 +7778,7 @@ app.get('/api/leaderboard/waitlist-schools', (req, res) => {
     return a.domain.localeCompare(b.domain);
   });
 
-  res.json({ schools, totalUsers: leaderboardUsers.length, needsReviewSchools: needsReview });
+  res.json({ schools, totalUsers: seenEmails.size, needsReviewSchools: needsReview });
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting

@@ -1,41 +1,139 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LinkUp Waitlist Page Preview</title>
-    <link rel="stylesheet" href="../styles.css?v=waitlist-page-preview" />
+    <title>Join the LinkUp waitlist — Student rides, built around trust</title>
+    <link rel="stylesheet" href="../styles.css?v=waitlist-preview" />
     <style>
+      * { box-sizing: border-box; }
+
       body {
         min-height: 100vh;
-        padding: 32px 18px;
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+      }
+
+      .preview-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.1rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .preview-header-logo {
+        height: 32px;
+        width: auto;
+        filter: var(--logo-filter);
       }
 
       .preview-wrap {
         width: min(1180px, 100%);
         margin: 0 auto;
+        padding: clamp(1.5rem, 3vw, 3rem) clamp(1rem, 3vw, 2rem);
+      }
+
+      .preview-cta-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1.25rem;
+        padding: 1rem 1.4rem;
+        border: 1px solid var(--border);
+        border-top: 2px solid rgba(62,207,207,0.18);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+      }
+
+      .preview-cta-bar p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        line-height: 1.5;
+      }
+
+      .preview-cta-bar strong {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .preview-cta-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 160px;
+        min-height: 42px;
+        padding: 0.68rem 1.4rem;
+        border: none;
+        border-radius: var(--radius-md);
+        background: linear-gradient(135deg, var(--accent), #2eb5b5);
+        color: #041414;
+        font-family: var(--font-display);
+        font-size: 0.77rem;
+        font-weight: 900;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        text-decoration: none;
+        white-space: nowrap;
+        box-shadow: 0 4px 16px rgba(62,207,207,0.26);
+        transition: filter 0.16s ease, transform 0.16s ease;
+      }
+
+      .preview-cta-btn:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
       }
     </style>
+    <script src="waitlist-page-preview.js"></script>
   </head>
   <body class="dashboard-mode">
+    <header class="preview-header">
+      <img class="preview-header-logo" src="../assets/images/LinkUp-wordmark.png" alt="LinkUp" />
+    </header>
+
     <main class="preview-wrap">
-      <section id="waitlist-page" class="card" aria-label="Waitlist page preview">
+      <section id="waitlist-page" class="card" aria-label="LinkUp waitlist preview">
         <div class="waitlist-inner">
           <div class="waitlist-hero">
-            <img class="waitlist-logo" src="../assets/images/LinkUp-wordmark.png" alt="LinkUp" />
-            <span class="waitlist-status-pill">Access pending</span>
-            <h2 class="waitlist-member-number">Member #128</h2>
-            <p class="waitlist-about-msg">LinkUp helps verified college students find, reserve, and share rides with people in their university network.</p>
-            <p class="waitlist-notify-msg">We saved your account. We will notify you when your access is approved and you can ride with LinkUp.</p>
+            <span class="waitlist-status-pill">
+              <span class="waitlist-status-dot" aria-hidden="true"></span>
+              Access pending
+            </span>
+            <div class="waitlist-position">
+              <p class="waitlist-position-label">Your position</p>
+              <h2 class="waitlist-member-number">#128</h2>
+              <p class="waitlist-position-context">of 128 on the waitlist</p>
+            </div>
+            <p class="waitlist-about-msg">Verified college students sharing rides within their university network — safer, simpler, and more affordable.</p>
+            <p class="waitlist-notify-msg">Your account is saved. We'll notify you when access is approved.</p>
           </div>
 
           <div class="waitlist-action-grid">
             <div class="waitlist-intent-panel" aria-label="Waitlist ride preference preview">
-              <p class="waitlist-intent-title">What are you more likely to do most often?</p>
+              <p class="waitlist-intent-title">What will you do most often?</p>
               <div class="waitlist-intent-actions">
-                <button type="button" class="waitlist-intent-btn active" aria-pressed="true">Ride</button>
-                <button type="button" class="waitlist-intent-btn" aria-pressed="false">Drive</button>
-                <button type="button" class="waitlist-intent-btn" aria-pressed="false">Not sure</button>
+                <button type="button" class="waitlist-intent-btn active" aria-pressed="true">
+                  <svg class="waitlist-intent-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                  Ride
+                </button>
+                <button type="button" class="waitlist-intent-btn" aria-pressed="false">
+                  <svg class="waitlist-intent-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+                  Drive
+                </button>
+                <button type="button" class="waitlist-intent-btn" aria-pressed="false">
+                  <svg class="waitlist-intent-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  Not sure
+                </button>
               </div>
               <div class="waitlist-role-legend" aria-label="Leaderboard line color legend">
                 <span><i class="waitlist-role-dot waitlist-role-dot-rider"></i>Riders</span>
@@ -47,10 +145,10 @@
 
             <div class="waitlist-leaderboard-panel" aria-label="Waitlist leaderboard preview">
               <div class="waitlist-leaderboard-header">
-                <span>Waitlist leaderboard</span>
-                <strong>128 students</strong>
+                <span>School leaderboard</span>
+                <strong>128 members</strong>
               </div>
-              <p class="waitlist-leaderboard-summary">128 waitlisted students across 4 schools.</p>
+              <p class="waitlist-leaderboard-summary">4 schools currently on the waitlist.</p>
               <div class="leaderboard-chart waitlist-leaderboard-chart">
                 <div class="leaderboard-row current-school">
                   <div class="leaderboard-rank">1</div>
@@ -66,10 +164,9 @@
                         <span class="leaderboard-bar-segment leaderboard-bar-segment-unsure" style="width:14%"></span>
                       </div>
                     </div>
-                    <div class="leaderboard-meta">Los Angeles, CA - ucla.edu - Waitlist - Your school</div>
+                    <div class="leaderboard-meta">Los Angeles, CA · ucla.edu · Waitlist · Your school</div>
                   </div>
                 </div>
-
                 <div class="leaderboard-row">
                   <div class="leaderboard-rank">2</div>
                   <div class="leaderboard-school">
@@ -84,10 +181,9 @@
                         <span class="leaderboard-bar-segment leaderboard-bar-segment-unsure" style="width:12%"></span>
                       </div>
                     </div>
-                    <div class="leaderboard-meta">Orange, CA - chapman.edu - Waitlist</div>
+                    <div class="leaderboard-meta">Orange, CA · chapman.edu · Waitlist</div>
                   </div>
                 </div>
-
                 <div class="leaderboard-row">
                   <div class="leaderboard-rank">3</div>
                   <div class="leaderboard-school">
@@ -102,18 +198,41 @@
                         <span class="leaderboard-bar-segment leaderboard-bar-segment-unsure" style="width:16%"></span>
                       </div>
                     </div>
-                    <div class="leaderboard-meta">Fullerton, CA - fullerton.edu - Waitlist</div>
+                    <div class="leaderboard-meta">Fullerton, CA · fullerton.edu · Waitlist</div>
+                  </div>
+                </div>
+                <div class="leaderboard-row">
+                  <div class="leaderboard-rank">4</div>
+                  <div class="leaderboard-school">
+                    <div class="leaderboard-school-header">
+                      <span>UC Irvine</span>
+                      <strong>16 students</strong>
+                    </div>
+                    <div class="leaderboard-bar-track">
+                      <div class="leaderboard-bar leaderboard-bar-segmented" style="width:30%">
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-rider" style="width:50%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-driver" style="width:38%"></span>
+                        <span class="leaderboard-bar-segment leaderboard-bar-segment-unsure" style="width:12%"></span>
+                      </div>
+                    </div>
+                    <div class="leaderboard-meta">Irvine, CA · uci.edu · Waitlist</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
           <div class="waitlist-secondary-actions">
-            <button type="button" class="waitlist-profile-btn">Edit profile</button>
-            <button type="button" class="waitlist-profile-btn waitlist-how-btn">How LinkUp works</button>
+            <a class="waitlist-profile-btn waitlist-profile-btn--primary" href="/">Sign up to join →</a>
+            <a class="waitlist-profile-btn waitlist-guide-btn" href="/previews/how-linkup-works-preview.html">How it works</a>
           </div>
         </div>
       </section>
+
+      <div class="preview-cta-bar">
+        <p><strong>Ready to join?</strong> Create your free account with your university email — no app download needed.</p>
+        <a class="preview-cta-btn" href="/">Create account →</a>
+      </div>
     </main>
   </body>
 </html>

@@ -100,6 +100,10 @@ const waitlistLeaderboardCount = document.getElementById('waitlist-leaderboard-c
 const waitlistLeaderboardSummary = document.getElementById('waitlist-leaderboard-summary');
 const waitlistLeaderboardChart = document.getElementById('waitlist-leaderboard-chart');
 const waitlistLeaderboardReview = document.getElementById('waitlist-leaderboard-review');
+const waitlistQuickForm = document.getElementById('waitlist-quick-form');
+const waitlistQuickMessage = document.getElementById('waitlist-quick-message');
+const waitlistQuickError = document.getElementById('waitlist-quick-error');
+const waitlistQuickSubmit = document.getElementById('waitlist-quick-submit');
 const listRidePage = document.getElementById('list-ride-page');
 const requestRidePage = document.getElementById('request-ride-page');
 const cartPage = document.getElementById('cart-page');
@@ -3010,6 +3014,12 @@ function renderWaitlistLeaderboard(data) {
   const currentSchoolDomain = String(currentUser?.universityDomain || '').toLowerCase();
   waitlistLeaderboardChart.innerHTML = '';
   waitlistLeaderboardCount.textContent = (data.totalUsers || 0) + ' student' + ((data.totalUsers || 0) === 1 ? '' : 's');
+  const waitlistHeroCount = document.getElementById('waitlist-hero-count');
+  if (waitlistHeroCount) {
+    waitlistHeroCount.textContent = data.totalUsers
+      ? 'Join ' + data.totalUsers + ' student' + (data.totalUsers === 1 ? '' : 's') + (schools.length > 1 ? ' across ' + schools.length + ' schools' : '') + ' already on the waitlist'
+      : 'Be one of the first students on the waitlist';
+  }
   waitlistLeaderboardSummary.textContent = schools.length
     ? `${data.totalUsers} waitlisted student${data.totalUsers === 1 ? '' : 's'} across ${schools.length} school${schools.length === 1 ? '' : 's'}.`
     : 'You are one of the first students on the waitlist.';
@@ -5070,8 +5080,34 @@ function renderWaitlistIntent(intent = '') {
   });
 }
 
+const WAITLIST_SLOGANS = [
+  { lead: 'Your campus, ', accent: 'connected.' },
+  { lead: 'Get there ', accent: 'together.' },
+  { lead: 'Link up, ', accent: 'ride together.' },
+  { lead: 'Connecting campuses, ', accent: 'one ride at a time.' },
+];
+
+function renderWaitlistSlogan() {
+  const headline = document.querySelector('.waitlist-guest-h1');
+  if (!headline) return;
+  let index;
+  try {
+    index = (Number(localStorage.getItem('linkup.waitlistSlogan')) || 0) % WAITLIST_SLOGANS.length;
+    localStorage.setItem('linkup.waitlistSlogan', String((index + 1) % WAITLIST_SLOGANS.length));
+  } catch (_) {
+    index = Math.floor(Math.random() * WAITLIST_SLOGANS.length);
+  }
+  const slogan = WAITLIST_SLOGANS[index];
+  headline.textContent = slogan.lead;
+  const accent = document.createElement('span');
+  accent.className = 'waitlist-h1-accent';
+  accent.textContent = slogan.accent;
+  headline.appendChild(accent);
+}
+
 function showPublicWaitlistPage() {
   setAppRoute('waitlist');
+  renderWaitlistSlogan();
   hideLegalPages();
   authSection.classList.add('hidden');
   dashboard.classList.add('hidden');
@@ -9293,6 +9329,57 @@ signupForm.addEventListener('submit', async (event) => {
   }
 });
 window.__linkupSignupHandlerAttached = true;
+
+waitlistQuickForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (waitlistQuickMessage) {
+    waitlistQuickMessage.textContent = '';
+    waitlistQuickMessage.classList.remove('show');
+  }
+  if (waitlistQuickError) {
+    waitlistQuickError.textContent = '';
+    waitlistQuickError.classList.remove('show');
+  }
+
+  const firstName = document.getElementById('waitlist-first-name')?.value.trim() || '';
+  const email = document.getElementById('waitlist-email')?.value.trim() || '';
+  const waitlistIntent = waitlistQuickForm.querySelector('input[name="waitlist-quick-intent"]:checked')?.value || 'unsure';
+
+  setButtonLoading(waitlistQuickSubmit, true);
+  try {
+    const data = await fetchJson('/api/waitlist/join', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName, email, waitlistIntent }),
+    });
+    setButtonLoading(waitlistQuickSubmit, false);
+
+    if (data.accountExists) {
+      if (waitlistQuickMessage) {
+        waitlistQuickMessage.textContent = data.message || 'That email already has a LinkUp account. Sign in to continue.';
+        waitlistQuickMessage.classList.add('show');
+      }
+      const signinEmail = document.getElementById('signin-email');
+      if (signinEmail) signinEmail.value = email;
+      return;
+    }
+
+    waitlistQuickForm.reset();
+    const riderChoice = waitlistQuickForm.querySelector('input[name="waitlist-quick-intent"][value="rider"]');
+    if (riderChoice) riderChoice.checked = true;
+    if (waitlistQuickMessage) {
+      waitlistQuickMessage.textContent = data.message || 'You are on the waitlist.';
+      waitlistQuickMessage.classList.add('show');
+    }
+    loadWaitlistLeaderboard();
+  } catch (err) {
+    setButtonLoading(waitlistQuickSubmit, false);
+    if (waitlistQuickError) {
+      waitlistQuickError.textContent = err.message || 'Unable to join the waitlist right now.';
+      waitlistQuickError.classList.add('show');
+    }
+  }
+});
 
 offerForm.addEventListener('submit', async (event) => {
   event.preventDefault();
