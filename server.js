@@ -4517,6 +4517,7 @@ function renderWeeklyRecapEmail(user, recap) {
 }
 
 function sendWeeklyRecapEmail(db, user, range) {
+  if (user.serviceApproved !== true) return false;
   const preferences = normalizeNotificationPreferences(user.notificationPreferences, user);
   if (!preferences.weeklyRecapEmail || !user.email || isDeletedUser(user) || user.suspendedAt) return false;
   const recap = buildWeeklyRecap(db, user, range);
@@ -4543,7 +4544,10 @@ function sendWeeklyRecapsIfDue(now = new Date()) {
   const db = normalizeUserAccess(loadDb());
   db.meta = asPlainObject(db.meta);
   if (db.meta.weeklyRecapLastSentKey === range.key) return;
-  const users = activeUsers(db).filter((user) => normalizeNotificationPreferences(user.notificationPreferences, user).weeklyRecapEmail);
+  const users = activeUsers(db).filter((user) => (
+    user.serviceApproved === true
+    && normalizeNotificationPreferences(user.notificationPreferences, user).weeklyRecapEmail
+  ));
   let sentCount = 0;
   users.forEach((user) => {
     if (sendWeeklyRecapEmail(db, user, range)) sentCount += 1;
