@@ -6,7 +6,28 @@
 
 ### Fixed
 - **Waitlisted users can return from Sign In.** If a signed-in user's account is still on the waitlist and they land on the Sign In screen, a **Back to waitlist** button now returns them to their waitlist status page without signing in again.
-- **Waitlist member title no longer overlaps the header logo.** The signed-in waitlist page now hides the centered dashboard logo while the waitlist status view is open, preventing the logo from colliding with the large member number.
+- **Waitlist member title no longer overlaps the header logo.** The signed-in waitlist page now gives the member-number hero enough breathing room below the dashboard logo, so both remain visible without colliding.
+
+---
+
+## v2026.07.04 BETA
+
+### New
+- **Rotating landing headlines.** The guest landing page now cycles through four slogans — "Your campus, connected.", "Get there together.", "Link up, ride together.", and "Connecting campuses, one ride at a time." — showing the next one on each visit.
+- **"What you get" feature overview.** The landing page now includes a six-card grid summarizing the product — Find a ride, Request a ride, List a ride, Ride dashboard, Driver tools, and Safety tools — so visitors can see everything LinkUp does without leaving the page.
+- **Faster waitlist signup.** Joining the waitlist now takes just a university email and a Ride / Drive / Not sure choice — the name field was removed, and full details are collected later during account setup.
+- **Live waitlist momentum.** A counter under the signup form shows how many students across how many schools are already on the waitlist, updated from real signup data.
+- **Expandable school leaderboard.** The leaderboard shows the top five schools and, when more are waiting, a "Show all N schools" button expands the full list in place.
+
+### Improvements
+- **Landing page fits one screen on desktop.** The page now uses a wide two-column layout above 960px, with the pitch and signup side by side and the supporting content below.
+- **How it works is back on the landing page.** The three-step explainer is shown directly on the page in compact numbered rows.
+- **Create Account and Sign In are full-size buttons.** The account actions are now prominent side-by-side buttons instead of small text links.
+- **Simpler, message-first landing page.** The guest page now reads in one pass: what LinkUp is, how it works, what you get, how to join, and how your school stacks up.
+
+### Fixed
+- **Light mode landing page rendered a dark signup panel.** Guest landing elements now follow the selected theme.
+- **Inline script blocked by Content-Security-Policy.** The Stripe Connect bootstrap now lives in the site's external boot script, which the CSP permits.
 
 ---
 
