@@ -44,6 +44,7 @@ const siteLogo = document.querySelector('.site-logo');
 const headerActions = document.getElementById('header-actions');
 const headerLeftActions = document.getElementById('header-left-actions');
 const signinForm = document.getElementById('signin-form');
+const signinBackToWaitlistButton = document.getElementById('signin-back-to-waitlist');
 const signupForm = document.getElementById('signup-form');
 const privacyPage = document.getElementById('privacy-page');
 const termsPage = document.getElementById('terms-page');
@@ -611,6 +612,7 @@ document.addEventListener('click', async (event) => {
     'continue-shopping': () => returnToBrowseRides(),
     'waitlist-guest-signup': () => { showAuthSection(); showAuthForm('signup-form'); },
     'waitlist-guest-signin': () => { showAuthSection(); showAuthForm('signin-form'); },
+    'signin-back-to-waitlist': () => returnToWaitlistFromSignin(),
     'privacy-link': () => showLegalPage('privacy'),
     'terms-link': () => showLegalPage('terms'),
     'forgot-auth-link': () => {
@@ -1467,6 +1469,48 @@ async function fetchJson(url, options = {}) {
 let signinHandlerAttached = false;
 let authFlowVersion = 0;
 
+function setSigninWaitlistReturnVisible(visible) {
+  signinBackToWaitlistButton?.classList.toggle('hidden', !visible);
+}
+
+async function refreshSigninWaitlistReturn() {
+  setSigninWaitlistReturnVisible(false);
+  if (currentUser && currentUser.serviceApproved !== true) {
+    setSigninWaitlistReturnVisible(true);
+    return;
+  }
+  try {
+    const sessionUser = await fetchJson('/api/auth/me');
+    if (sessionUser && sessionUser.serviceApproved !== true) {
+      currentUser = sessionUser;
+      setSigninWaitlistReturnVisible(true);
+    }
+  } catch (_) {
+    setSigninWaitlistReturnVisible(false);
+  }
+}
+
+async function returnToWaitlistFromSignin() {
+  try {
+    if (currentUser && currentUser.serviceApproved !== true) {
+      showDashboard(currentUser);
+      return;
+    }
+    currentUser = await fetchJson('/api/auth/me');
+    if (currentUser && currentUser.serviceApproved !== true) {
+      showDashboard(currentUser);
+      return;
+    }
+    showDashboard(currentUser);
+  } catch (err) {
+    setSigninWaitlistReturnVisible(false);
+    if (signinError) {
+      signinError.textContent = err.message || 'Please sign in again.';
+      signinError.classList.add('show');
+    }
+  }
+}
+
 async function handleSigninSubmit(event) {
   event.preventDefault();
   authFlowVersion += 1;
@@ -1979,6 +2023,8 @@ function showAuthForm(formId) {
   if (matchingTab) matchingTab.classList.add('active');
   const showTabs = formId === 'signin-form' || formId === 'signup-form';
   document.querySelector('.auth-tabs')?.classList.toggle('hidden', !showTabs);
+  if (formId === 'signin-form') refreshSigninWaitlistReturn();
+  else setSigninWaitlistReturnVisible(false);
 }
 
 async function loadFriendInviteBanner(inviteCode) {

@@ -2,14 +2,11 @@
 
 ---
 
-## v2026.06.09 BETA
+## v2026.07.07 BETA
 
-### Improvements
-- **Eats browse is two-column on desktop.** The Browse tab now shows pickup offer cards on the left and a full-height sticky map panel on the right, matching the ride browse layout. The map stays in view as you scroll through offers.
-- **Eats offer cards are fully styled.** Pickup cards now show a teal slots badge (turns red when full), picker name, and price in a clean header row, with a distinct footer separating the "Request pickup" button from the map pin button.
-- **Map pin button on offer cards.** Each offer with a saved location gets a small pin button that pans the browse map to that spot and briefly highlights the card — so you can orient any pickup location on the map without leaving the list.
-- **Checkout shows the meeting-point map.** When you tap "Request pickup," the order review page now shows an embedded Google Maps pin of the exact handoff location before you send the request.
-- **Inline location previews in forms.** Selecting a pickup location in the List tab or a delivery address in the Requests tab now reveals a small embedded map confirming the exact spot. The map clears automatically if you edit the address manually.
+### Fixed
+- **Waitlisted users can return from Sign In.** If a signed-in user's account is still on the waitlist and they land on the Sign In screen, a **Back to waitlist** button now returns them to their waitlist status page without signing in again.
+- **Waitlist member title no longer overlaps the header logo.** The signed-in waitlist page now hides the centered dashboard logo while the waitlist status view is open, preventing the logo from colliding with the large member number.
 
 ---
 

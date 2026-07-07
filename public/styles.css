@@ -5752,6 +5752,10 @@ article.card h3 {
 .waitlist-lock-mode .top-actions { display: none; }
 .waitlist-lock-mode .top-row    { display: none; }
 
+body.dashboard-mode:has(#waitlist-page:not(.hidden):not(.waitlist-guest-mode)) .site-logo {
+  display: none;
+}
+
 .waitlist-lock-mode [data-waitlist-hidden="true"] {
   display: none;
 }
