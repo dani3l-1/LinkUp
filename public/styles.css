@@ -12594,6 +12594,25 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
 }
 
 /* ── Light mode open workspace — less panel-inside-panel chrome ─ */
+html[data-theme="dark"] body.dashboard-mode #main-content,
+html[data-theme="light"] body.dashboard-mode #main-content {
+  padding-top: clamp(1rem, 2vw, 1.75rem);
+}
+
+html[data-theme="dark"] body.dashboard-mode header,
+html[data-theme="light"] body.dashboard-mode header {
+  position: relative;
+  top: auto;
+  z-index: 20;
+}
+
+html[data-theme="dark"] body.dashboard-mode .dashboard-greeting-bar,
+html[data-theme="light"] body.dashboard-mode .dashboard-greeting-bar {
+  position: relative;
+  top: auto;
+  z-index: 10;
+}
+
 html[data-theme="light"] body.dashboard-mode header,
 html[data-theme="light"] body.dashboard-mode .top-row,
 html[data-theme="light"] body.dashboard-mode #main-content > .card {
