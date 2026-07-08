@@ -7,6 +7,7 @@
 ### Fixed
 - **Waitlisted users can return from Sign In.** If a signed-in user's account is still on the waitlist and they land on the Sign In screen, a **Back to waitlist** button now returns them to their waitlist status page without signing in again.
 - **Waitlist member title no longer overlaps the header logo.** The signed-in waitlist page now gives the member-number hero enough breathing room below the dashboard logo, so both remain visible without colliding.
+- **Waitlisted profile page no longer starts under the logo.** Opening Edit Profile from the waitlist now keeps the profile header below the dashboard logo instead of letting the avatar and account details slide underneath it.
 
 ---
 
