@@ -7,7 +7,7 @@
 ### Fixed
 - **Waitlisted users can return from Sign In.** If a signed-in user's account is still on the waitlist and they land on the Sign In screen, a **Back to waitlist** button now returns them to their waitlist status page without signing in again.
 - **Waitlist member title no longer overlaps the header logo.** The signed-in waitlist page now gives the member-number hero enough breathing room below the dashboard logo, so both remain visible without colliding.
-- **Dashboard pages no longer start under the logo.** Dashboard content now has consistent top clearance below the centered logo, preventing profile headers and other page content from sliding underneath it.
+- **Dashboard pages no longer slide under the logo.** The dashboard header and greeting now stay in normal page flow instead of floating transparently over content, preventing profile forms and other pages from passing underneath the centered logo while scrolling.
 
 ---
 

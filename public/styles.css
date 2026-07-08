@@ -199,7 +199,7 @@ body:not(.dashboard-mode) #main-content {
 }
 
 body.dashboard-mode #main-content {
-  padding-top: clamp(3.5rem, 7vw, 5.25rem);
+  padding-top: clamp(1rem, 2vw, 1.75rem);
   padding-bottom: clamp(4rem, 8vh, 7rem);
 }
 
@@ -246,9 +246,9 @@ body.dashboard-mode header {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  position: relative;
+  top: auto;
+  z-index: 20;
 }
 
 body.dashboard-mode .site-logo {
@@ -290,9 +290,9 @@ body.dashboard-mode .site-logo {
 
 body.dashboard-mode .dashboard-greeting-bar {
   display: block;
-  position: sticky;
-  top: 80px;
-  z-index: 90;
+  position: relative;
+  top: auto;
+  z-index: 10;
   background: transparent;
   padding: 0.6rem 1.25rem 0.65rem;
 }
