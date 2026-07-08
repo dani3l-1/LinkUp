@@ -199,6 +199,7 @@ body:not(.dashboard-mode) #main-content {
 }
 
 body.dashboard-mode #main-content {
+  padding-top: clamp(3.5rem, 7vw, 5.25rem);
   padding-bottom: clamp(4rem, 8vh, 7rem);
 }
 
@@ -5751,15 +5752,6 @@ article.card h3 {
 
 .waitlist-lock-mode .top-actions { display: none; }
 .waitlist-lock-mode .top-row    { display: none; }
-
-body.dashboard-mode:has(#waitlist-page:not(.hidden):not(.waitlist-guest-mode)) #waitlist-page {
-  padding-top: clamp(5.5rem, 9vw, 7rem);
-  align-items: flex-start;
-}
-
-.waitlist-lock-mode #profile-page:not(.hidden) {
-  margin-top: clamp(3.5rem, 7vw, 5.25rem);
-}
 
 .waitlist-lock-mode [data-waitlist-hidden="true"] {
   display: none;
