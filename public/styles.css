@@ -300,6 +300,22 @@ html.linkup-demo-embed footer {
   display: none;
 }
 
+html.linkup-demo-embed body.dashboard-mode .top-row > .top-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  overflow: visible;
+}
+
+html.linkup-demo-embed #eats-button,
+html.linkup-demo-embed [id^="eats-nav-"] {
+  display: none !important;
+}
+
 .header-left-actions button {
   display: inline-flex;
   align-items: center;
