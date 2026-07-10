@@ -311,6 +311,30 @@ html.linkup-demo-embed body.dashboard-mode .top-row > .top-actions {
   overflow: visible;
 }
 
+html.linkup-demo-embed body.dashboard-mode .dashboard-greeting-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 1.25rem 0.75rem;
+}
+
+html.linkup-demo-embed .dashboard-greeting-bar .greeting-text {
+  flex: 0 1 auto;
+  min-width: 190px;
+  text-align: left;
+}
+
+html.linkup-demo-embed .dashboard-greeting-bar > .top-actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  width: auto;
+}
+
 html.linkup-demo-embed #eats-button,
 html.linkup-demo-embed [id^="eats-nav-"] {
   display: none !important;

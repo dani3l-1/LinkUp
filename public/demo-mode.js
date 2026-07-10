@@ -184,6 +184,21 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
+    if (demoParams.get('embed') === '1') {
+      const greetingBar = document.getElementById('dashboard-greeting-bar');
+      const topRow = document.querySelector('#dashboard > .top-row');
+      const topActions = topRow?.querySelector('.top-actions');
+      if (greetingBar && topActions) {
+        const greetingText = document.createElement('div');
+        greetingText.className = 'greeting-text';
+        const welcome = document.getElementById('welcome-message');
+        const university = document.getElementById('student-university-label');
+        if (welcome) greetingText.appendChild(welcome);
+        if (university) greetingText.appendChild(university);
+        greetingBar.replaceChildren(greetingText, topActions);
+        topRow.remove();
+      }
+    }
     const leftActions = document.getElementById('header-left-actions');
     if (leftActions) {
       const back = document.createElement('a');
