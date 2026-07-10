@@ -2,6 +2,17 @@
 
 ---
 
+## v2026.07.10 BETA
+
+### New
+- **Interactive production UI demo.** Waitlist visitors can explore the real LinkUp interface with isolated fictional data, including ride browsing, Google Maps, seat booking, the cart, reserved ride details, and the driver wallet and payouts experience. Demo actions do not create accounts, charge payments, or modify production data.
+- **Guided demo shortcuts.** Four large shortcuts take visitors directly to Find a Ride, Book a Seat, Ride Day, and Drive & Earn, with each shortcut loading the matching production screen and sample state.
+
+### Improvements
+- **Clear demo navigation.** The demo includes a compact Back to Waitlist button, an interactive-demo status label, stable one-press shortcut controls, and production-consistent responsive styling.
+
+---
+
 ## v2026.07.07 BETA
 
 ### Fixed

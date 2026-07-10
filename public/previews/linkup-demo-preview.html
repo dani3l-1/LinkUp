@@ -1,0 +1,1238 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Try LinkUp — Interactive Demo</title>
+    <link rel="stylesheet" href="../styles.css?v=linkup-demo-preview" />
+    <style>
+      /* ── Theme tokens: dark default, light override ── */
+      :root {
+        --demo-bg:            #071819;
+        --demo-panel:         rgba(10, 22, 26, 0.97);
+        --demo-screen-bg:     #0a1417;
+        --demo-card:          rgba(255, 255, 255, 0.035);
+        --demo-border:        rgba(62, 207, 207, 0.10);
+        --demo-border-strong: rgba(62, 207, 207, 0.24);
+        --demo-text:          #edf6f7;
+        --demo-muted:         #8ab8bf;
+        --demo-accent:        #3ecfcf;
+        --demo-accent-dark:   #3ecfcf;
+        --demo-good:          #2ac66d;
+        --demo-shadow:        0 28px 80px rgba(0, 0, 0, 0.60);
+        --demo-radius:        22px;
+      }
+
+      html[data-theme="light"] {
+        --demo-bg:            #eefafa;
+        --demo-panel:         rgba(255, 255, 255, 0.94);
+        --demo-screen-bg:     #f4fbfc;
+        --demo-card:          rgba(255, 255, 255, 0.85);
+        --demo-border:        rgba(18, 91, 97, 0.14);
+        --demo-border-strong: rgba(19, 156, 163, 0.30);
+        --demo-text:          #08282d;
+        --demo-muted:         #53777d;
+        --demo-accent:        #23c8c8;
+        --demo-accent-dark:   #087d86;
+        --demo-good:          #158f4b;
+        --demo-shadow:        0 28px 80px rgba(18, 91, 97, 0.18);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        padding: clamp(16px, 2.4vw, 32px);
+        background:
+          radial-gradient(circle at 50% -12%, rgba(62, 207, 207, 0.14), transparent 38%),
+          linear-gradient(145deg, #060e10, var(--demo-bg));
+        color: var(--demo-text);
+        font-family: var(--font-body, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+        transition: background 0.3s ease;
+      }
+
+      html[data-theme="light"] body {
+        background:
+          radial-gradient(circle at 50% -12%, rgba(62, 207, 207, 0.26), transparent 38%),
+          linear-gradient(145deg, #f2fdfd, var(--demo-bg));
+      }
+
+      .demo-wrap {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+      }
+
+      /* ─── Panel shell ─── */
+      .demo-panel {
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        width: 100%;
+        min-height: calc(100vh - clamp(32px, 4.8vw, 64px));
+        overflow: hidden;
+        border: 1px solid var(--demo-border);
+        border-radius: var(--demo-radius);
+        background: var(--demo-panel);
+        box-shadow: var(--demo-shadow);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+      }
+
+      /* ─── Top bar ─── */
+      .demo-topbar {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: clamp(14px, 2vw, 26px);
+        min-height: 58px;
+        padding: 10px clamp(16px, 2.6vw, 28px);
+        border-bottom: 1px solid var(--demo-border);
+      }
+
+      .demo-topbar-left {
+        display: flex;
+        justify-content: flex-start;
+        min-width: 0;
+      }
+
+      .demo-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: var(--demo-text);
+        font: 800 0.68rem/1 var(--font-display, inherit);
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .demo-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--demo-accent);
+        box-shadow: 0 0 0 4px rgba(62, 207, 207, 0.1);
+      }
+
+      .demo-badge {
+        flex: 0 0 auto;
+        width: auto !important;
+        margin: 0;
+        padding: 5px 9px;
+        border: 1px solid rgba(62, 207, 207, 0.28);
+        border-radius: 999px;
+        color: var(--demo-accent-dark);
+        background: rgba(62, 207, 207, 0.10);
+        font: 900 0.62rem/1 var(--font-display, inherit);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .demo-topbar-note {
+        justify-self: end;
+        max-width: 360px;
+        color: var(--demo-muted);
+        font-size: 0.74rem;
+        line-height: 1.35;
+        text-align: right;
+      }
+
+      .demo-return-link {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        width: auto !important;
+        min-height: 36px;
+        margin: 0 !important;
+        padding: 7px 12px;
+        border: 1px solid var(--demo-border-strong);
+        border-radius: 9px;
+        background: rgba(62, 207, 207, 0.06);
+        color: var(--demo-accent-dark);
+        font: 800 0.66rem/1 var(--font-display, inherit);
+        letter-spacing: 0.09em;
+        text-decoration: none;
+        text-transform: uppercase;
+        white-space: nowrap;
+        transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      }
+
+      html[data-theme="light"] .demo-return-link {
+        background: #fff;
+        box-shadow: 0 2px 10px rgba(18, 91, 97, 0.08);
+      }
+
+      .demo-return-link:hover {
+        color: var(--demo-text);
+        border-color: var(--demo-accent-dark);
+        background: rgba(62, 207, 207, 0.12);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+        transform: translateY(-1px);
+      }
+
+      /* ─── Step rail ─── */
+      .demo-rail {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(150px, 1fr);
+        gap: 8px;
+        padding: 12px clamp(16px, 2.6vw, 28px);
+        border-bottom: 1px solid var(--demo-border);
+        background: var(--demo-panel);
+        overflow-x: auto;
+        scrollbar-width: none;
+        position: relative;
+        z-index: 20;
+      }
+
+      .demo-rail::-webkit-scrollbar { display: none; }
+
+      .demo-rail-item {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr);
+        align-items: center;
+        gap: 9px;
+        width: 100%;
+        min-height: 64px;
+        margin: 0;
+        padding: 10px 12px;
+        border: 1px solid var(--demo-border);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--demo-text);
+        text-align: left;
+        cursor: pointer;
+        text-transform: none;
+        letter-spacing: normal;
+        overflow: visible;
+        box-shadow: none;
+        position: relative;
+        z-index: 1;
+        isolation: isolate;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(62, 207, 207, 0.16);
+        user-select: none;
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .demo-rail-item > * {
+        pointer-events: none;
+      }
+
+      .demo-rail-item::before,
+      .demo-rail-item::after {
+        display: none !important;
+        content: none !important;
+      }
+
+      .demo-rail-item:active {
+        border-color: var(--demo-accent-dark);
+        background: rgba(62, 207, 207, 0.14);
+        transform: scale(0.995);
+      }
+
+      html[data-theme="light"] .demo-rail-item { background: rgba(255, 255, 255, 0.65); }
+
+      .demo-rail-item:hover {
+        border-color: var(--demo-border-strong);
+        background: rgba(62, 207, 207, 0.07);
+      }
+
+      .demo-rail-item.active {
+        border-color: var(--demo-border-strong);
+        background: rgba(62, 207, 207, 0.09);
+        box-shadow: inset 0 -3px 0 var(--demo-accent-dark);
+      }
+
+      .demo-rail-num {
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        border: 1px solid rgba(62, 207, 207, 0.14);
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--demo-accent-dark);
+        font: 900 0.68rem/1 var(--font-display, inherit);
+      }
+
+      html[data-theme="light"] .demo-rail-num { background: #fff; border-color: rgba(18, 91, 97, 0.13); }
+
+      .demo-rail-item.active .demo-rail-num {
+        background: var(--demo-accent-dark);
+        border-color: var(--demo-accent-dark);
+        color: #071819;
+      }
+
+      html[data-theme="light"] .demo-rail-item.active .demo-rail-num { color: #fff; }
+
+      .demo-rail-text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+
+      .demo-rail-text strong {
+        color: var(--demo-text);
+        font: 900 0.72rem/1.15 var(--font-display, inherit);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .demo-rail-text span {
+        color: var(--demo-muted);
+        font-size: 0.7rem;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* ─── Stage: hint + app screen ─── */
+      .demo-stage {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 12px;
+        min-height: 0;
+        padding: clamp(14px, 2.4vw, 24px) clamp(16px, 2.6vw, 28px);
+        overflow: auto;
+      }
+
+      .demo-hint {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 13px;
+        border: 1px dashed var(--demo-border-strong);
+        border-radius: 12px;
+        background: rgba(62, 207, 207, 0.05);
+        color: var(--demo-muted);
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .demo-hint-dot {
+        flex-shrink: 0;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--demo-accent);
+        animation: demo-pulse 1.6s ease-in-out infinite;
+      }
+
+      @keyframes demo-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(62, 207, 207, 0.45); }
+        55%      { box-shadow: 0 0 0 6px rgba(62, 207, 207, 0); }
+      }
+
+      .demo-hint strong { color: var(--demo-text); font-weight: 800; }
+
+      /* ─── Mock app frame ─── */
+      .demo-frame {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+        border: 1px solid var(--demo-border);
+        border-radius: 16px;
+        background: var(--demo-screen-bg);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.42);
+      }
+
+      html[data-theme="light"] .demo-frame { box-shadow: 0 20px 60px rgba(18, 91, 97, 0.16); }
+
+      .demo-production-frame {
+        display: block;
+        width: 100%;
+        min-height: 900px;
+        flex: 1;
+        border: 0;
+        background: var(--demo-screen-bg);
+      }
+
+      .demo-frame > .demo-app-header,
+      .demo-frame > .demo-screen {
+        display: none !important;
+      }
+
+      .demo-chrome {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-shrink: 0;
+        height: 30px;
+        padding: 0 12px;
+        border-bottom: 1px solid rgba(62, 207, 207, 0.07);
+        background: rgba(5, 11, 13, 0.96);
+      }
+
+      html[data-theme="light"] .demo-chrome {
+        background: rgba(235, 250, 251, 0.96);
+        border-bottom-color: rgba(18, 91, 97, 0.10);
+      }
+
+      .demo-chrome span { width: 9px; height: 9px; border-radius: 999px; }
+      .demo-chrome span:nth-child(1) { background: #ff6b6b; }
+      .demo-chrome span:nth-child(2) { background: #f4c04d; }
+      .demo-chrome span:nth-child(3) { background: #2ac66d; }
+
+      .demo-chrome-url {
+        margin-left: 10px;
+        color: var(--demo-muted);
+        font-size: 0.68rem;
+        letter-spacing: 0.04em;
+        opacity: 0.8;
+      }
+
+      .demo-app-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+        padding: 11px clamp(14px, 2.2vw, 22px);
+        border-bottom: 1px solid var(--demo-border);
+      }
+
+      .demo-app-logo { height: 18px; width: auto; filter: var(--logo-filter); }
+
+      .demo-app-network {
+        padding: 4px 9px;
+        border: 1px solid var(--demo-border-strong);
+        border-radius: 999px;
+        color: var(--demo-accent-dark);
+        font: 800 0.62rem/1 var(--font-display, inherit);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .demo-app-user {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-left: auto;
+        color: var(--demo-muted);
+        font-size: 0.74rem;
+        white-space: nowrap;
+      }
+
+      /* Screens */
+      .demo-screen {
+        display: none;
+        min-height: 0;
+        flex: 1;
+        padding: clamp(14px, 2.2vw, 22px);
+        overflow-y: auto;
+      }
+
+      @keyframes demo-slide-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      .demo-screen.active {
+        display: block;
+        animation: demo-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+
+      .demo-screen-title {
+        margin: 0 0 3px;
+        color: var(--demo-text);
+        font-size: 1.06rem;
+        font-weight: 900;
+        letter-spacing: -0.01em;
+      }
+
+      .demo-screen-sub {
+        margin: 0 0 14px;
+        color: var(--demo-muted);
+        font-size: 0.81rem;
+        line-height: 1.5;
+      }
+
+      /* Filter chips (browse) */
+      .demo-filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 0 0 12px;
+      }
+
+      .demo-chip {
+        padding: 5px 10px;
+        border: 1px solid var(--demo-border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--demo-muted);
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+
+      .demo-chip--on {
+        border-color: var(--demo-border-strong);
+        background: rgba(62, 207, 207, 0.09);
+        color: var(--demo-accent-dark);
+      }
+
+      /* Ride cards */
+      .demo-ride-list { display: grid; gap: 9px; }
+
+      .demo-ride-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 12px;
+        width: 100%;
+        margin: 0;
+        padding: 13px 14px;
+        border: 1px solid var(--demo-border);
+        border-radius: 14px;
+        background: var(--demo-card);
+        color: var(--demo-text);
+        text-align: left;
+        text-transform: none;
+        letter-spacing: normal;
+        cursor: pointer;
+        overflow: visible;
+        box-shadow: none;
+        transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .demo-ride-card:hover {
+        border-color: var(--demo-border-strong);
+        background: rgba(62, 207, 207, 0.06);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+      }
+
+      html[data-theme="light"] .demo-ride-card:hover {
+        background: rgba(220, 248, 249, 0.75);
+        box-shadow: 0 6px 18px rgba(18, 91, 97, 0.10);
+      }
+
+      .demo-ride-route {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        font-size: 0.9rem;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+
+      .demo-ride-route svg { flex-shrink: 0; color: var(--demo-accent-dark); }
+
+      .demo-ride-price {
+        grid-row: 1 / span 2;
+        grid-column: 2;
+        align-self: center;
+        text-align: right;
+        color: var(--demo-accent-dark);
+        font: 900 1.05rem/1 var(--font-display, inherit);
+        white-space: nowrap;
+      }
+
+      .demo-ride-price small {
+        display: block;
+        margin-top: 3px;
+        color: var(--demo-muted);
+        font: 600 0.66rem/1 var(--font-body, inherit);
+        letter-spacing: 0.02em;
+      }
+
+      .demo-ride-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 5px 10px;
+        color: var(--demo-muted);
+        font-size: 0.74rem;
+      }
+
+      .demo-driver-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 700;
+        color: var(--demo-text);
+      }
+
+      .demo-avatar {
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: rgba(62, 207, 207, 0.16);
+        border: 1px solid var(--demo-border-strong);
+        color: var(--demo-accent-dark);
+        font: 900 0.62rem/1 var(--font-display, inherit);
+        letter-spacing: 0.02em;
+      }
+
+      .demo-verified {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--demo-good);
+        font-size: 0.7rem;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .demo-star { color: #f4c04d; }
+
+      /* Detail screen */
+      .demo-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        width: auto;
+        margin: 0 0 12px;
+        padding: 6px 11px;
+        border: 1px solid var(--demo-border);
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--demo-muted);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        overflow: visible;
+        box-shadow: none;
+      }
+
+      .demo-back-btn:hover { border-color: var(--demo-border-strong); color: var(--demo-accent-dark); }
+
+      .demo-detail-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(230px, 0.75fr);
+        gap: 12px;
+        align-items: start;
+      }
+
+      .demo-card-block {
+        padding: 13px 14px;
+        border: 1px solid var(--demo-border);
+        border-radius: 14px;
+        background: var(--demo-card);
+      }
+
+      .demo-card-block + .demo-card-block { margin-top: 10px; }
+
+      .demo-block-label {
+        margin: 0 0 9px;
+        color: var(--demo-muted);
+        font: 800 0.64rem/1 var(--font-display, inherit);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .demo-route-line {
+        display: grid;
+        grid-template-columns: 14px minmax(0, 1fr);
+        gap: 4px 10px;
+      }
+
+      .demo-route-line i {
+        justify-self: center;
+        width: 9px;
+        height: 9px;
+        margin-top: 5px;
+        border-radius: 999px;
+        border: 2px solid var(--demo-accent-dark);
+        background: transparent;
+      }
+
+      .demo-route-line i.demo-route-end { background: var(--demo-accent-dark); }
+
+      .demo-route-line em {
+        width: 2px;
+        min-height: 14px;
+        justify-self: center;
+        background: var(--demo-border-strong);
+      }
+
+      .demo-route-line strong { display: block; font-size: 0.86rem; font-weight: 800; }
+      .demo-route-line span { display: block; color: var(--demo-muted); font-size: 0.73rem; }
+
+      .demo-kv-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        padding: 5px 0;
+        font-size: 0.8rem;
+      }
+
+      .demo-kv-row + .demo-kv-row { border-top: 1px dashed var(--demo-border); }
+      .demo-kv-row span { color: var(--demo-muted); }
+      .demo-kv-row strong { font-weight: 800; text-align: right; }
+
+      .demo-rules-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+      /* Seat picker */
+      .demo-seat-map {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .demo-seat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        width: 100%;
+        margin: 0;
+        padding: 11px 8px;
+        border: 1px solid var(--demo-border);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--demo-text);
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: normal;
+        text-transform: none;
+        cursor: pointer;
+        overflow: visible;
+        box-shadow: none;
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .demo-seat small { color: var(--demo-muted); font-size: 0.66rem; font-weight: 600; }
+
+      .demo-seat:hover:not(:disabled) { border-color: var(--demo-border-strong); background: rgba(62, 207, 207, 0.07); }
+
+      .demo-seat.selected {
+        border-color: var(--demo-accent);
+        background: rgba(62, 207, 207, 0.13);
+        box-shadow: 0 0 0 1px var(--demo-accent) inset;
+      }
+
+      .demo-seat.selected small { color: var(--demo-accent-dark); }
+
+      .demo-seat:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        text-decoration: line-through;
+      }
+
+      .demo-seat:disabled small { text-decoration: none; }
+
+      .demo-fare-note {
+        margin: 9px 0 0;
+        color: var(--demo-muted);
+        font-size: 0.7rem;
+        line-height: 1.45;
+      }
+
+      .demo-primary-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        width: 100%;
+        margin: 10px 0 0;
+        padding: 12px 16px;
+        border: 1px solid var(--demo-accent);
+        border-radius: 12px;
+        background: var(--demo-accent);
+        color: #071819;
+        font: 900 0.76rem/1 var(--font-display, inherit);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        cursor: pointer;
+        overflow: visible;
+        box-shadow: 0 5px 18px rgba(62, 207, 207, 0.28);
+        transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+      }
+
+      html[data-theme="light"] .demo-primary-btn { color: #062b2f; }
+
+      .demo-primary-btn:hover:not(:disabled) {
+        filter: brightness(1.09);
+        transform: translateY(-1px);
+        box-shadow: 0 7px 22px rgba(62, 207, 207, 0.36);
+      }
+
+      .demo-primary-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+      .demo-ghost-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        width: auto;
+        margin: 0;
+        padding: 9px 14px;
+        border: 1px solid var(--demo-border-strong);
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--demo-accent-dark);
+        font: 900 0.7rem/1 var(--font-display, inherit);
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        cursor: pointer;
+        overflow: visible;
+        box-shadow: none;
+        transition: background 0.15s ease, transform 0.15s ease;
+      }
+
+      html[data-theme="light"] .demo-ghost-btn { background: #fff; }
+
+      .demo-ghost-btn:hover { background: rgba(62, 207, 207, 0.10); transform: translateY(-1px); }
+
+      /* Ride dashboard screen */
+      .demo-success-banner {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 0 0 12px;
+        padding: 10px 13px;
+        border: 1px solid rgba(42, 198, 109, 0.35);
+        border-radius: 12px;
+        background: rgba(42, 198, 109, 0.08);
+        color: var(--demo-good);
+        font-size: 0.82rem;
+        font-weight: 800;
+      }
+
+      .demo-dash-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(230px, 0.75fr);
+        gap: 12px;
+        align-items: start;
+      }
+
+      .demo-code-panel { text-align: center; }
+
+      .demo-code-digits {
+        display: flex;
+        justify-content: center;
+        gap: 7px;
+        margin: 4px 0 9px;
+      }
+
+      .demo-code-digits b {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 48px;
+        border: 1px solid var(--demo-border-strong);
+        border-radius: 10px;
+        background: rgba(62, 207, 207, 0.08);
+        color: var(--demo-accent-dark);
+        font: 900 1.3rem/1 var(--font-display, inherit);
+      }
+
+      .demo-code-panel p { margin: 0; color: var(--demo-muted); font-size: 0.72rem; line-height: 1.5; }
+
+      .demo-check {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 8px 0;
+        cursor: pointer;
+        font-size: 0.8rem;
+        line-height: 1.4;
+      }
+
+      .demo-check + .demo-check { border-top: 1px dashed var(--demo-border); }
+
+      .demo-check input {
+        flex-shrink: 0;
+        width: 16px;
+        height: 16px;
+        margin: 2px 0 0;
+        accent-color: var(--demo-accent);
+        cursor: pointer;
+      }
+
+      .demo-check span { color: var(--demo-text); font-weight: 700; }
+      .demo-check small { display: block; color: var(--demo-muted); font-size: 0.7rem; font-weight: 500; }
+      .demo-check.done span { color: var(--demo-muted); text-decoration: line-through; }
+
+      .demo-check-progress {
+        margin: 8px 0 0;
+        color: var(--demo-accent-dark);
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+
+      .demo-safety-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .demo-safety-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        width: 100%;
+        margin: 0;
+        padding: 11px 6px;
+        border: 1px solid var(--demo-border);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--demo-text);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: normal;
+        text-transform: none;
+        text-align: center;
+        cursor: pointer;
+        overflow: visible;
+        box-shadow: none;
+        transition: border-color 0.15s ease, background 0.15s ease;
+      }
+
+      .demo-safety-btn svg { color: var(--demo-accent-dark); }
+      .demo-safety-btn:hover { border-color: var(--demo-border-strong); background: rgba(62, 207, 207, 0.07); }
+
+      /* Driver screen */
+      .demo-manifest-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 0;
+        font-size: 0.79rem;
+      }
+
+      .demo-manifest-row + .demo-manifest-row { border-top: 1px dashed var(--demo-border); }
+      .demo-manifest-row strong { display: block; font-weight: 800; }
+      .demo-manifest-row small { display: block; color: var(--demo-muted); font-size: 0.7rem; }
+
+      .demo-manifest-code {
+        padding: 4px 8px;
+        border: 1px solid var(--demo-border);
+        border-radius: 8px;
+        color: var(--demo-muted);
+        font: 800 0.68rem/1 var(--font-display, inherit);
+        letter-spacing: 0.1em;
+        white-space: nowrap;
+      }
+
+      .demo-earnings-big {
+        margin: 2px 0 2px;
+        color: var(--demo-accent-dark);
+        font: 900 1.7rem/1 var(--font-display, inherit);
+      }
+
+      .demo-earnings-note { margin: 0; color: var(--demo-muted); font-size: 0.72rem; line-height: 1.5; }
+
+      /* End CTA */
+      .demo-end-cta {
+        margin-top: 12px;
+        padding: 16px;
+        text-align: center;
+        border: 1px solid var(--demo-border-strong);
+        border-radius: 14px;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(62, 207, 207, 0.12), transparent 70%),
+          var(--demo-card);
+      }
+
+      .demo-end-cta h3 { margin: 0 0 5px; font-size: 1rem; font-weight: 900; }
+      .demo-end-cta p { margin: 0 0 12px; color: var(--demo-muted); font-size: 0.8rem; line-height: 1.5; }
+
+      .demo-end-cta .demo-cta-row {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      a.demo-primary-btn { width: auto; margin: 0; text-decoration: none; }
+
+      /* ─── Footer ─── */
+      .demo-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 12px clamp(16px, 2.6vw, 28px);
+        border-top: 1px solid var(--demo-border);
+        background: rgba(5, 12, 14, 0.88);
+      }
+
+      html[data-theme="light"] .demo-footer { background: rgba(245, 252, 253, 0.80); }
+
+      .demo-dots { display: flex; gap: 6px; align-items: center; }
+
+      .demo-dots span {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(62, 207, 207, 0.18);
+        transition: width 0.22s ease, background 0.22s ease;
+      }
+
+      html[data-theme="light"] .demo-dots span { background: rgba(18, 91, 97, 0.18); }
+      .demo-dots span.active { width: 22px; background: var(--demo-accent-dark); }
+
+      .demo-step-label {
+        color: var(--demo-muted);
+        font: 600 0.73rem/1 var(--font-display, inherit);
+        letter-spacing: 0.07em;
+        white-space: nowrap;
+      }
+
+      .demo-footer-actions { display: flex; gap: 8px; }
+
+      /* Toast */
+      .demo-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 26px;
+        z-index: 40;
+        max-width: min(420px, calc(100vw - 32px));
+        padding: 11px 16px;
+        border: 1px solid var(--demo-border-strong);
+        border-radius: 12px;
+        background: var(--demo-panel);
+        color: var(--demo-text);
+        font-size: 0.8rem;
+        line-height: 1.45;
+        box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45);
+        opacity: 0;
+        transform: translate(-50%, 12px);
+        pointer-events: none;
+        transition: opacity 0.22s ease, transform 0.22s ease;
+      }
+
+      .demo-toast.show { opacity: 1; transform: translate(-50%, 0); }
+      .demo-toast strong { color: var(--demo-accent-dark); }
+
+      /* ─── Responsive ─── */
+      @media (max-width: 760px) {
+        body { padding: 0; }
+
+        .demo-panel {
+          min-height: 100svh;
+          border: none;
+          border-radius: 0;
+        }
+
+        .demo-topbar {
+          grid-template-columns: auto 1fr;
+          gap: 10px;
+          padding: 12px 14px;
+        }
+        .demo-topbar-note { display: none; }
+        .demo-rail { padding: 10px 14px; }
+        .demo-stage { padding: 12px 14px; }
+
+        .demo-detail-grid,
+        .demo-dash-grid { grid-template-columns: 1fr; }
+
+        .demo-app-user { display: none; }
+        .demo-step-label { display: none; }
+        .demo-safety-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      }
+    </style>
+  </head>
+  <body class="dashboard-mode">
+    <main class="demo-wrap">
+      <section class="demo-panel" aria-label="LinkUp interactive demo">
+        <header class="demo-topbar">
+          <div class="demo-topbar-left">
+            <a class="demo-return-link" href="/" aria-label="Return to LinkUp">← Back to LinkUp</a>
+          </div>
+          <div class="demo-status" aria-label="Interactive demo">
+            <span class="demo-status-dot" aria-hidden="true"></span>
+            Interactive product demo
+          </div>
+          <span class="demo-topbar-note">Fictional sample data · Nothing is saved or charged</span>
+        </header>
+
+        <nav class="demo-rail" aria-label="Demo steps">
+          <button class="demo-rail-item active" data-demo-step="1" type="button"><span class="demo-rail-num">01</span><div class="demo-rail-text"><strong>Find a ride</strong><span>Browse your campus</span></div></button>
+          <button class="demo-rail-item" data-demo-step="2" type="button"><span class="demo-rail-num">02</span><div class="demo-rail-text"><strong>Book a seat</strong><span>Check the car, pick a seat</span></div></button>
+          <button class="demo-rail-item" data-demo-step="3" type="button"><span class="demo-rail-num">03</span><div class="demo-rail-text"><strong>Ride day</strong><span>Code, checklist, safety</span></div></button>
+          <button class="demo-rail-item" data-demo-step="4" type="button"><span class="demo-rail-num">04</span><div class="demo-rail-text"><strong>Drive &amp; earn</strong><span>Wallet and payouts</span></div></button>
+        </nav>
+
+        <div class="demo-stage">
+          <p class="demo-hint" aria-live="polite"><span class="demo-hint-dot" aria-hidden="true"></span><span id="demo-hint-text"><strong>Try it:</strong> tap any ride below to see the full details, exactly like a signed-in student would.</span></p>
+
+          <div class="demo-frame">
+            <div class="demo-chrome" aria-hidden="true"><span></span><span></span><span></span><i class="demo-chrome-url">linkup — demo mode</i></div>
+            <iframe
+              class="demo-production-frame"
+              id="demo-production-frame"
+              src="/?demo=1&amp;embed=1#browse-rider"
+              title="Interactive LinkUp production interface with sample data"
+            ></iframe>
+            <div class="demo-app-header">
+              <img class="demo-app-logo" src="../assets/images/LinkUp-wordmark.png" alt="" aria-hidden="true" />
+              <span class="demo-app-network">Xnoyms University</span>
+              <span class="demo-app-user"><span class="demo-avatar" aria-hidden="true">YOU</span>Xnonymous</span>
+            </div>
+
+            <!-- ── Screen 1: Browse rides ── -->
+            <section class="demo-screen active" data-demo-screen="1" aria-label="Find a ride">
+              <h2 class="demo-screen-title">Find a ride</h2>
+              <p class="demo-screen-sub">Every driver is a verified student from your school. Check the car, the price, and the rules before you book.</p>
+              <div class="demo-filter-row" aria-hidden="true">
+                <span class="demo-chip demo-chip--on">This weekend</span>
+                <span class="demo-chip">From campus</span>
+                <span class="demo-chip">Under $40</span>
+                <span class="demo-chip">4 rides found</span>
+              </div>
+              <div class="demo-ride-list" id="demo-ride-list"></div>
+            </section>
+
+            <!-- ── Screen 2: Ride detail + seat picker ── -->
+            <section class="demo-screen" data-demo-screen="2" aria-label="Ride details and booking">
+              <button class="demo-back-btn" type="button" data-demo-goto="1">← All rides</button>
+              <div class="demo-detail-grid">
+                <div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Trip</p>
+                    <div class="demo-route-line">
+                      <i></i>
+                      <div><strong id="demo-detail-from">—</strong><span id="demo-detail-when">—</span></div>
+                      <em aria-hidden="true"></em>
+                      <span aria-hidden="true"></span>
+                      <i class="demo-route-end"></i>
+                      <div><strong id="demo-detail-to">—</strong><span id="demo-detail-eta">—</span></div>
+                    </div>
+                  </div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Your driver</p>
+                    <div class="demo-kv-row"><span>Driver</span><strong id="demo-detail-driver">—</strong></div>
+                    <div class="demo-kv-row"><span>Rating</span><strong id="demo-detail-rating">—</strong></div>
+                    <div class="demo-kv-row"><span>Verified</span><strong class="demo-verified">✓ .edu verified student</strong></div>
+                    <div class="demo-kv-row"><span>Car</span><strong id="demo-detail-car">—</strong></div>
+                    <div class="demo-kv-row"><span>License plate</span><strong style="color: var(--demo-muted);">Revealed after booking</strong></div>
+                  </div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Ride rules</p>
+                    <div class="demo-rules-row" id="demo-detail-rules"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Pick your seat</p>
+                    <div class="demo-seat-map" id="demo-seat-map"></div>
+                  </div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Fare</p>
+                    <div class="demo-kv-row"><span>Seat</span><strong id="demo-fare-seat">$—</strong></div>
+                    <div class="demo-kv-row"><span>Booking fee</span><strong id="demo-fare-fee">$—</strong></div>
+                    <div class="demo-kv-row"><span>Total</span><strong id="demo-fare-total" style="color: var(--demo-accent-dark);">$—</strong></div>
+                    <button class="demo-primary-btn" id="demo-reserve-btn" type="button" disabled>Reserve seat</button>
+                    <p class="demo-fare-note">Demo only — no payment, nothing is charged. In the real app you pay securely in-app and the driver is paid after the trip.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ── Screen 3: Ride dashboard ── -->
+            <section class="demo-screen" data-demo-screen="3" aria-label="Your ride dashboard">
+              <div class="demo-success-banner">✓&nbsp; Seat reserved — this is your ride dashboard until drop-off.</div>
+              <div class="demo-dash-grid">
+                <div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Your trip</p>
+                    <div class="demo-kv-row"><span>Route</span><strong id="demo-dash-route">—</strong></div>
+                    <div class="demo-kv-row"><span>Departure</span><strong id="demo-dash-when">—</strong></div>
+                    <div class="demo-kv-row"><span>Driver</span><strong id="demo-dash-driver">—</strong></div>
+                    <div class="demo-kv-row"><span>Car</span><strong id="demo-dash-car">—</strong></div>
+                    <div class="demo-kv-row"><span>License plate</span><strong id="demo-dash-plate">—</strong></div>
+                    <div class="demo-kv-row"><span>Your seat</span><strong id="demo-dash-seat">—</strong></div>
+                  </div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Pickup checklist</p>
+                    <label class="demo-check"><input type="checkbox" data-demo-check /><span>Match the car and plate<small>Confirm the vehicle outside is the one you booked.</small></span></label>
+                    <label class="demo-check"><input type="checkbox" data-demo-check /><span>Verify your driver<small>Ask their name before you get in — never the other way around.</small></span></label>
+                    <label class="demo-check"><input type="checkbox" data-demo-check /><span>Share your live trip<small>Send live tracking to a friend or family member.</small></span></label>
+                    <p class="demo-check-progress" id="demo-check-progress">0 of 3 done — tick them off like you would at pickup.</p>
+                  </div>
+                </div>
+                <div>
+                  <div class="demo-card-block demo-code-panel">
+                    <p class="demo-block-label">Arrival code</p>
+                    <div class="demo-code-digits" id="demo-code-digits" aria-label="Your arrival code"></div>
+                    <p>Give this code to your driver at drop-off. It confirms you arrived safely — and it's what releases the driver's payment.</p>
+                  </div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Safety tools — every trip</p>
+                    <div class="demo-safety-row">
+                      <button class="demo-safety-btn" type="button" data-demo-toast="share"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Share live trip</button>
+                      <button class="demo-safety-btn" type="button" data-demo-toast="record"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>Safety recording</button>
+                      <button class="demo-safety-btn" type="button" data-demo-toast="support"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>24/7 support</button>
+                    </div>
+                  </div>
+                  <div class="demo-card-block" style="text-align: center;">
+                    <p class="demo-block-label">Curious about the other side?</p>
+                    <button class="demo-ghost-btn" type="button" data-demo-goto="4" style="width: 100%;">See what the driver sees →</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ── Screen 4: Driver view ── -->
+            <section class="demo-screen" data-demo-screen="4" aria-label="Driver view">
+              <h2 class="demo-screen-title">Now you're the driver</h2>
+              <p class="demo-screen-sub">Driving home anyway? List your empty seats, set your price and rules, and cover your gas — here's your trip view.</p>
+              <div class="demo-dash-grid">
+                <div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Your listing</p>
+                    <div class="demo-kv-row"><span>Route</span><strong>Campus Union → SFO</strong></div>
+                    <div class="demo-kv-row"><span>Departure</span><strong>Friday · 3:30 PM</strong></div>
+                    <div class="demo-kv-row"><span>Seats sold</span><strong>3 of 4 · $18 per seat</strong></div>
+                    <div class="demo-kv-row"><span>This trip earns</span><strong style="color: var(--demo-accent-dark);">$54.00</strong></div>
+                    <button class="demo-ghost-btn" type="button" data-demo-toast="route" style="width: 100%; margin-top: 10px;">Open route in Maps ↗</button>
+                  </div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Passenger manifest</p>
+                    <div class="demo-manifest-row"><span class="demo-avatar" aria-hidden="true">YOU</span><div><strong>You (from the demo!)</strong><small>Front seat · Terminal B</small></div><span class="demo-manifest-code" id="demo-manifest-code">CODE ····</span></div>
+                    <div class="demo-manifest-row"><span class="demo-avatar" aria-hidden="true">AT</span><div><strong>Alex T.</strong><small>Rear left · Terminal C</small></div><span class="demo-manifest-code">CODE ····</span></div>
+                    <div class="demo-manifest-row"><span class="demo-avatar" aria-hidden="true">RM</span><div><strong>Riley M.</strong><small>Rear right · Terminal B</small></div><span class="demo-manifest-code">CODE ····</span></div>
+                    <p class="demo-fare-note">At each drop-off, the rider reads you their arrival code — that's how the trip is confirmed and your payout is released.</p>
+                  </div>
+                </div>
+                <div>
+                  <div class="demo-card-block">
+                    <p class="demo-block-label">Driver wallet</p>
+                    <p class="demo-earnings-big">$126.00</p>
+                    <p class="demo-earnings-note">Earned this week across 3 trips. Payouts go to your connected account every Friday.</p>
+                  </div>
+                  <div class="demo-end-cta">
+                    <h3>That's LinkUp — you just did the whole loop.</h3>
+                    <p>Everyone in this demo is fake. The students on your campus aren't. Join the waitlist and we'll email you the moment your school goes live.</p>
+                    <div class="demo-cta-row">
+                      <a class="demo-primary-btn" id="demo-join-link" href="/">Join the waitlist</a>
+                      <button class="demo-ghost-btn" type="button" data-demo-reset>Restart demo</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <footer class="demo-footer">
+          <div class="demo-dots" aria-hidden="true"><span class="active"></span><span></span><span></span><span></span></div>
+          <span class="demo-step-label" id="demo-step-label" aria-live="polite">Step 1 of 4 — Find a ride</span>
+          <div class="demo-footer-actions">
+            <button class="demo-ghost-btn" type="button" data-demo-reset>Restart</button>
+            <a class="demo-primary-btn" href="/" style="box-shadow: none;">Join the waitlist</a>
+          </div>
+        </footer>
+      </section>
+    </main>
+
+    <div class="demo-toast" id="demo-toast" role="status" aria-live="polite"></div>
+
+    <script src="linkup-production-demo.js?v=20260710-stable-shortcuts"></script>
+  </body>
+</html>

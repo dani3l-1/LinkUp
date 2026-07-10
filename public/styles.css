@@ -272,6 +272,34 @@ body.dashboard-mode .site-logo {
 
 .header-left-actions.hidden { display: none; }
 
+.demo-production-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid rgba(62, 207, 207, 0.32);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.demo-production-back:hover {
+  border-color: var(--accent);
+  background: rgba(62, 207, 207, 0.1);
+}
+
+html.linkup-demo-embed body.dashboard-mode .demo-production-back,
+html.linkup-demo-embed footer {
+  display: none;
+}
+
 .header-left-actions button {
   display: inline-flex;
   align-items: center;

@@ -2892,14 +2892,15 @@ app.use(helmet({
 }));
 
 function securityHeaders(req, res, next) {
+  const isEmbeddedDemo = req.query?.demo === '1' && req.query?.embed === '1';
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Frame-Options', isEmbeddedDemo ? 'SAMEORIGIN' : 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(self), geolocation=(self)');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://b.stripecdn.com; font-src 'self' https://fonts.gstatic.com https://b.stripecdn.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com https://*.stripe.com https://b.stripecdn.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com https://connect-js.stripe.com https://b.stripecdn.com https://files.stripe.com https://m.stripe.com https://r.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://connect-js.stripe.com https://*.stripe.com; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://b.stripecdn.com; font-src 'self' https://fonts.gstatic.com https://b.stripecdn.com; img-src 'self' data: https://maps.googleapis.com https://maps.gstatic.com https://*.stripe.com https://b.stripecdn.com; connect-src 'self' https://maps.googleapis.com https://api.stripe.com https://connect-js.stripe.com https://b.stripecdn.com https://files.stripe.com https://m.stripe.com https://r.stripe.com; frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://connect-js.stripe.com https://*.stripe.com; frame-ancestors " + (isEmbeddedDemo ? "'self'" : "'none'") + ";"
   );
   if (NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
@@ -7783,6 +7784,15 @@ app.get('/api/leaderboard/waitlist-schools', (req, res) => {
   });
 
   res.json({ schools, totalUsers: seenEmails.size, needsReviewSchools: needsReview });
+});
+
+// The public guided demo uses the same browser map as production but has no
+// authenticated session. Keep this browser key HTTP-referrer restricted.
+app.get('/api/demo/config/google-maps-key', (req, res) => {
+  if (!GOOGLE_MAPS_API_KEY) {
+    return res.status(503).json({ error: 'Google Maps API key is not configured' });
+  }
+  res.json({ apiKey: GOOGLE_MAPS_API_KEY });
 });
 
 // Get Google Maps API key — requires authentication to prevent key harvesting
