@@ -39,7 +39,7 @@
     if (fixturesPromise) return fixturesPromise;
     fixturesPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'demo-data.js?v=20260711-fixtures';
+      script.src = 'demo-data.js?v=20260711-linkup-university';
       script.onload = () => {
         const data = window.__LINKUP_DEMO_DATA;
         if (!data?.fixtures) { reject(new Error('Demo fixtures missing')); return; }
