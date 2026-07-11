@@ -6949,29 +6949,67 @@ function renderRideCard(ride) {
   const isMovingCard = ride.rideProviderType === 'moving_service';
   const title = document.createElement('h4');
   title.innerHTML = `${isMovingCard ? '<span class="moving-service-badge">Moving</span> ' : ''}${esc(ride.origin)} → ${esc(ride.destination)}`;
-  card.appendChild(title);
-  const details = document.createElement('div');
-  details.className = 'ride-details';
-  const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
-  details.innerHTML = `
-    <div><strong>Driver:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
-    <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
-    <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
-    ${!isMovingCard ? `<div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders'}</div>` : ''}
-    ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school only</div>' : ''}
-    ${ride.noSmoking ? '<div><strong>Smoking:</strong> No smoking during ride</div>' : ''}
-    ${renderRideAudienceMarkup(ride)}
-    ${getFlexRadiusMarkup(ride, 'driver')}
-    <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
-    <div><strong>Estimated time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
-    ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
-    <div><strong>${isMovingCard ? 'Slots left' : 'Seats left'}:</strong> ${esc(ride.seatsAvailable)}</div>
-    <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
-    ${getRideFeeDetailMarkup(ride, { flatRate: isMovingCard })}
-    ${getVehicleDetailMarkup(ride)}
-    ${ride.notes ? `<div><strong>Notes:</strong> ${esc(ride.notes)}</div>` : ''}
+  const parkingFeeCents = getRideParkingFeeCents(ride);
+  const head = document.createElement('div');
+  head.className = 'ride-card-head';
+  head.appendChild(title);
+  const priceTag = document.createElement('div');
+  priceTag.className = 'ride-card-price';
+  priceTag.innerHTML = `<strong>${esc(parkingFeeCents ? formatRideTotalPrice(ride) : formatRidePrice(ride))}</strong>`
+    + `<span>${isMovingCard ? 'flat rate' : 'per seat'}${parkingFeeCents ? ' · incl. fees' : ''}</span>`;
+  head.appendChild(priceTag);
+  card.appendChild(head);
+  const meta = document.createElement('div');
+  meta.className = 'ride-card-meta';
+  meta.innerHTML = `
+    <span>${esc(formatRideDateTime(ride))}</span>
+    <span>${esc(formatDuration(ride.estimatedDurationMinutes))}</span>
+    <span>${esc(formatMiles(getRideMiles(ride)))}</span>
+    ${ride.returnRide ? `<span>Return ${esc(formatRideDateTime(ride.returnRide))}</span>` : ''}
+    <span class="ride-meta-seats">${esc(ride.seatsAvailable)} ${isMovingCard ? 'slot' : 'seat'}${Number(ride.seatsAvailable) === 1 ? '' : 's'} left</span>
   `;
-  card.appendChild(details);
+  card.appendChild(meta);
+  const driverName = [ride.driverFirstName, ride.driverLastName].filter(Boolean).join(' ') || 'Driver';
+  const driverRow = document.createElement('div');
+  driverRow.className = 'ride-driver-row';
+  driverRow.innerHTML = `${publicProfileLinkMarkup(ride.driverId, driverName)}`
+    + `<span class="ride-driver-sub">${esc(formatDriverRating(ride))} · ${esc(ride.university || 'Unknown school')}</span>`;
+  card.appendChild(driverRow);
+
+  const facts = [];
+  if (!isMovingCard) facts.push(ride.sameGenderOnly ? 'Same gender riders only' : 'Open to all riders');
+  if (ride.sameSchoolOnly) facts.push('Same school only');
+  if (ride.noSmoking) facts.push('No smoking');
+  const pickupRadiusMiles = Number(ride.pickupRadiusMiles || 0);
+  const dropoffRadiusMiles = Number(ride.dropoffRadiusMiles || 0);
+  if (pickupRadiusMiles > 0) facts.push(formatMiles(pickupRadiusMiles) + ' pickup detour');
+  if (dropoffRadiusMiles > 0) facts.push(formatMiles(dropoffRadiusMiles) + ' drop-off detour');
+  if (isMovingCard) {
+    if (ride.movingVehicleType) facts.push(ride.movingVehicleType);
+    if (ride.movingCapacity) facts.push(ride.movingCapacity + ' cargo capacity');
+    if (ride.movingLoadingHelp) facts.push('Loading help included');
+    if (ride.movingFurniture) facts.push('Large furniture accepted');
+  } else if (ride.rideProviderType === 'rideshare_service') {
+    facts.push(ride.rideshareService || 'Rideshare service');
+  } else {
+    const vehicleName = [ride.carColor, ride.carMaker, ride.carModel].filter(Boolean).join(' ');
+    if (vehicleName) facts.push(vehicleName);
+    if (canSeeRideLicensePlate(ride) && ride.licensePlate) facts.push('Plate ' + ride.licensePlate);
+  }
+  if (parkingFeeCents) {
+    facts.push(formatRidePrice(ride) + ' seat + ' + formatCents(parkingFeeCents) + ' parking/airport fee');
+  }
+  const factLine = document.createElement('div');
+  factLine.className = 'ride-fact-line';
+  factLine.innerHTML = facts.map((fact) => `<span>${esc(fact)}</span>`).join('<i aria-hidden="true">·</i>');
+  card.appendChild(factLine);
+
+  if (ride.notes) {
+    const note = document.createElement('div');
+    note.className = 'ride-note';
+    note.textContent = ride.notes;
+    card.appendChild(note);
+  }
   if (ride.driverId === currentUser.id) {
     if (ride.seatingChartUnavailable) {
       const notice = document.createElement('div');

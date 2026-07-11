@@ -16010,3 +16010,340 @@ html[data-theme="light"] .waitlist-quick-intent input:checked + span {
     width: 100%;
   }
 }
+/* ── Browse ride card: compact single-glance layout ──────────── */
+
+/* Header row: route on the left, price on the right */
+.ride-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1.25rem 0.2rem;
+}
+
+.ride-card-head h4 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.ride-card-price {
+  flex: 0 0 auto;
+  text-align: right;
+  line-height: 1.1;
+}
+
+.ride-card-price strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+.ride-card-price span {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Trip facts strip: departure · duration · distance · seats left */
+.ride-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.55rem 1.25rem 0.85rem;
+}
+
+.ride-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.24rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ride-card-meta .ride-meta-seats {
+  border-color: rgba(62,207,207,0.35);
+  background: rgba(62,207,207,0.08);
+  color: var(--accent);
+}
+
+html[data-theme="light"] .ride-card-meta span {
+  background: rgba(8,40,45,0.04);
+}
+
+html[data-theme="light"] .ride-card-meta .ride-meta-seats {
+  background: rgba(62,207,207,0.14);
+  color: var(--accent-strong);
+}
+
+/* Details: quiet dense grid — no cell borders, label over value */
+.ride-card .ride-details {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.55rem 1.1rem;
+  margin: 0;
+  padding: 0.7rem 1.25rem 0.85rem;
+  border-bottom: none;
+}
+
+.ride-card .ride-details > div {
+  padding: 0;
+  border-right: none;
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+
+.ride-card .ride-details strong {
+  margin-bottom: 0.06rem;
+}
+
+.ride-card .ride-details > div:has(strong:first-child):last-of-type {
+  background: none;
+}
+
+/* Notes: full-width quiet callout */
+.ride-details > .ride-note-cell {
+  grid-column: 1 / -1;
+  margin-top: 0.15rem;
+  padding: 0.5rem 0.8rem;
+  border-left: 2px solid rgba(62,207,207,0.35);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: rgba(62,207,207,0.05);
+}
+
+/* People in this car: one row of pills instead of stacked rows */
+.ride-card > .browse-seat-manifest {
+  margin: 0;
+  padding: 0.7rem 1.25rem 0.75rem;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.browse-seat-manifest .seat-manifest-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.browse-seat-manifest .seat-manifest-row,
+.browse-seat-manifest .seat-manifest-list > .seat-manifest-row:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: auto;
+  padding: 0.26rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.02);
+}
+
+.browse-seat-manifest .seat-manifest-seat {
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.browse-seat-manifest .seat-manifest-rider,
+.browse-seat-manifest .seat-manifest-empty {
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.browse-seat-manifest .user-profile-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+}
+
+html[data-theme="light"] .browse-seat-manifest .seat-manifest-row {
+  background: rgba(8,40,45,0.03);
+}
+
+/* Seat picker + footer: tighter rhythm */
+.ride-card > .ride-seat-picker,
+.ride-card > .seat-picker-block {
+  margin: 0;
+  padding: 0.7rem 1.25rem 0.35rem;
+}
+
+.ride-card > .rider-terms-agreement {
+  margin: 0.55rem 1.25rem 0;
+}
+
+.ride-card > button:not(.seat-rect):not(.report-user-button) {
+  width: calc(100% - 2.5rem);
+  margin: 0.7rem 1.25rem 0;
+}
+
+.ride-card > button:not(.seat-rect):not(.report-user-button):not(:disabled) {
+  background: linear-gradient(135deg, var(--accent) 0%, #2fb8b8 100%);
+  border-color: transparent;
+  color: #041414;
+  box-shadow: 0 4px 16px rgba(62,207,207,0.22);
+}
+
+.ride-card > button:not(.seat-rect):not(.report-user-button):not(:disabled):hover {
+  filter: brightness(1.07);
+  color: #041414;
+}
+
+.ride-card > .report-user-button {
+  margin-bottom: 0.9rem;
+}
+
+/* The manifest already shows who's riding — drop the duplicate count line */
+#rides-list .ride-card > .ride-card-passengers {
+  display: none;
+}
+
+/* Rider stop inputs: gutter-aligned, side-by-side in browse cards */
+.ride-card > .rider-stop-fields {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.55rem 0.75rem;
+  margin: 0.7rem 1.25rem 0;
+  padding: 0.7rem 0.85rem 0.8rem;
+}
+
+.ride-card > .rider-stop-fields .rider-stop-fields-title {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.ride-card > .rider-stop-fields label {
+  font-size: 0.78rem;
+  gap: 0.3rem;
+}
+
+.ride-card > .rider-stop-fields input {
+  min-height: 40px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+/* ── Browse ride card v2: editorial layout, no label walls ───── */
+
+/* Driver identity: name chip + rating + school on one line */
+.ride-driver-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.55rem;
+  padding: 0.1rem 1.25rem 0;
+}
+
+.ride-driver-row .ride-driver-sub {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+/* Ride facts: one quiet dot-separated line */
+.ride-fact-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.45rem;
+  padding: 0.5rem 1.25rem 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.ride-fact-line i {
+  font-style: normal;
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+/* Driver's note: quiet quote, no label */
+.ride-note {
+  margin: 0.65rem 1.25rem 0.2rem;
+  padding: 0.5rem 0.8rem;
+  border-left: 2px solid rgba(62,207,207,0.35);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: rgba(62,207,207,0.05);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* People in this car: tiny label inline with the pills */
+.ride-card > .browse-seat-manifest {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.75rem;
+  padding: 0.65rem 1.25rem;
+}
+
+.browse-seat-manifest .seat-manifest-title {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.browse-seat-manifest .seat-manifest-list {
+  display: contents;
+}
+
+/* Seat picker: title + hint share one line, layout floats below */
+.ride-card > .ride-seat-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 0.8rem;
+  margin: 0;
+  padding: 0.6rem 1.25rem 0.3rem;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.ride-card > .ride-seat-picker .seat-picker-title {
+  margin: 0;
+  font-size: 0.64rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ride-card > .ride-seat-picker .seat-picker-hint {
+  grid-row: 1;
+  grid-column: 2;
+  margin: 0;
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.ride-card > .ride-seat-picker .seat-layout {
+  grid-column: 1 / -1;
+  margin-top: 0.5rem;
+}
