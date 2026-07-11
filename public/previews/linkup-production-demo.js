@@ -61,7 +61,7 @@
       if (event.button !== undefined && event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      item.setPointerCapture?.(event.pointerId);
+      try { item.setPointerCapture?.(event.pointerId); } catch (_) { /* synthetic events have no active pointer */ }
       showStep(Number(item.dataset.demoStep));
     });
     item.addEventListener('click', (event) => {

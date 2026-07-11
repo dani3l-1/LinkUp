@@ -40,6 +40,11 @@
 
       * { box-sizing: border-box; }
 
+      /* styles.css gives every button a full-size shimmer ::before; our buttons
+         use overflow: visible, so that layer would sit over the neighboring
+         button (translateX(-100%)) and steal its clicks — disable it here. */
+      .demo-panel button::before { content: none; }
+
       body {
         min-height: 100vh;
         margin: 0;
