@@ -6662,13 +6662,14 @@ function placePinForItem(map, item, index, originPos, destPos, pickupCenter, dro
 }
 
 function updateBrowseRadiusMap(items = []) {
+  lastBrowseMapItems = items;
   const map = ensureBrowseRadiusMap();
   if (!map) return;
 
   const pickupCenter = getRadiusCenter(pickupRadiusLocationInput);
   const dropoffCenter = getRadiusCenter(dropoffRadiusLocationInput);
-  const pickupMiles = Number(pickupRadiusMilesInput.value);
-  const dropoffMiles = Number(dropoffRadiusMilesInput.value);
+  const pickupMiles = getEffectiveBrowseRadiusMiles(pickupRadiusMilesInput, pickupCenter);
+  const dropoffMiles = getEffectiveBrowseRadiusMiles(dropoffRadiusMilesInput, dropoffCenter);
   const hasPickupRadius = pickupCenter && pickupMiles > 0;
   const hasDropoffRadius = dropoffCenter && dropoffMiles > 0;
 
@@ -6739,17 +6740,26 @@ function updateBrowseRadiusMap(items = []) {
   }
 }
 
+const DEFAULT_BROWSE_LOCATION_RADIUS_MILES = 5;
+
+function getEffectiveBrowseRadiusMiles(input, center) {
+  const enteredMiles = Number(input?.value);
+  if (Number.isFinite(enteredMiles) && enteredMiles > 0) return enteredMiles;
+  if (center) return DEFAULT_BROWSE_LOCATION_RADIUS_MILES;
+  return 0;
+}
+
 function matchesRadiusFilter(item, type) {
-  const pickupMiles = Number(pickupRadiusMilesInput.value);
-  const dropoffMiles = Number(dropoffRadiusMilesInput.value);
+  const pickupCenter = getRadiusCenter(pickupRadiusLocationInput);
+  const dropoffCenter = getRadiusCenter(dropoffRadiusLocationInput);
+  const pickupMiles = getEffectiveBrowseRadiusMiles(pickupRadiusMilesInput, pickupCenter);
+  const dropoffMiles = getEffectiveBrowseRadiusMiles(dropoffRadiusMilesInput, dropoffCenter);
   const itemPickupFlexMiles = Number(item.pickupRadiusMiles || 0);
   const itemDropoffFlexMiles = Number(item.dropoffRadiusMiles || 0);
   const hasPickupRadius = Number.isFinite(pickupMiles) && pickupMiles > 0;
   const hasDropoffRadius = Number.isFinite(dropoffMiles) && dropoffMiles > 0;
   if (!hasPickupRadius && !hasDropoffRadius) return true;
 
-  const pickupCenter = getRadiusCenter(pickupRadiusLocationInput);
-  const dropoffCenter = getRadiusCenter(dropoffRadiusLocationInput);
   if (hasPickupRadius && !pickupCenter) return true;
   if (hasDropoffRadius && !dropoffCenter) return true;
 
@@ -7117,6 +7127,21 @@ function renderRideCard(ride) {
   const passengerCount = (ride.passengers || []).length;
   riders.textContent = passengerCount === 0 ? 'No passengers yet' : passengerCount + ' passenger' + (passengerCount === 1 ? '' : 's');
   card.appendChild(riders);
+
+  const detailsDisclosure = document.createElement('details');
+  detailsDisclosure.className = 'ride-card-disclosure';
+  const detailsSummary = document.createElement('summary');
+  detailsSummary.innerHTML = `<span>${ride.driverId === currentUser.id ? 'View full ride details' : 'View ride details & reserve'}</span><span class="ride-details-chevron" aria-hidden="true">⌄</span>`;
+  const detailsBody = document.createElement('div');
+  detailsBody.className = 'ride-card-details';
+  let detailNode = driverRow.nextSibling;
+  while (detailNode) {
+    const nextNode = detailNode.nextSibling;
+    detailsBody.appendChild(detailNode);
+    detailNode = nextNode;
+  }
+  detailsDisclosure.append(detailsSummary, detailsBody);
+  card.appendChild(detailsDisclosure);
   return card;
 }
 function getCurrentUserSeatId(ride) {
@@ -8457,6 +8482,8 @@ function showRiderBrowse() {
     setTimeout(() => {
       const map = ensureBrowseRadiusMap();
       if (map) google.maps.event.trigger(map, 'resize');
+      // Rides can finish loading before the Maps script — re-plot them now
+      if (lastBrowseMapItems.length) updateBrowseRadiusMap(lastBrowseMapItems);
     }, 100);
   }).catch((error) => {
     console.error('Browse map failed to load:', error);
@@ -8464,6 +8491,7 @@ function showRiderBrowse() {
   });
   browseTitle.textContent = 'Browse available rides';
   browseSubtitle.textContent = 'Find rides near your pickup and drop-off.';
+  browseSearchLabel.classList.add('hidden');
   browseSearchLabel.firstChild.textContent = 'Search destination or meetup';
   pickupLocationLabel.firstChild.textContent = 'Where you are starting from ';
   pickupRadiusLabel.firstChild.textContent = 'Max walk to pick-up (mi) ';
@@ -8472,6 +8500,8 @@ function showRiderBrowse() {
   rideSearchInput.placeholder = 'Where do you want to go?';
   pickupRadiusLocationInput.placeholder = 'Where are you starting from?';
   dropoffRadiusLocationInput.placeholder = 'Where is your final destination?';
+  pickupRadiusMilesInput.placeholder = '5';
+  dropoffRadiusMilesInput.placeholder = '5';
   browseControls.classList.remove('hidden');
   browseResultsTitle.textContent = 'Available rides';
   loadRides();
@@ -8484,6 +8514,7 @@ function showDriverBrowse() {
   }
   setAppRoute('browse-driver');
   setBrowseRole('driver');
+  browseSearchLabel.classList.remove('hidden');
   loadGoogleMapsAPI().then(() => {
     initializeRadiusAutocomplete();
     browseMapPanel?.classList.remove('hidden');
@@ -8491,6 +8522,8 @@ function showDriverBrowse() {
     setTimeout(() => {
       const map = ensureBrowseRadiusMap();
       if (map) google.maps.event.trigger(map, 'resize');
+      // Requests can finish loading before the Maps script — re-plot them now
+      if (lastBrowseMapItems.length) updateBrowseRadiusMap(lastBrowseMapItems);
     }, 100);
   }).catch((error) => {
     console.error('Browse map failed to load:', error);
@@ -8506,6 +8539,8 @@ function showDriverBrowse() {
   rideSearchInput.placeholder = 'Search rider request';
   pickupRadiusLocationInput.placeholder = 'Where can you drive to pick up riders?';
   dropoffRadiusLocationInput.placeholder = 'Where can you drive to drop riders off?';
+  pickupRadiusMilesInput.placeholder = '5';
+  dropoffRadiusMilesInput.placeholder = '5';
   browseControls.classList.remove('hidden');
   browseResultsTitle.textContent = 'Requested rides';
   loadRideRequests();
@@ -8556,14 +8591,12 @@ async function loadRides() {
 }
 
 function hasActiveDriverRequestFilters() {
-  const pickupMiles = Number(pickupRadiusMilesInput.value);
-  const dropoffMiles = Number(dropoffRadiusMilesInput.value);
   return Boolean(
     rideSearchInput.value.trim()
     || rideFilterDateInput.value
     || (Number.isFinite(Number(rideFilterMaxPriceInput.value)) && Number(rideFilterMaxPriceInput.value) > 0)
-    || (Number.isFinite(pickupMiles) && pickupMiles > 0 && getRadiusCenter(pickupRadiusLocationInput))
-    || (Number.isFinite(dropoffMiles) && dropoffMiles > 0 && getRadiusCenter(dropoffRadiusLocationInput))
+    || Boolean(getRadiusCenter(pickupRadiusLocationInput))
+    || Boolean(getRadiusCenter(dropoffRadiusLocationInput))
   );
 }
 
