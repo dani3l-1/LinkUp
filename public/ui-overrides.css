@@ -68,3 +68,442 @@ html[data-theme="light"] .browse-map-hint-panel {
   background: rgba(244, 251, 252, 0.96) !important;
   color: #53777d !important;
 }
+
+/* List a ride: one focused workflow, without a duplicate activity sidebar. */
+#list-ride-page {
+  padding: clamp(1rem, 2.5vw, 2rem) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#list-ride-page::before {
+  display: none !important;
+}
+
+#list-ride-page > .grid {
+  display: block !important;
+  margin-top: 1.25rem !important;
+}
+
+#list-ride-page > .grid > article.card {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#list-ride-page > .grid > article.card:nth-child(2) {
+  display: none !important;
+}
+
+#list-ride-page > .grid > article.card > h3 {
+  margin: 0 0 0.9rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  color: var(--text-muted) !important;
+}
+
+#list-ride-page .ride-provider-step {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+#list-ride-page .ride-provider-choice {
+  min-height: 112px;
+  box-shadow: none !important;
+}
+
+#list-ride-page #offer-form {
+  width: 100%;
+  max-width: none;
+}
+
+#list-ride-page .offer-section {
+  padding-block: 1.35rem !important;
+}
+
+#list-ride-page .offer-section-label {
+  margin-bottom: 0.9rem;
+}
+
+#list-ride-page .offer-section-confirm {
+  padding: 1.25rem 0 0 !important;
+  background: transparent !important;
+}
+
+/* Your rides: flat page shell with one compact segmented control. */
+#your-rides-page.card {
+  padding: clamp(1rem, 2.5vw, 2rem) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#your-rides-page .cart-header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+#your-rides-page .your-rides-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(760px, 100%);
+  gap: 0.3rem;
+  margin: 1rem 0 1.25rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+#your-rides-page .your-rides-tabs button {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#your-rides-page .your-rides-tabs button.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(62, 207, 207, 0.24);
+}
+
+#your-rides-page #your-rides-list {
+  width: 100%;
+  max-width: 980px;
+}
+
+#your-rides-page #your-rides-list > h4 {
+  margin: 1.35rem 0 0.7rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#your-rides-page #your-rides-list > h4:first-child {
+  margin-top: 0;
+}
+
+#your-rides-page #your-rides-list > .ride-card {
+  margin: 0;
+  box-shadow: none;
+}
+
+#your-rides-page #your-rides-list > .ride-card + .ride-card {
+  margin-top: 0.85rem;
+}
+
+#your-rides-page .ride-card {
+  overflow: hidden;
+  padding: 1.1rem 1.15rem 0 !important;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-md);
+}
+
+#your-rides-page .ride-card .ride-driver-row {
+  margin-bottom: 1rem;
+}
+
+#your-rides-page .your-ride-disclosure {
+  margin: 0 -1.15rem;
+  border-top: 1px solid var(--border);
+}
+
+#your-rides-page .your-ride-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0.75rem 1.15rem;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  list-style: none;
+  text-transform: uppercase;
+  transition: background 160ms ease;
+}
+
+#your-rides-page .your-ride-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+#your-rides-page .your-ride-disclosure > summary:hover {
+  background: color-mix(in srgb, var(--accent-dim) 58%, transparent);
+}
+
+#your-rides-page .your-ride-chevron {
+  font-size: 1rem;
+  transition: transform 160ms ease;
+}
+
+#your-rides-page .your-ride-disclosure[open] .your-ride-chevron {
+  transform: rotate(180deg);
+}
+
+#your-rides-page .your-ride-details-body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem 1.15rem 1.15rem;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+#your-rides-page .your-ride-details-body > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+#your-rides-page .your-ride-details-body .ride-card-actions,
+#your-rides-page .your-ride-details-body .ride-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+/* Driver seat assignments: compact roster above a consistent seat grid. */
+#your-rides-page .seat-manifest {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+#your-rides-page .seat-manifest-title {
+  margin: 0 0 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+#your-rides-page .seat-manifest-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+#your-rides-page .seat-manifest-row,
+#your-rides-page .seat-manifest-list > .seat-manifest-row:has(.user-profile-link) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+  min-height: 156px;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+#your-rides-page .seat-manifest-seat {
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+#your-rides-page .seat-manifest-rider,
+#your-rides-page .seat-manifest-empty,
+#your-rides-page .seat-manifest-unavailable,
+#your-rides-page .seat-manifest-list > .seat-manifest-row:has(.user-profile-link) .seat-manifest-rider {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+#your-rides-page .seat-manifest-row:has(.user-profile-link) {
+  grid-column: auto;
+}
+
+#your-rides-page .seat-manifest-row:has(.user-profile-link) .seat-manifest-seat {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+#your-rides-page .seat-manifest-row:has(.user-profile-link) .seat-manifest-rider {
+  display: grid;
+  justify-items: start;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+}
+
+#your-rides-page .seat-manifest-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#your-rides-page .seat-manifest-status-occupied {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+#your-rides-page .seat-manifest-status-occupied::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+
+#your-rides-page .seat-manifest-rider .user-profile-link {
+  display: inline-flex;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+#your-rides-page .seat-manifest-row .report-user-button {
+  align-self: flex-start;
+  margin: 0 !important;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.78;
+}
+
+#your-rides-page .seat-manifest-stop-note {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 70ch;
+  margin-top: 0.55rem;
+}
+
+#your-rides-page .seat-manifest-stop-note > span {
+  display: grid;
+  gap: 0.08rem;
+}
+
+#your-rides-page .seat-manifest-stop-note strong {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#your-rides-page .seat-manifest-stop-note span span {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+#your-rides-page .seat-manifest-unavailable {
+  color: var(--text-secondary);
+  font-weight: 700;
+  opacity: 1;
+  text-decoration: none;
+}
+
+#your-rides-page #your-rides-list:not(:has(.ride-card)) {
+  padding: 1.25rem 0;
+  color: var(--text-muted);
+}
+
+/* Shared page-header rhythm used by Browse, Request, List, and Your Rides. */
+#list-ride-page > .cart-header,
+#your-rides-page > .cart-header {
+  margin-bottom: 0;
+}
+
+#list-ride-page > .cart-header h3,
+#your-rides-page > .cart-header h3 {
+  margin-bottom: 0.25rem;
+}
+
+#list-ride-page > .cart-header p,
+#your-rides-page > .cart-header p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+html[data-theme="light"] #list-ride-page,
+html[data-theme="light"] #your-rides-page.card,
+html[data-theme="light"] #list-ride-page > .grid > article.card {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] #your-rides-page .your-rides-tabs {
+  border-color: rgba(18, 91, 97, 0.14);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+html[data-theme="light"] #your-rides-page .ride-card {
+  border-color: rgba(18, 91, 97, 0.14);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+html[data-theme="light"] #your-rides-page .your-ride-details-body {
+  background: rgba(244, 251, 252, 0.72);
+}
+
+html[data-theme="light"] #your-rides-page .seat-manifest-row {
+  border-color: rgba(18, 91, 97, 0.13);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html[data-theme="light"] #list-ride-page .ride-provider-choice {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] #list-ride-page .ride-provider-choice:hover,
+html[data-theme="light"] #list-ride-page .ride-provider-choice.active {
+  background: rgba(220, 248, 249, 0.72);
+}
+
+@media (max-width: 760px) {
+  #list-ride-page .ride-provider-step {
+    grid-template-columns: 1fr;
+  }
+
+  #list-ride-page .ride-provider-choice {
+    min-height: 0;
+  }
+
+  #your-rides-page .your-rides-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  #your-rides-page .seat-manifest-list {
+    grid-template-columns: 1fr;
+  }
+
+  #your-rides-page .seat-manifest-row:has(.user-profile-link) {
+    min-height: 0;
+  }
+
+  #your-rides-page .seat-manifest-row:has(.user-profile-link) .report-user-button {
+    justify-self: start;
+  }
+}

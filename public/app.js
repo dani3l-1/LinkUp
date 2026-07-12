@@ -119,7 +119,8 @@ const cartButton = document.getElementById('cart-button');
 const yourRidesButton = document.getElementById('your-rides-button');
 const yourRidesPage = document.getElementById('your-rides-page');
 const yourRidesList = document.getElementById('your-rides-list');
-const yourRidesCurrentTab = document.getElementById('your-rides-current-tab');
+const yourRidesDrivingTab = document.getElementById('your-rides-driving-tab');
+const yourRidesRidingTab = document.getElementById('your-rides-riding-tab');
 const yourRidesRequestsTab = document.getElementById('your-rides-requests-tab');
 const yourRidesHistoryTab = document.getElementById('your-rides-history-tab');
 const yourRidesBackHomeButton = document.getElementById('your-rides-back-home');
@@ -549,7 +550,7 @@ function groupWelcomeRoute(groupName) {
 }
 socialButton?.classList.toggle('hidden', !isSocialPreviewEnabled());
 let browseRole = null;
-let yourRidesView = 'current';
+let yourRidesView = 'driving';
 let adminView = 'reports';
 let adminSnapshot = null;
 let selectedChatRideId = '';
@@ -809,7 +810,7 @@ const requestPickupRadiusInput = document.getElementById('request-pickup-radius'
 const requestDropoffRadiusInput = document.getElementById('request-dropoff-radius');
 const CAR_SEATS = [
   { id: 'driver', label: 'Driver', role: 'Driver' },
-  { id: 'front_passenger', label: 'Passenger' },
+  { id: 'front_passenger', label: 'Front Passenger' },
   { id: 'back_left', label: 'Back Left' },
   { id: 'back_middle', label: 'Back Middle' },
   { id: 'back_right', label: 'Back Right' },
@@ -6930,13 +6931,19 @@ function getRiderStopDetailMarkup(item) {
 }
 
 function appendPassengerStopDetails(container, passenger) {
-  const details = [];
-  if (passenger?.actualPickup) details.push('Pickup: ' + passenger.actualPickup);
-  if (passenger?.actualDropoff) details.push('Drop-off: ' + passenger.actualDropoff);
-  if (!details.length) return;
-  const note = document.createElement('span');
+  if (!passenger?.actualPickup && !passenger?.actualDropoff) return;
+  const note = document.createElement('div');
   note.className = 'seat-manifest-stop-note';
-  note.textContent = details.join(' · ');
+  if (passenger.actualPickup) {
+    const row = document.createElement('span');
+    row.innerHTML = `<strong>Pickup</strong><span>${esc(passenger.actualPickup)}</span>`;
+    note.appendChild(row);
+  }
+  if (passenger.actualDropoff) {
+    const row = document.createElement('span');
+    row.innerHTML = `<strong>Drop-off</strong><span>${esc(passenger.actualDropoff)}</span>`;
+    note.appendChild(row);
+  }
   container.appendChild(note);
 }
 
@@ -7678,6 +7685,10 @@ function buildDriverSeatManifest(ride) {
     rider.className = passenger ? 'seat-manifest-rider' : (isForSale ? 'seat-manifest-empty' : 'seat-manifest-unavailable');
     if (passenger) {
       const passengerName = [passenger.studentFirstName, passenger.studentLastName].filter(Boolean).join(' ') || 'Rider';
+      const occupied = document.createElement('span');
+      occupied.className = 'seat-manifest-status seat-manifest-status-occupied';
+      occupied.textContent = 'Occupied';
+      rider.appendChild(occupied);
       rider.appendChild(createPublicProfileLink(passenger.studentId, passengerName));
       appendPassengerStopDetails(rider, passenger);
     } else {
@@ -8709,7 +8720,8 @@ function isExpiredRideActivity(ride) {
 
 function setYourRidesView(view) {
   yourRidesView = view;
-  yourRidesCurrentTab.classList.toggle('active', view === 'current');
+  yourRidesDrivingTab.classList.toggle('active', view === 'driving');
+  yourRidesRidingTab.classList.toggle('active', view === 'riding');
   yourRidesRequestsTab.classList.toggle('active', view === 'requests');
   yourRidesHistoryTab.classList.toggle('active', view === 'history');
 }
@@ -8824,6 +8836,27 @@ function buildHistoryRideCard(ride, role) {
   badge.textContent = role;
   item.prepend(badge);
   if (role === 'Rider') item.appendChild(buildDriverRatingForm(ride));
+  return makeYourRideCardCollapsible(item, role === 'Driver' ? 'View ride record' : 'View trip record');
+}
+
+function makeYourRideCardCollapsible(item, label = 'View ride details') {
+  if (!item || item.querySelector(':scope > .your-ride-disclosure')) return item;
+  const anchor = item.querySelector(':scope > .ride-driver-row');
+  if (!anchor?.nextSibling) return item;
+  const disclosure = document.createElement('details');
+  disclosure.className = 'your-ride-disclosure';
+  const summary = document.createElement('summary');
+  summary.innerHTML = `<span>${esc(label)}</span><span class="your-ride-chevron" aria-hidden="true">⌄</span>`;
+  const body = document.createElement('div');
+  body.className = 'your-ride-details-body';
+  let node = anchor.nextSibling;
+  while (node) {
+    const next = node.nextSibling;
+    body.appendChild(node);
+    node = next;
+  }
+  disclosure.append(summary, body);
+  item.appendChild(disclosure);
   return item;
 }
 
@@ -8885,17 +8918,26 @@ async function loadYourRides() {
       return;
     }
 
-    if (!currentDrivingRides.length && !currentReservedRides.length) {
-      yourRidesList.textContent = 'No current rides.';
+    if (yourRidesView === 'riding') {
+      if (!currentReservedRides.length) {
+        yourRidesList.textContent = "You aren't riding in any upcoming rides.";
+        return;
+      }
+      appendRideSection(yourRidesList, "Upcoming rides you're joining", currentReservedRides, (ride) => {
+        const item = buildRideSummary(ride);
+        item.classList.add('your-ride-reservation');
+        return makeYourRideCardCollapsible(item, 'View trip details');
+      });
       return;
     }
 
-    appendRideSection(yourRidesList, "Rides you're driving", currentDrivingRides, (ride) => buildDriverRideSummary(ride));
-    appendRideSection(yourRidesList, 'Rides you reserved', currentReservedRides, (ride) => {
-      const item = buildRideSummary(ride);
-      item.classList.add('your-ride-reservation');
-      return item;
-    });
+    if (!currentDrivingRides.length) {
+      yourRidesList.textContent = "You aren't driving any upcoming rides.";
+      return;
+    }
+    appendRideSection(yourRidesList, "Upcoming rides you're driving", currentDrivingRides, (ride) => (
+      makeYourRideCardCollapsible(buildDriverRideSummary(ride), 'Manage this ride')
+    ));
   } catch (err) {
     yourRidesList.textContent = '';
     yourRidesList.innerHTML = '<p class="error-message show">' + (err.message || 'Unable to load your rides.') + '</p>';
@@ -9886,7 +9928,8 @@ chatSocialTab?.addEventListener('click', () => {
 });
 cartButton.addEventListener('click', () => showCartPage());
 yourRidesButton.addEventListener('click', () => showYourRidesPage());
-yourRidesCurrentTab.addEventListener('click', () => { setYourRidesView('current'); loadYourRides(); });
+yourRidesDrivingTab.addEventListener('click', () => { setYourRidesView('driving'); loadYourRides(); });
+yourRidesRidingTab.addEventListener('click', () => { setYourRidesView('riding'); loadYourRides(); });
 yourRidesRequestsTab.addEventListener('click', () => { setYourRidesView('requests'); loadYourRides(); });
 yourRidesHistoryTab.addEventListener('click', () => { setYourRidesView('history'); loadYourRides(); });
 yourRidesBackHomeButton.addEventListener('click', () => returnToBrowseRides());
