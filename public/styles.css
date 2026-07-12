@@ -16733,3 +16733,50 @@ html[data-theme="light"] .browse-map-hint-panel {
   background: rgba(244, 251, 252, 0.96);
   color: #53777d;
 }
+
+/* Guest waitlist: headings and spacing provide the structure; avoid cards
+   nested inside cards for purely informational content. */
+#waitlist-page.waitlist-guest-mode::before {
+  display: none;
+}
+
+.waitlist-guest-mode .waitlist-step {
+  padding: 0.9rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.waitlist-guest-mode .waitlist-step:last-child {
+  border-bottom: 0;
+}
+
+.waitlist-guest-mode .waitlist-feature {
+  padding: 0.85rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.waitlist-guest-mode .waitlist-feature:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.waitlist-guest-mode .waitlist-leaderboard-panel {
+  padding-inline: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="light"] .waitlist-guest-mode .waitlist-step,
+html[data-theme="light"] .waitlist-guest-mode .waitlist-feature,
+html[data-theme="light"] .waitlist-guest-mode .waitlist-leaderboard-panel {
+  background: transparent;
+  box-shadow: none;
