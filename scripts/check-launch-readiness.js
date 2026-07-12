@@ -50,13 +50,13 @@ function checkStaticAssetReferences() {
     if (!fs.existsSync(fullPath)) fail(`Missing static asset referenced by index.html: ${ref}`);
   });
 
-  const appScript = html.match(/<script\s+src="app\.js\?v=([^"]+)"/);
+  const appScript = html.match(/<script\s+src="\/?app\.js\?v=([^"]+)"/);
   if (!appScript) fail('index.html must load app.js with a cache-busting ?v= value.');
   if (!/login|session|fix|20\d{6}/i.test(appScript[1])) {
     fail(`app.js cache-busting version looks accidental: ${appScript[1]}`);
   }
 
-  const bootScript = html.match(/<script\s+src="boot\.js\?v=([^"]+)"/);
+  const bootScript = html.match(/<script\s+src="\/?boot\.js\?v=([^"]+)"/);
   if (!bootScript) fail('index.html must load boot.js with a cache-busting ?v= value.');
 
   log('Static asset references passed.');
