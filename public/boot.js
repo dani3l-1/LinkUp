@@ -51,7 +51,7 @@
     document.body?.classList.add('dashboard-mode');
     const siteLogo = document.querySelector('.site-logo');
     if (siteLogo) {
-      siteLogo.src = 'assets/images/LinkUp-wordmark.png';
+      siteLogo.src = '/assets/images/LinkUp-wordmark.png?v=20260712-clean-routes';
       siteLogo.alt = 'LinkUp';
     }
     document.getElementById('auth-section')?.classList.add('hidden');

@@ -2092,7 +2092,7 @@ function showLegalPage(pageName) {
 function showAuthSection() {
   hideLegalPages();
   sharedTrackPage.classList.add('hidden');
-  siteLogo.src = 'assets/images/LinkUp-header.png';
+  siteLogo.src = '/assets/images/LinkUp-header.png?v=20260712-clean-routes';
   siteLogo.alt = 'LinkUp - Ride Connect Save';
   siteLogo.removeAttribute('role');
   siteLogo.removeAttribute('aria-label');
@@ -2117,7 +2117,7 @@ function showDashboardShell(user = currentUser) {
   if (!user) return;
   hideLegalPages();
   sharedTrackPage.classList.add('hidden');
-  siteLogo.src = 'assets/images/LinkUp-wordmark.png';
+  siteLogo.src = '/assets/images/LinkUp-wordmark.png?v=20260712-clean-routes';
   siteLogo.alt = 'LinkUp';
   siteLogo.setAttribute('role', 'button');
   siteLogo.setAttribute('aria-label', 'Go to home');
@@ -5614,7 +5614,7 @@ window.addEventListener('popstate', () => {
 function showDashboard(user) {
   hideLegalPages();
   sharedTrackPage.classList.add('hidden');
-  siteLogo.src = 'assets/images/LinkUp-wordmark.png';
+  siteLogo.src = '/assets/images/LinkUp-wordmark.png?v=20260712-clean-routes';
   siteLogo.alt = 'LinkUp';
   siteLogo.setAttribute('role', 'button');
   siteLogo.setAttribute('aria-label', 'Go to home');

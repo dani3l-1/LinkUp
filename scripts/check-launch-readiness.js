@@ -62,6 +62,10 @@ function checkStaticAssetReferences() {
   if (!/script\.src\s*=\s*['"]\/demo-data\.js\?v=/.test(demoMode)) {
     fail('demo-mode.js must load demo-data.js from the site root so clean subpage routes keep demo fixtures working.');
   }
+  const runtimeLogoSources = [readText('public/app.js'), readText('public/boot.js')].join('\n');
+  if (/\.src\s*=\s*['"]assets\/images\/LinkUp-/.test(runtimeLogoSources)) {
+    fail('Runtime LinkUp logo assignments must use root-absolute /assets paths so clean subpage routes do not break them.');
+  }
 
   log('Static asset references passed.');
 }
