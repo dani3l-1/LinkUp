@@ -58,6 +58,10 @@ function checkStaticAssetReferences() {
 
   const bootScript = html.match(/<script\s+src="\/?boot\.js\?v=([^"]+)"/);
   if (!bootScript) fail('index.html must load boot.js with a cache-busting ?v= value.');
+  const demoMode = readText('public/demo-mode.js');
+  if (!/script\.src\s*=\s*['"]\/demo-data\.js\?v=/.test(demoMode)) {
+    fail('demo-mode.js must load demo-data.js from the site root so clean subpage routes keep demo fixtures working.');
+  }
 
   log('Static asset references passed.');
 }
