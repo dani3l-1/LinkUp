@@ -64,7 +64,7 @@
     if (stepLabel) stepLabel.textContent = `Step ${currentStep} of 4 — ${nextStep.label}`;
     if (frame) {
       frame.setAttribute('aria-busy', 'true');
-      frame.src = `/?demo=1&embed=1&tour=${encodeURIComponent(nextStep.tour)}#${encodeURIComponent(nextStep.route)}`;
+      frame.src = `/?demo=1&embed=1&ui=driver-summary-v7&tour=${encodeURIComponent(nextStep.tour)}#${encodeURIComponent(nextStep.route)}`;
     }
   }
 
