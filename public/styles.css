@@ -14199,7 +14199,7 @@ html[data-theme="light"] .dashboard-stat {
   gap: 0.45rem;
 }
 
-.waitlist-guest-mode .waitlist-step {
+#waitlist-page.waitlist-guest-mode .waitlist-step {
   padding: 0.6rem 0.55rem;
   gap: 0.4rem;
 }
@@ -16749,11 +16749,11 @@ html[data-theme="light"] .browse-map-hint-panel {
   box-shadow: none;
 }
 
-.waitlist-guest-mode .waitlist-step:last-child {
+#waitlist-page.waitlist-guest-mode .waitlist-step:last-child {
   border-bottom: 0;
 }
 
-.waitlist-guest-mode .waitlist-feature {
+#waitlist-page.waitlist-guest-mode .waitlist-feature {
   padding: 0.85rem 0;
   border: 0;
   border-bottom: 1px solid var(--border);
@@ -16762,11 +16762,11 @@ html[data-theme="light"] .browse-map-hint-panel {
   box-shadow: none;
 }
 
-.waitlist-guest-mode .waitlist-feature:nth-last-child(-n + 2) {
+#waitlist-page.waitlist-guest-mode .waitlist-feature:nth-last-child(-n + 2) {
   border-bottom: 0;
 }
 
-.waitlist-guest-mode .waitlist-leaderboard-panel {
+#waitlist-page.waitlist-guest-mode .waitlist-leaderboard-panel {
   padding-inline: 0;
   border: 0;
   border-top: 1px solid var(--border);
@@ -16775,8 +16775,8 @@ html[data-theme="light"] .browse-map-hint-panel {
   box-shadow: none;
 }
 
-html[data-theme="light"] .waitlist-guest-mode .waitlist-step,
-html[data-theme="light"] .waitlist-guest-mode .waitlist-feature,
-html[data-theme="light"] .waitlist-guest-mode .waitlist-leaderboard-panel {
+html[data-theme="light"] #waitlist-page.waitlist-guest-mode .waitlist-step,
+html[data-theme="light"] #waitlist-page.waitlist-guest-mode .waitlist-feature,
+html[data-theme="light"] #waitlist-page.waitlist-guest-mode .waitlist-leaderboard-panel {
   background: transparent;
   box-shadow: none;
