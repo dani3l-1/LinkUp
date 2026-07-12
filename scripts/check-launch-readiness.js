@@ -61,6 +61,77 @@ function checkStaticAssetReferences() {
   log('Static asset references passed.');
 }
 
+function checkUiIntegrity() {
+  const app = readText('public/app.js');
+  const styles = readText('public/styles.css');
+  const components = readText('public/ui-components.css');
+  const demoHtml = readText('public/previews/linkup-demo-preview.html');
+  const demoScript = readText('public/previews/linkup-production-demo.js');
+
+  const assertBalancedCss = (source, file) => {
+    let depth = 0;
+    let line = 1;
+    const openings = [];
+    for (const character of source) {
+      if (character === '\n') line += 1;
+      if (character === '{') {
+        depth += 1;
+        openings.push(line);
+      } else if (character === '}') {
+        depth -= 1;
+        openings.pop();
+        if (depth < 0) fail(`${file} has an unmatched closing brace near line ${line}.`);
+      }
+    }
+    if (depth !== 0) fail(`${file} has ${depth} unmatched opening brace(s), last opened near line ${openings.at(-1)}.`);
+  };
+
+  assertBalancedCss(styles, 'styles.css');
+  assertBalancedCss(components, 'ui-components.css');
+
+  if (/!important/.test(components)) {
+    fail('ui-components.css must use normal cascade ownership; !important is not allowed.');
+  }
+
+  if (/[?&]ui=/.test(demoHtml) || /[?&]ui=/.test(demoScript)) {
+    fail('Demo routes must inherit versioned production assets; do not add a separate ui= cache revision.');
+  }
+
+  if (/\.cart-item-card\.cart-item-selected\s*\{[^}]*background:\s*rgba\(12,\s*22,\s*26/gs.test(styles)) {
+    fail('Legacy cart selected-state background conflicts with light theme. Keep theme state in the canonical theme block.');
+  }
+
+  ['.ride-card', '.ride-details', '.cart-item-card'].forEach((selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const definitions = styles.match(new RegExp(`^${escaped}\\s*\\{`, 'gm')) || [];
+    if (definitions.length !== 1) {
+      fail(`${selector} must have exactly one base definition in styles.css; found ${definitions.length}.`);
+    }
+  });
+
+  ['#list-ride-page', '#your-rides-page.card'].forEach((selector) => {
+    if (!components.includes(`${selector} {`)) fail(`${selector} must be owned by ui-components.css.`);
+  });
+
+  if (/ui-overrides\.css/.test(readText('public/index.html')) || /ui-overrides\.css/.test(demoHtml)) {
+    fail('Legacy ui-overrides.css must not be loaded; canonical page rules belong in ui-components.css.');
+  }
+
+  const renderCartItem = app.match(/function renderCartItem\(ride\)\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  if (/buildRideSummary\s*\(/.test(renderCartItem)) {
+    fail('renderCartItem must render cart markup directly; build-then-strip causes duplicate UI when ride cards change.');
+  }
+  if (!/document\.createElement\(['"]div['"]\)/.test(renderCartItem) || !/cart-item-card/.test(renderCartItem)) {
+    fail('renderCartItem must create a dedicated cart-item-card root.');
+  }
+
+  if (!/html\[data-theme="light"\]\s+\.cart-item-card\.cart-item-selected/.test(styles)) {
+    fail('Canonical theme stylesheet must define the selected cart card in light mode.');
+  }
+
+  log('UI integrity checks passed.');
+}
+
 function requestJson({ port, method = 'GET', pathname, body, cookie }) {
   return new Promise((resolve, reject) => {
     const payload = body ? JSON.stringify(body) : '';
@@ -286,6 +357,7 @@ async function checkAuthSmoke() {
   try {
     checkSyntax();
     checkStaticAssetReferences();
+    checkUiIntegrity();
     await checkAuthSmoke();
     log('All launch-readiness checks passed.');
   } catch (error) {

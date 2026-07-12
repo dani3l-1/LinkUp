@@ -8286,19 +8286,17 @@ function buildRideSummary(ride, options = {}) {
 }
 
 function renderCartItem(ride) {
-  const item = buildRideSummary(ride, { includeChat: false, includeReportDriver: false });
-  item.classList.add('cart-item-card');
+  const item = document.createElement('div');
+  item.className = 'ride-card cart-item-card';
   item.dataset.rideId = ride.id;
   item.dataset.priceCents = String(getRideTotalCents(ride));
   item.dataset.cartTermsAccepted = ride.cartTermsAccepted ? 'true' : 'false';
   item.dataset.actualPickup = ride.actualPickup || '';
   item.dataset.actualDropoff = ride.actualDropoff || '';
 
-  // Strip elements that clutter the cart view — the cart-item-detail
-  // strip below already shows all the key info cleanly.
-  ['.ride-details', '.ride-seat-picker', '.seat-picker-block',
-   '.ride-card-passengers', '.shared-seat-notice', '.report-user-button']
-    .forEach(sel => item.querySelectorAll(sel).forEach(el => el.remove()));
+  const title = document.createElement('h4');
+  title.textContent = `${ride.origin} → ${ride.destination}`;
+  item.appendChild(title);
 
   const selectLabel = document.createElement('label');
   selectLabel.className = 'cart-item-select';
@@ -8312,7 +8310,6 @@ function renderCartItem(ride) {
     updateCartSelectionSummary();
   });
   selectLabel.append(selectCheckbox, document.createTextNode(' Checkout'));
-  const title = item.querySelector('h4');
   let routeRow = null;
   if (title) {
     routeRow = document.createElement('div');

@@ -1870,58 +1870,6 @@ button:disabled::before { display: none; }
 #rides-list article + article,
 .ride-card + .ride-card { margin-top: 0; }
 
-.ride-card {
-  background: transparent;
-  border: none;
-  border-left: 2px solid rgba(62,207,207,0.15);
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  padding: 1.25rem 1.25rem 1.25rem 1.5rem;
-  transition: border-left-color 0.18s ease, background 0.18s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.ride-card:hover {
-  border-left-color: var(--accent);
-  background: rgba(62,207,207,0.025);
-  box-shadow: none;
-  transform: none;
-}
-
-.ride-card h4 {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-primary);
-  margin-bottom: 0.7rem;
-  display: block;
-  /* Prevent long origin→destination strings from breaking layout */
-  overflow-wrap: break-word;
-  word-break: break-word;
-  hyphens: auto;
-}
-
-.ride-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.4rem 1.25rem;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.ride-details > div {
-  color: var(--text-secondary);
-  /* Prevent long values (addresses, notes) from overflowing the grid cell */
-  overflow-wrap: break-word;
-  word-break: break-word;
-  min-width: 0;
-}
-.ride-details strong { color: var(--text-primary); }
-
 .user-profile-link {
   display: inline;
   width: auto;
@@ -11103,7 +11051,7 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
   position: relative;
   background: rgba(10, 18, 21, 0.82);
   border: 1px solid var(--border);
-  border-left: 3px solid rgba(62,207,207,0.28);
+  border-left: 3px solid rgba(62,207,207,0.35);
   border-radius: var(--radius-lg);
   padding: 0;
   margin-bottom: 0.85rem;
@@ -11118,12 +11066,26 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
   box-shadow: 0 6px 28px rgba(0,0,0,0.45), -3px 0 18px rgba(62,207,207,0.08);
 }
 
+.cart-item-card.cart-item-selected {
+  border-left-color: var(--accent);
+  background: var(--surface-raised);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.35), -3px 0 18px var(--accent-glow);
+}
+
+.cart-item-card.cart-item-deselected {
+  opacity: 0.58;
+  border-left-color: var(--border);
+}
+
+html[data-theme="light"] .cart-item-card.cart-item-selected {
+  border-color: rgba(18,91,97,0.16);
+  border-left-color: var(--accent-strong);
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(18,91,97,0.12), -3px 0 18px rgba(62,207,207,0.12);
+}
+
 /* cart items manage their own bottom edge via the remove button */
 .cart-item-card::after { display: none !important; }
-/* Override ride-card base styles for the cart context */
-.cart-item-card {
-  border-left-color: rgba(62,207,207,0.35) !important;
-}
 
 /* Route title — always first in cart items */
 .cart-item-card > h4 {
@@ -12043,39 +12005,6 @@ html[data-theme="light"] .release-note-entry + .release-note-entry {
 #cart-page,
 #payment-page {
   padding: 1.75rem 2rem 2.5rem;
-}
-
-/* ── Improved cart item cards ────────────────────────────────── */
-.cart-item-card {
-  border-left-width: 3px !important;
-  transition: border-left-color 0.22s ease, box-shadow 0.22s ease, transform 0.18s ease !important;
-}
-
-.cart-item-card:hover {
-  transform: translateY(-1px);
-}
-
-/* Selected state */
-.cart-item-card.cart-item-selected {
-  border-left-color: var(--accent) !important;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4), -3px 0 20px rgba(62,207,207,0.12) !important;
-  background: rgba(12, 22, 26, 0.92) !important;
-}
-
-/* Deselected / dimmed */
-.cart-item-card.cart-item-deselected {
-  opacity: 0.5;
-  border-left-color: rgba(62,207,207,0.12) !important;
-}
-
-/* ── Cart route row — richer title area ──────────────────────── */
-.cart-route-row {
-  background: rgba(0,0,0,0.2);
-}
-
-/* ── Better cart item detail labels ─────────────────────────── */
-.cart-item-card > .cart-item-detail > div {
-  position: relative;
 }
 
 /* ── Improved cart disclaimer ────────────────────────────────── */
@@ -14062,29 +13991,6 @@ html[data-theme="light"] .bp-tear::after { background: #f4fbfb; border-color: #c
 html[data-theme="light"] .bp-barcode     { color: rgba(12,116,122,0.2); }
 
 /* ── UI Polish ───────────────────────────────────────────────── */
-
-/* Ride cards: full card chrome instead of flat left-border strip */
-.ride-card {
-  background: rgba(255,255,255,0.022);
-  border: 1px solid var(--border);
-  border-left: 2.5px solid rgba(62,207,207,0.2);
-  border-radius: var(--radius-md);
-  margin-bottom: 0.55rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-}
-
-.ride-card:hover {
-  border-color: rgba(62,207,207,0.18);
-  border-left-color: var(--accent);
-  background: rgba(62,207,207,0.032);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.16), 0 0 0 1px rgba(62,207,207,0.07);
-  transform: none;
-}
-
-.ride-card h4 {
-  font-size: 0.94rem;
-  letter-spacing: 0.03em;
-}
 
 /* Stat cards: accent values, richer background */
 .dashboard-stat {
@@ -16532,6 +16438,7 @@ html[data-theme="light"] .browse-seat-manifest .seat-manifest-row {
   .browse-controls .browse-route-planner > .browse-route-row:last-of-type {
     grid-column: 2;
   }
+}
 
 .browse-results-header #browse-search-label.hidden {
   display: none;
@@ -16557,6 +16464,7 @@ body.dashboard-mode:has(#dashboard.waitlist-lock-mode) #main-content {
 
 body.dashboard-mode:has(#waitlist-page:not(.hidden):not(.waitlist-guest-mode)) .site-logo {
   display: none;
+}
 
 /* Make the two account paths unmistakable conversion actions. */
 .waitlist-guest-mode .waitlist-guest-cta {
@@ -16666,117 +16574,3 @@ body.waitlist-lock-mode #social-button,
 body.waitlist-lock-mode [id^="eats-nav-"] {
   display: none !important;
 }
-
-/* Embedded demo: avoid stacking production cards inside the demo frame. */
-html.linkup-demo-embed body.dashboard-mode #dashboard.card {
-  padding-inline: clamp(0.9rem, 2vw, 1.5rem);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-html.linkup-demo-embed #browse-page .browse-role-card,
-html.linkup-demo-embed #browse-page .browse-results-card,
-html.linkup-demo-embed #request-ride-page .request-ride-card {
-  padding-inline: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-html.linkup-demo-embed #browse-page .browse-role-actions {
-  gap: 0.75rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-html.linkup-demo-embed #browse-page .browse-role-actions button {
-  border-color: var(--border);
-  box-shadow: none;
-}
-
-html.linkup-demo-embed #browse-page .browse-results-card {
-  border-top: 1px solid var(--border);
-  padding-top: 1.25rem;
-}
-
-html.linkup-demo-embed #request-ride-page .request-route-map-block {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-html.linkup-demo-embed #request-ride-page .route-map-heading {
-  padding-inline: 0;
-  border-bottom: 0;
-  background: transparent;
-}
-
-html.linkup-demo-embed #request-ride-page .route-map {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-html[data-theme="light"] .browse-map-panel,
-html[data-theme="light"] .browse-radius-map-fullpanel {
-  background: #f4fbfc;
-}
-
-html[data-theme="light"] .browse-map-hint-panel {
-  border-top-color: rgba(18, 91, 97, 0.12);
-  background: rgba(244, 251, 252, 0.96);
-  color: #53777d;
-}
-
-/* Guest waitlist: headings and spacing provide the structure; avoid cards
-   nested inside cards for purely informational content. */
-#waitlist-page.waitlist-guest-mode::before {
-  display: none;
-}
-
-.waitlist-guest-mode .waitlist-step {
-  padding: 0.9rem 0;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-#waitlist-page.waitlist-guest-mode .waitlist-step:last-child {
-  border-bottom: 0;
-}
-
-#waitlist-page.waitlist-guest-mode .waitlist-feature {
-  padding: 0.85rem 0;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-#waitlist-page.waitlist-guest-mode .waitlist-feature:nth-last-child(-n + 2) {
-  border-bottom: 0;
-}
-
-#waitlist-page.waitlist-guest-mode .waitlist-leaderboard-panel {
-  padding-inline: 0;
-  border: 0;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-html[data-theme="light"] #waitlist-page.waitlist-guest-mode .waitlist-step,
-html[data-theme="light"] #waitlist-page.waitlist-guest-mode .waitlist-feature,
-html[data-theme="light"] #waitlist-page.waitlist-guest-mode .waitlist-leaderboard-panel {
-  background: transparent;
-  box-shadow: none;

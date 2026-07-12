@@ -1,122 +1,123 @@
-/* Current production UI overrides.
-   Kept separate from the legacy stylesheet so these rules always parse and
-   load after the main cascade. */
+/* LinkUp canonical page components.
+   Ownership: page shells, demo embed presentation, List Ride, Your Rides,
+   and seat manifests. Base tokens and reusable primitives live in styles.css.
+   Do not duplicate these selectors in styles.css. */
 
 #waitlist-page.waitlist-guest-mode::before {
-  display: none !important;
+  display: none;
 }
 
 #waitlist-page.waitlist-guest-mode .waitlist-step {
-  padding: 0.9rem 0 !important;
-  border: 0 !important;
-  border-bottom: 1px solid var(--border) !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding: 0.9rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 #waitlist-page.waitlist-guest-mode .waitlist-step:last-child {
-  border-bottom: 0 !important;
+  border-bottom: 0;
 }
 
 #waitlist-page.waitlist-guest-mode .waitlist-feature {
-  padding: 0.85rem 0 !important;
-  border: 0 !important;
-  border-bottom: 1px solid var(--border) !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding: 0.85rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 #waitlist-page.waitlist-guest-mode .waitlist-feature:nth-last-child(-n + 2) {
-  border-bottom: 0 !important;
+  border-bottom: 0;
 }
 
 #waitlist-page.waitlist-guest-mode .waitlist-leaderboard-panel {
-  padding-inline: 0 !important;
-  border: 0 !important;
-  border-top: 1px solid var(--border) !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding-inline: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 html.linkup-demo-embed body.dashboard-mode #dashboard.card,
 html.linkup-demo-embed #browse-page .browse-role-card,
 html.linkup-demo-embed #browse-page .browse-results-card,
 html.linkup-demo-embed #request-ride-page .request-ride-card {
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 html.linkup-demo-embed #browse-page .browse-role-actions,
 html.linkup-demo-embed #request-ride-page .request-route-map-block {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 html[data-theme="light"] .browse-map-panel,
 html[data-theme="light"] .browse-radius-map-fullpanel {
-  background: #f4fbfc !important;
+  background: #f4fbfc;
 }
 
 html[data-theme="light"] .browse-map-hint-panel {
-  border-top-color: rgba(18, 91, 97, 0.12) !important;
-  background: rgba(244, 251, 252, 0.96) !important;
-  color: #53777d !important;
+  border-top-color: rgba(18, 91, 97, 0.12);
+  background: rgba(244, 251, 252, 0.96);
+  color: #53777d;
 }
 
 /* List a ride: one focused workflow, without a duplicate activity sidebar. */
 #list-ride-page {
-  padding: clamp(1rem, 2.5vw, 2rem) !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 #list-ride-page::before {
-  display: none !important;
+  display: none;
 }
 
 #list-ride-page > .grid {
-  display: block !important;
-  margin-top: 1.25rem !important;
+  display: block;
+  margin-top: 1.25rem;
 }
 
 #list-ride-page > .grid > article.card {
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 #list-ride-page > .grid > article.card:nth-child(2) {
-  display: none !important;
+  display: none;
 }
 
 #list-ride-page > .grid > article.card > h3 {
-  margin: 0 0 0.9rem !important;
-  padding: 0 !important;
-  border: 0 !important;
-  color: var(--text-muted) !important;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  border: 0;
+  color: var(--text-muted);
 }
 
 #list-ride-page .ride-provider-step {
-  display: grid !important;
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 #list-ride-page .ride-provider-choice {
   min-height: 112px;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 #list-ride-page #offer-form {
@@ -125,7 +126,7 @@ html[data-theme="light"] .browse-map-hint-panel {
 }
 
 #list-ride-page .offer-section {
-  padding-block: 1.35rem !important;
+  padding-block: 1.35rem;
 }
 
 #list-ride-page .offer-section-label {
@@ -133,17 +134,17 @@ html[data-theme="light"] .browse-map-hint-panel {
 }
 
 #list-ride-page .offer-section-confirm {
-  padding: 1.25rem 0 0 !important;
-  background: transparent !important;
+  padding: 1.25rem 0 0;
+  background: transparent;
 }
 
 /* Your rides: flat page shell with one compact segmented control. */
 #your-rides-page.card {
-  padding: clamp(1rem, 2.5vw, 2rem) !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 #your-rides-page .cart-header {
@@ -210,7 +211,7 @@ html[data-theme="light"] .browse-map-hint-panel {
 
 #your-rides-page .ride-card {
   overflow: hidden;
-  padding: 1.1rem 1.15rem 0 !important;
+  padding: 1.1rem 1.15rem 0;
   border-color: color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-md);
 }
@@ -267,8 +268,8 @@ html[data-theme="light"] .browse-map-hint-panel {
 }
 
 #your-rides-page .your-ride-details-body > * {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 #your-rides-page .your-ride-details-body .ride-card-actions,
@@ -280,9 +281,9 @@ html[data-theme="light"] .browse-map-hint-panel {
 
 /* Driver seat assignments: compact roster above a consistent seat grid. */
 #your-rides-page .seat-manifest {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 #your-rides-page .seat-manifest-title {
@@ -383,7 +384,7 @@ html[data-theme="light"] .browse-map-hint-panel {
 
 #your-rides-page .seat-manifest-row .report-user-button {
   align-self: flex-start;
-  margin: 0 !important;
+  margin: 0;
   padding: 0.25rem 0;
   border: 0;
   background: transparent;
@@ -449,8 +450,8 @@ html[data-theme="light"] .browse-map-hint-panel {
 html[data-theme="light"] #list-ride-page,
 html[data-theme="light"] #your-rides-page.card,
 html[data-theme="light"] #list-ride-page > .grid > article.card {
-  background: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
+  box-shadow: none;
 }
 
 html[data-theme="light"] #your-rides-page .your-rides-tabs {
@@ -474,7 +475,7 @@ html[data-theme="light"] #your-rides-page .seat-manifest-row {
 
 html[data-theme="light"] #list-ride-page .ride-provider-choice {
   background: rgba(255, 255, 255, 0.72);
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 html[data-theme="light"] #list-ride-page .ride-provider-choice:hover,
