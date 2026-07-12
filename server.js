@@ -4217,7 +4217,7 @@ function notifyRideChatParticipants(db, ride, sender, message) {
   const payload = {
     title: getChatNotificationTitle(ride),
     body: getChatNotificationBody(ride, sender, message.text),
-    url: '/#chat',
+    url: '/messages',
     tag: 'ride-chat-' + ride.id,
     data: { rideId: ride.id, type: 'ride-chat' },
   };
@@ -4302,7 +4302,7 @@ function notifyRideAlertSubscribers(db, actor, item, itemType = 'ride') {
   const when = item?.date && item?.time ? describeTripTime(item) : '';
   const title = `${actorName} ${isRequest ? 'requested a ride' : 'posted a ride'}`;
   const body = route ? `${route}${when ? ' · ' + when : ''}` : `Open LinkUp to view the ${isRequest ? 'request' : 'ride'}.`;
-  const url = isRequest ? '/#browse' : '/#browse';
+  const url = isRequest ? '/rides/driver' : '/rides/rider';
   const subscribers = activeUsers(db)
     .filter((user) => user.id !== actor.id)
     .filter((user) => areUsersLinked(db, user.id, actor.id))
@@ -4961,7 +4961,7 @@ function sendReservationConfirmationEmail(db, student, reservation, checkoutSess
                     <table role="presentation" cellspacing="0" cellpadding="0" style="margin:24px auto 0;">
                       <tr>
                         <td style="border-radius:999px;background:#0c747a;text-align:center;">
-                        <a href="${escapeHtml(APP_BASE_URL)}#ride-checklist" style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:900;color:#ffffff;text-decoration:none;border-radius:999px;">Open ride checklist</a>
+                        <a href="${escapeHtml(APP_BASE_URL)}/rides/yours" style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:900;color:#ffffff;text-decoration:none;border-radius:999px;">Open ride checklist</a>
                         </td>
                       </tr>
                     </table>
@@ -10336,6 +10336,14 @@ app.post('/api/admin/db/restore', adminRateLimit, async (req, res) => {
     console.error('DB restore error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/favicon.ico', (req, res) => {
+  res.type('png').sendFile(path.join(__dirname, 'public', 'favicon-32.png'));
+});
+
+app.get('/demo', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'previews', 'linkup-demo-preview.html'));
 });
 
 app.get('*', (req, res) => {

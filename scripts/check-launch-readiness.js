@@ -45,6 +45,7 @@ function checkStaticAssetReferences() {
   localRefs.forEach((ref) => {
     const cleanRef = ref.replace(/^\//, '').split(/[?#]/)[0];
     if (!cleanRef) return;
+    if (ref.startsWith('/') && !path.extname(cleanRef)) return;
     const fullPath = path.join(repoRoot, 'public', cleanRef);
     if (!fs.existsSync(fullPath)) fail(`Missing static asset referenced by index.html: ${ref}`);
   });
@@ -67,6 +68,8 @@ function checkUiIntegrity() {
   const components = readText('public/ui-components.css');
   const demoHtml = readText('public/previews/linkup-demo-preview.html');
   const demoScript = readText('public/previews/linkup-production-demo.js');
+  const serviceWorker = readText('public/service-worker.js');
+  const server = readText('server.js');
 
   const assertBalancedCss = (source, file) => {
     let depth = 0;
@@ -96,6 +99,22 @@ function checkUiIntegrity() {
   if (/[?&]ui=/.test(demoHtml) || /[?&]ui=/.test(demoScript)) {
     fail('Demo routes must inherit versioned production assets; do not add a separate ui= cache revision.');
   }
+
+  ['/rides', '/rides/request', '/rides/list', '/rides/yours', '/cart', '/checkout', '/messages', '/profile'].forEach((pathname) => {
+    if (!app.includes(`'${pathname}'`)) fail(`Clean route mapping is missing ${pathname}.`);
+  });
+
+  if (!/rel="icon"/.test(demoHtml) || !server.includes("app.get('/favicon.ico'")) {
+    fail('Demo and standalone pages must have LinkUp favicon coverage.');
+  }
+
+  [demoHtml, demoScript, serviceWorker, server].forEach((source) => {
+    if (/\/#(?:chat|browse|cart|your-rides|profile|request-ride|list-ride|payment)/.test(source)) {
+      fail('New internal links must use clean paths, not legacy hash routes.');
+    }
+  });
+
+  if (!server.includes("app.get('/demo'")) fail('Server must expose the interactive demo at /demo.');
 
   if (/\.cart-item-card\.cart-item-selected\s*\{[^}]*background:\s*rgba\(12,\s*22,\s*26/gs.test(styles)) {
     fail('Legacy cart selected-state background conflicts with light theme. Keep theme state in the canonical theme block.');

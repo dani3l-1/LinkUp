@@ -7,6 +7,15 @@
   display: none;
 }
 
+/* The guest landing page is the page canvas, not a card inside the canvas. */
+#waitlist-page.waitlist-guest-mode,
+html[data-theme="light"] #waitlist-page.waitlist-guest-mode.card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 #waitlist-page.waitlist-guest-mode .waitlist-step {
   padding: 0.9rem 0;
   border: 0;

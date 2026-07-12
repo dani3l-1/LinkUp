@@ -1,6 +1,12 @@
 (() => {
   const from = new URLSearchParams(window.location.search).get('from');
   const frame = document.getElementById('demo-production-frame');
+  const demoPaths = {
+    'browse-rider': '/rides/rider',
+    'cart': '/cart',
+    'your-rides': '/rides/yours',
+    'profile-payouts': '/profile/payouts',
+  };
   const returnLink = document.querySelector('.demo-return-link');
   const railItems = [...document.querySelectorAll('.demo-rail-item')];
   const dots = [...document.querySelectorAll('.demo-dots span')];
@@ -64,7 +70,8 @@
     if (stepLabel) stepLabel.textContent = `Step ${currentStep} of 4 — ${nextStep.label}`;
     if (frame) {
       frame.setAttribute('aria-busy', 'true');
-      frame.src = `/?demo=1&embed=1&tour=${encodeURIComponent(nextStep.tour)}#${encodeURIComponent(nextStep.route)}`;
+      const pathname = demoPaths[nextStep.route] || '/';
+      frame.src = `${pathname}?demo=1&embed=1&tour=${encodeURIComponent(nextStep.tour)}`;
     }
   }
 

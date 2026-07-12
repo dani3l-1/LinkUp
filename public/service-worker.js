@@ -11,14 +11,14 @@ self.addEventListener('push', (event) => {
     icon: '/assets/images/LinkUp.png',
     badge: '/assets/images/LinkUp.png',
     tag: payload.tag || 'linkup-notification',
-    data: { ...(payload.data || {}), url: payload.url || payload.data?.url || '/#chat' },
+    data: { ...(payload.data || {}), url: payload.url || payload.data?.url || '/messages' },
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const parsed = new URL(event.notification.data?.url || '/#chat', self.location.origin);
+  const parsed = new URL(event.notification.data?.url || '/messages', self.location.origin);
   if (parsed.origin !== self.location.origin) return;
   const targetUrl = parsed.href;
   event.waitUntil((async () => {

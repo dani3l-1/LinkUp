@@ -465,8 +465,80 @@ function getStoredThemePreference() {
 
 applyThemePreference(getStoredThemePreference() || 'dark', { persist: false });
 
+const ROUTE_PATHS = new Map([
+  ['home', '/'],
+  ['waitlist', '/'],
+  ['browse', '/rides'],
+  ['browse-rider', '/rides/rider'],
+  ['browse-driver', '/rides/driver'],
+  ['request-ride', '/rides/request'],
+  ['list-ride', '/rides/list'],
+  ['your-rides', '/rides/yours'],
+  ['cart', '/cart'],
+  ['payment', '/checkout'],
+  ['chat', '/messages'],
+  ['leaderboard', '/leaderboard'],
+  ['profile', '/profile'],
+  ['admin', '/admin'],
+  ['privacy', '/privacy'],
+  ['terms', '/terms'],
+  ['eats', '/bites'],
+  ['eats-leaderboard', '/bites/leaderboard'],
+  ['social', '/social'],
+]);
+
+const PATH_ROUTES = new Map([...ROUTE_PATHS].map(([route, pathname]) => [pathname, route]));
+const ROUTE_TITLES = new Map([
+  ['home', 'Home'],
+  ['waitlist', 'Waitlist'],
+  ['browse', 'Browse Rides'],
+  ['browse-rider', 'Find a Ride'],
+  ['browse-driver', 'Find Riders'],
+  ['request-ride', 'Request a Ride'],
+  ['list-ride', 'List a Ride'],
+  ['your-rides', 'Your Rides'],
+  ['cart', 'Your Cart'],
+  ['payment', 'Checkout'],
+  ['chat', 'Messages'],
+  ['leaderboard', 'Leaderboard'],
+  ['profile', 'Profile'],
+  ['admin', 'Admin'],
+  ['privacy', 'Privacy Notice'],
+  ['terms', 'Terms and Conditions'],
+]);
+
+function routeFromPathname(pathname = window.location.pathname) {
+  const normalized = ('/' + String(pathname || '').replace(/^\/+|\/+$/g, '')).replace(/\/$/, '') || '/';
+  if (PATH_ROUTES.has(normalized)) return PATH_ROUTES.get(normalized);
+  if (normalized.startsWith('/profile/')) return 'profile-' + normalized.slice('/profile/'.length);
+  if (normalized.startsWith('/students/')) return 'user-profile-' + decodeURIComponent(normalized.slice('/students/'.length));
+  if (normalized.startsWith('/social/interests/')) return 'interest-tag-' + decodeURIComponent(normalized.slice('/social/interests/'.length));
+  if (normalized.startsWith('/social/groups/')) return 'group-' + decodeURIComponent(normalized.slice('/social/groups/'.length));
+  return '';
+}
+
+function pathForRoute(route) {
+  if (ROUTE_PATHS.has(route)) return ROUTE_PATHS.get(route);
+  if (route.startsWith('profile-')) return '/profile/' + encodeURIComponent(route.slice('profile-'.length));
+  if (route.startsWith('user-profile-')) return '/students/' + encodeURIComponent(route.slice('user-profile-'.length));
+  if (route.startsWith('interest-tag-')) return '/social/interests/' + encodeURIComponent(route.slice('interest-tag-'.length));
+  if (route.startsWith('group-')) return '/social/groups/' + encodeURIComponent(route.slice('group-'.length));
+  return '/';
+}
+
 function getAppRoute() {
-  return decodeURIComponent(window.location.hash.replace(/^#/, '')).trim();
+  const legacyHashRoute = decodeURIComponent(window.location.hash.replace(/^#/, '')).trim();
+  return legacyHashRoute || routeFromPathname();
+}
+
+function updateRouteMetadata(route) {
+  const title = ROUTE_TITLES.get(route)
+    || (route.startsWith('profile-') ? 'Profile' : '')
+    || (route.startsWith('user-profile-') ? 'Student Profile' : '')
+    || 'LinkUp';
+  document.title = title === 'LinkUp' ? 'LinkUp — Ride · Connect · Save' : `${title} — LinkUp`;
+  const canonical = document.querySelector('link[rel="canonical"]');
+  if (canonical) canonical.href = window.location.origin + pathForRoute(route);
 }
 
 let linkUpFeatureFlags = { bites: false, social: false };
@@ -490,12 +562,14 @@ function isSocialPreviewEnabled() {
 
 function setAppRoute(route) {
   if (isRestoringRoute || !route) return;
-  const nextUrl = window.location.pathname + window.location.search + '#' + encodeURIComponent(route);
+  const nextUrl = pathForRoute(route) + window.location.search;
   window.history.replaceState({}, document.title, nextUrl);
+  updateRouteMetadata(route);
 }
 
 function clearAppRoute() {
-  window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+  window.history.replaceState({}, document.title, '/' + window.location.search);
+  updateRouteMetadata('home');
 }
 
 const NAV_BUTTON_IDS = ['browse-rides-button', 'request-ride-button', 'list-ride-button', 'your-rides-button', 'eats-button', 'leaderboard-button'];
@@ -5485,7 +5559,11 @@ function renderLinkUpWalletCheckout(totalCents) {
 
 function restoreAppRoute() {
   const route = getAppRoute();
+  if (window.location.hash && route) {
+    window.history.replaceState({}, document.title, pathForRoute(route) + window.location.search);
+  }
   isRestoringRoute = true;
+  updateRouteMetadata(route || 'home');
   try {
     if (route === 'privacy' || route === 'terms') showLegalPage(route);
     else if (route === 'cart') showCartPage();
@@ -5527,6 +5605,11 @@ function restoreAppRoute() {
     isRestoringRoute = false;
   }
 }
+
+window.addEventListener('popstate', () => {
+  if (currentUser) restoreAppRoute();
+  else checkAuth();
+});
 
 function showDashboard(user) {
   hideLegalPages();

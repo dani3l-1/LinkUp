@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Try LinkUp — Interactive Demo</title>
+    <base href="/previews/" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=20260516-simple" />
+    <link rel="icon" type="image/png" href="/favicon.png?v=20260516-simple" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260516-simple" />
     <link rel="stylesheet" href="../styles.css?v=20260711-preview-match-v11" />
     <link rel="stylesheet" href="../ui-components.css?v=20260712-canonical-pages-v1" />
     <style>
@@ -1072,7 +1076,7 @@
             <iframe
               class="demo-production-frame"
               id="demo-production-frame"
-              src="/?demo=1&amp;embed=1#browse-rider"
+              src="/rides/rider?demo=1&amp;embed=1"
               title="Interactive LinkUp production interface with sample data"
             ></iframe>
             <div class="demo-app-header">
@@ -1239,6 +1243,6 @@
 
     <div class="demo-toast" id="demo-toast" role="status" aria-live="polite"></div>
 
-    <script src="linkup-production-demo.js?v=20260712-cart-cleanup-v9"></script>
+    <script src="linkup-production-demo.js?v=20260712-clean-routes-v10"></script>
   </body>
 </html>
