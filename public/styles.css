@@ -13802,11 +13802,18 @@ html[data-theme="light"] .field-help {
 .boarding-pass {
   position: relative;
   isolation: isolate;
-  background: linear-gradient(145deg, #112326 0%, #0e1d20 52%, #102225 100%);
-  border: 1px solid rgba(113,224,224,0.16);
-  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(62,207,207,0.07) 0%, transparent 52%),
+    radial-gradient(circle at 0% 115%, rgba(77,158,245,0.05) 0%, transparent 46%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 760 360'%3E%3Cg fill='none' stroke='%233ecfcf' stroke-width='3' stroke-linecap='round' opacity='.05'%3E%3Cpath d='M-20 110C180 70 380 150 780 90'/%3E%3Cpath d='M-20 260C220 230 480 290 780 230'/%3E%3Cpath d='M250-20C262 110 238 250 258 380'/%3E%3Cpath d='M560-20C548 130 572 260 556 380'/%3E%3Ccircle cx='470' cy='180' r='14'/%3E%3C/g%3E%3Cg fill='none' stroke='%233ecfcf' opacity='.11'%3E%3Cpath d='M120 268C260 220 420 180 560 150S680 110 700 96' stroke-width='4' stroke-dasharray='1 10' stroke-linecap='round'/%3E%3Ccircle cx='120' cy='268' r='6' stroke-width='4'/%3E%3Ccircle cx='700' cy='96' r='6' fill='%233ecfcf' stroke='none'/%3E%3C/g%3E%3C/svg%3E"),
+    #0f1e21;
+  background-size: auto, auto, cover, auto;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid rgba(62,207,207,0.18);
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 18px 54px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   font-family: var(--font-body);
   width: 100%;
 }
@@ -13814,13 +13821,14 @@ html[data-theme="light"] .field-help {
 .boarding-pass::before {
   content: '';
   position: absolute;
-  z-index: -1;
-  inset: 64px 0 0;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
   pointer-events: none;
-  opacity: 1;
-  background:
-    linear-gradient(118deg, transparent 0 42%, rgba(62,207,207,0.025) 42.1% 58%, transparent 58.1%),
-    radial-gradient(circle at 82% 18%, rgba(62,207,207,0.055), transparent 28%);
+  opacity: 0.9;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--blue) 100%);
 }
 
 .boarding-pass::after {
@@ -13846,7 +13854,7 @@ html[data-theme="light"] .field-help {
 .bp-brand-logo {
   display: block;
   width: auto;
-  height: 26px;
+  height: 24px;
   max-width: 118px;
   object-fit: contain;
   filter: var(--logo-filter);
@@ -14021,9 +14029,12 @@ html[data-theme="light"] .field-help {
 
 /* Light mode */
 html[data-theme="light"] .boarding-pass {
-  background: linear-gradient(145deg, #ffffff 0%, #fbfefe 58%, #f6fbfb 100%);
-  border-color: rgba(12,116,122,0.16);
-  box-shadow: 0 18px 52px rgba(18,91,97,0.11);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(11,110,117,0.06) 0%, transparent 52%),
+    radial-gradient(circle at 0% 115%, rgba(36,111,189,0.05) 0%, transparent 46%),
+    #fff;
+  border-color: #c5d8dc;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
 html[data-theme="light"] .boarding-pass::before { opacity: 0.65; }
 html[data-theme="light"] .bp-city-code  { color: #0c747a; }
@@ -14049,6 +14060,8 @@ html[data-theme="light"] .bp-barcode     { color: rgba(12,116,122,0.2); }
 }
 
 @media (max-width: 480px) { .bp-route { flex-wrap: wrap; } .bp-route-path { order: 1; flex: 1 1 100%; max-width: none; padding-top: 0; } }
+
+.dashboard-next-ride .boarding-pass { width: 100%; max-width: none; margin-inline: 0; }
 
 /* ── UI Polish ───────────────────────────────────────────────── */
 
