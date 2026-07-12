@@ -2022,6 +2022,7 @@ function showAuthSection() {
   sharedTrackPage?.classList.add('hidden');
   cartRideIds = new Set();
   currentUser = null;
+  document.body.classList.remove('waitlist-lock-mode');
 }
 
 function showDashboardShell(user = currentUser) {
@@ -2035,6 +2036,7 @@ function showDashboardShell(user = currentUser) {
   siteLogo.tabIndex = 0;
   document.body.classList.add('dashboard-mode');
   dashboard.classList.toggle('waitlist-lock-mode', user.serviceApproved !== true);
+  document.body.classList.toggle('waitlist-lock-mode', user.serviceApproved !== true);
   headerLeftActions.classList.remove('hidden');
   headerActions.classList.remove('hidden');
   headerLeftActions.classList.toggle('hidden', user.serviceApproved !== true);
@@ -5206,6 +5208,7 @@ function showPublicWaitlistPage() {
   authSection.classList.add('hidden');
   dashboard.classList.add('hidden');
   document.body.classList.remove('dashboard-mode');
+  document.body.classList.remove('waitlist-lock-mode');
   headerLeftActions.classList.add('hidden');
   headerActions.classList.add('hidden');
   waitlistPage.classList.remove('hidden');
@@ -5218,6 +5221,7 @@ function showWaitlistPage(user) {
   setAppRoute('waitlist');
   hideDashboardPages();
   dashboard.classList.add('waitlist-lock-mode');
+  document.body.classList.add('waitlist-lock-mode');
   waitlistPage.classList.remove('hidden');
   waitlistPage.classList.remove('waitlist-guest-mode');
 

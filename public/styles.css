@@ -16642,3 +16642,27 @@ body.dashboard-mode:has(#dashboard.waitlist-lock-mode) header {
 body.dashboard-mode:has(#dashboard.waitlist-lock-mode) #main-content {
   margin-top: 0;
 }
+
+/* Explicit body state keeps production waitlist layout independent of :has(). */
+body.dashboard-mode.waitlist-lock-mode .app-shell {
+  padding-top: 0.65rem;
+}
+
+body.dashboard-mode.waitlist-lock-mode header {
+  row-gap: 0;
+  padding-block: 0.55rem 0.15rem;
+}
+
+body.dashboard-mode.waitlist-lock-mode .dashboard-greeting-bar {
+  padding-block: 0.15rem;
+}
+
+body.dashboard-mode.waitlist-lock-mode #main-content {
+  margin-top: 0;
+}
+
+body.waitlist-lock-mode #eats-button,
+body.waitlist-lock-mode #social-button,
+body.waitlist-lock-mode [id^="eats-nav-"] {
+  display: none !important;
+}
