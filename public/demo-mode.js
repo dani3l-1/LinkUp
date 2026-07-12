@@ -140,34 +140,20 @@
     return answer(url.pathname, method, options).catch(() => json({ error: 'Demo data failed to load. Refresh to try again.' }, 500));
   };
 
-  /* ── Embed chrome adjustments ── */
+  /* ── Demo header: keep standalone and embedded previews identical ── */
   document.addEventListener('DOMContentLoaded', () => {
-    if (demoParams.get('embed') === '1') {
-      const greetingBar = document.getElementById('dashboard-greeting-bar');
-      const topRow = document.querySelector('#dashboard > .top-row');
-      const topActions = topRow?.querySelector('.top-actions');
-      if (greetingBar && topActions) {
-        const greetingText = document.createElement('div');
-        greetingText.className = 'greeting-text';
-        const welcome = document.getElementById('welcome-message');
-        const university = document.getElementById('student-university-label');
-        if (welcome) greetingText.appendChild(welcome);
-        if (university) greetingText.appendChild(university);
-        greetingBar.replaceChildren(greetingText, topActions);
-        topRow.remove();
-      }
-    } else {
-      // Standalone demo (not inside the preview iframe): give people a way back
-      const leftActions = document.getElementById('header-left-actions');
-      if (leftActions) {
-        const back = document.createElement('a');
-        back.className = 'demo-production-back';
-        back.href = '/';
-        back.target = '_top';
-        back.textContent = '← Back to waitlist';
-        back.setAttribute('aria-label', 'Return to the LinkUp waitlist');
-        leftActions.prepend(back);
-      }
+    const greetingBar = document.getElementById('dashboard-greeting-bar');
+    const topRow = document.querySelector('#dashboard > .top-row');
+    const topActions = topRow?.querySelector('.top-actions');
+    if (greetingBar && topActions) {
+      const greetingText = document.createElement('div');
+      greetingText.className = 'greeting-text';
+      const welcome = document.getElementById('welcome-message');
+      const university = document.getElementById('student-university-label');
+      if (welcome) greetingText.appendChild(welcome);
+      if (university) greetingText.appendChild(university);
+      greetingBar.replaceChildren(greetingText, topActions);
+      topRow.remove();
     }
     const signout = document.getElementById('signout');
     signout?.addEventListener('click', (event) => {

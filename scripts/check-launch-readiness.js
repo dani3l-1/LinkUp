@@ -145,6 +145,9 @@ function checkUiIntegrity() {
   if (/\.cart-item-card\.cart-item-selected\s*\{[^}]*background:\s*rgba\(12,\s*22,\s*26/gs.test(styles)) {
     fail('Legacy cart selected-state background conflicts with light theme. Keep theme state in the canonical theme block.');
   }
+  if (/\.top-row\s*>\s*div:first-child\s*\{/.test(styles)) {
+    fail('Dashboard top-row layout must not style the first div generically; the navigation may be the first child and become vertical.');
+  }
 
   ['.ride-card', '.ride-details', '.cart-item-card'].forEach((selector) => {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

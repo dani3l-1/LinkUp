@@ -4923,15 +4923,39 @@ function bpDateShort(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function bpBarcodeSVG() {
-  const widths = [2,1,3,1,2,2,1,3,1,2,1,3,2,1,2,3,1,2,1,2,3,1,2,2,1,3,1,2,1,3,2,1,2,1,3,2,1,2,1,2];
+function bpHash(str) {
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function bpPassCode(ride) {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let value = bpHash(String(ride.id || `${ride.date}|${ride.time}|${ride.destination}`));
+  let code = '';
+  for (let i = 0; i < 6; i += 1) {
+    code += alphabet[value % alphabet.length];
+    value = Math.floor(value / alphabet.length) + i + 7;
+  }
+  return `LU-${code}`;
+}
+
+function bpBarcodeSVG(seed) {
+  let hash = bpHash(String(seed || 'linkup'));
   let x = 0;
-  const rects = widths.map((w, i) => {
-    const rect = i % 2 === 0 ? `<rect x="${x}" y="0" width="${w}" height="36" fill="currentColor"/>` : '';
-    x += w + 1;
-    return rect;
-  }).join('');
-  return `<svg class="bp-barcode-svg" viewBox="0 0 ${x} 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${rects}</svg>`;
+  const rects = [];
+  for (let i = 0; i < 64; i += 1) {
+    hash ^= hash << 13; hash >>>= 0;
+    hash ^= hash >>> 17;
+    hash ^= hash << 5; hash >>>= 0;
+    const width = (hash % 3) + 1;
+    if (i % 2 === 0) rects.push(`<rect x="${x}" y="0" width="${width}" height="36" fill="currentColor"/>`);
+    x += width + 1;
+  }
+  return `<svg class="bp-barcode-svg" viewBox="0 0 ${x} 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${rects.join('')}</svg>`;
 }
 
 function getBoardingPassRouteInfo(ride, isDriver) {
@@ -4984,7 +5008,10 @@ function buildBoardingPass(ride, role) {
 
   bp.innerHTML = `
     <div class="bp-header">
-      <span class="bp-brand">LINKUP</span>
+      <div class="bp-brand">
+        <img class="bp-brand-logo" src="/assets/images/LinkUp-wordmark.png?v=20260712-boarding-pass" alt="LinkUp" />
+        <span class="bp-brand-tag">Ride Pass</span>
+      </div>
       <span class="bp-role-badge bp-role-badge--${isDriver ? 'driver' : 'rider'}">${roleBadge}</span>
     </div>
     <div class="bp-route">
@@ -4992,9 +5019,9 @@ function buildBoardingPass(ride, role) {
         <div class="bp-stop-label">FROM</div>
         <div class="bp-stop-name">${esc(ride.origin)}</div>
       </div>
-      <div class="bp-route-arrow">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>
-        <span>${esc(routeInfo.middleLabel)}</span>
+      <div class="bp-route-path">
+        <div class="bp-path-track"><span class="bp-path-dot"></span><span class="bp-path-line"></span><span class="bp-path-car"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17H5a2 2 0 0 1-2-2v-4l2-4h12l2 4v4a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg></span><span class="bp-path-line"></span><span class="bp-path-dot bp-path-dot--dest"></span></div>
+        <span class="bp-path-label">${esc(routeInfo.middleLabel)}</span>
       </div>
       <div class="bp-route-stop bp-route-stop--dest">
         <div class="bp-stop-label">TO</div>
@@ -5048,7 +5075,7 @@ function buildBoardingPass(ride, role) {
           <div class="bp-field-value">${esc(formatMiles(getRideMiles(ride)))}</div>
         </div>
       </div>
-      <div class="bp-barcode">${bpBarcodeSVG()}</div>
+      <div class="bp-barcode">${bpBarcodeSVG(ride.id)}<span class="bp-pass-code">${esc(bpPassCode(ride))}</span></div>
     </div>
   `;
 
