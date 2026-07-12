@@ -16626,6 +16626,19 @@ body.dashboard-mode:has(#waitlist-page:not(.hidden):not(.waitlist-guest-mode)) .
   align-items: flex-start;
   justify-content: center;
   min-height: auto;
-  padding-top: clamp(1.5rem, 3vw, 2.5rem);
+  padding-top: 0.65rem;
   padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
+#waitlist-page:not(.waitlist-guest-mode) .waitlist-hero {
+  padding-top: 0;
+}
+
+body.dashboard-mode:has(#dashboard.waitlist-lock-mode) header {
+  row-gap: 0;
+  padding-bottom: 0.15rem;
+}
+
+body.dashboard-mode:has(#dashboard.waitlist-lock-mode) #main-content {
+  margin-top: 0;
 }
