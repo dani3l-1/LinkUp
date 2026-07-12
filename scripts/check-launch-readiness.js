@@ -43,6 +43,13 @@ function checkStaticAssetReferences() {
     .filter((ref) => !ref.startsWith('#') && !ref.startsWith('mailto:'));
 
   localRefs.forEach((ref) => {
+    const cleanRef = ref.split(/[?#]/)[0];
+    if (path.extname(cleanRef) && !ref.startsWith('/')) {
+      fail(`Browser asset URLs in index.html must be root-absolute for clean routes: ${ref}`);
+    }
+  });
+
+  localRefs.forEach((ref) => {
     const cleanRef = ref.replace(/^\//, '').split(/[?#]/)[0];
     if (!cleanRef) return;
     if (ref.startsWith('/') && !path.extname(cleanRef)) return;
@@ -65,6 +72,14 @@ function checkStaticAssetReferences() {
   const runtimeLogoSources = [readText('public/app.js'), readText('public/boot.js')].join('\n');
   if (/\.src\s*=\s*['"]assets\/images\/LinkUp-/.test(runtimeLogoSources)) {
     fail('Runtime LinkUp logo assignments must use root-absolute /assets paths so clean subpage routes do not break them.');
+  }
+  const runtimeAssetAssignment = /(?:\.src|\.href|setAttribute\(\s*['"](?:src|href)['"]\s*,)\s*=*\s*['"](?!\/|https?:|data:|#)([^'"]+\.(?:css|js|png|jpe?g|webp|svg|ico))/gi;
+  let runtimeMatch;
+  for (const [file, source] of [['public/app.js', readText('public/app.js')], ['public/boot.js', readText('public/boot.js')], ['public/demo-mode.js', demoMode]]) {
+    runtimeAssetAssignment.lastIndex = 0;
+    if ((runtimeMatch = runtimeAssetAssignment.exec(source))) {
+      fail(`Runtime browser assets must be root-absolute in ${file}: ${runtimeMatch[1]}`);
+    }
   }
 
   log('Static asset references passed.');
@@ -123,6 +138,9 @@ function checkUiIntegrity() {
   });
 
   if (!server.includes("app.get('/demo'")) fail('Server must expose the interactive demo at /demo.');
+  if (!/src="\/rides\/rider\?demo=1(?:&amp;|&)embed=1"/.test(demoHtml)) {
+    fail('The interactive demo iframe must start on the signed-in rider browse route.');
+  }
 
   if (/\.cart-item-card\.cart-item-selected\s*\{[^}]*background:\s*rgba\(12,\s*22,\s*26/gs.test(styles)) {
     fail('Legacy cart selected-state background conflicts with light theme. Keep theme state in the canonical theme block.');
@@ -286,6 +304,21 @@ async function checkAuthSmoke() {
 
   try {
     await waitForServer(port, child, () => output);
+    const nestedRoute = await requestJson({ port, pathname: '/rides/rider?demo=1&embed=1' });
+    if (nestedRoute.status !== 200 || !/href="\/styles\.css\?v=/.test(nestedRoute.text) || !/src="\/demo-mode\.js\?v=/.test(nestedRoute.text) || !/src="\/app\.js\?v=/.test(nestedRoute.text)) {
+      fail(`Nested clean route did not return root-absolute production assets (${nestedRoute.status}).`);
+    }
+    const demoPage = await requestJson({ port, pathname: '/demo?from=waitlist' });
+    if (demoPage.status !== 200 || !/src="\/rides\/rider\?demo=1&amp;embed=1"/.test(demoPage.text)) {
+      fail(`Interactive demo did not target the signed-in rider route (${demoPage.status}).`);
+    }
+    for (const asset of ['/styles.css', '/ui-components.css', '/app.js', '/boot.js', '/demo-mode.js', '/demo-data.js', '/assets/images/LinkUp-header.png', '/assets/images/LinkUp-wordmark.png']) {
+      const response = await requestJson({ port, pathname: asset });
+      if (response.status !== 200 || /text\/html/.test(String(response.headers['content-type'] || ''))) {
+        fail(`Clean-route critical asset failed: ${asset} returned ${response.status} ${response.headers['content-type'] || ''}.`);
+      }
+    }
+    log('Clean-route and demo asset smoke test passed.');
     let startupOutbox = [];
     try {
       startupOutbox = JSON.parse(fs.readFileSync(path.join(dataDir, 'email-outbox.json'), 'utf8'));
