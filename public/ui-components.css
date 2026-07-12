@@ -3,8 +3,10 @@
    and seat manifests. Base tokens and reusable primitives live in styles.css.
    Do not duplicate these selectors in styles.css. */
 
-#waitlist-page.waitlist-guest-mode::before {
+#waitlist-page.waitlist-guest-mode::before,
+html[data-theme="light"] #waitlist-page.waitlist-guest-mode::before {
   display: none;
+  content: none;
 }
 
 #waitlist-page.waitlist-guest-mode .waitlist-step {
