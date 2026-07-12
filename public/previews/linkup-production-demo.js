@@ -35,6 +35,20 @@
   };
 
   let currentStep = 1;
+  let frameThemeObserver = null;
+
+  function syncThemeFromFrame() {
+    try {
+      const frameRoot = frame?.contentDocument?.documentElement;
+      const theme = frameRoot?.dataset?.theme;
+      if (theme !== 'light' && theme !== 'dark') return;
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+      frameThemeObserver?.disconnect();
+      frameThemeObserver = new MutationObserver(syncThemeFromFrame);
+      frameThemeObserver.observe(frameRoot, { attributes: true, attributeFilter: ['data-theme'] });
+    } catch (_) {}
+  }
 
   if (from === 'waitlist' && returnLink) {
     returnLink.textContent = '← Back to waitlist';
@@ -54,7 +68,10 @@
     }
   }
 
-  frame?.addEventListener('load', () => frame.setAttribute('aria-busy', 'false'));
+  frame?.addEventListener('load', () => {
+    frame.setAttribute('aria-busy', 'false');
+    syncThemeFromFrame();
+  });
 
   railItems.forEach((item) => {
     item.addEventListener('pointerdown', (event) => {

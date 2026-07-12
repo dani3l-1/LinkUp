@@ -16666,3 +16666,70 @@ body.waitlist-lock-mode #social-button,
 body.waitlist-lock-mode [id^="eats-nav-"] {
   display: none !important;
 }
+
+/* Embedded demo: avoid stacking production cards inside the demo frame. */
+html.linkup-demo-embed body.dashboard-mode #dashboard.card {
+  padding-inline: clamp(0.9rem, 2vw, 1.5rem);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html.linkup-demo-embed #browse-page .browse-role-card,
+html.linkup-demo-embed #browse-page .browse-results-card,
+html.linkup-demo-embed #request-ride-page .request-ride-card {
+  padding-inline: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html.linkup-demo-embed #browse-page .browse-role-actions {
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html.linkup-demo-embed #browse-page .browse-role-actions button {
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+html.linkup-demo-embed #browse-page .browse-results-card {
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+}
+
+html.linkup-demo-embed #request-ride-page .request-route-map-block {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html.linkup-demo-embed #request-ride-page .route-map-heading {
+  padding-inline: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+html.linkup-demo-embed #request-ride-page .route-map {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+html[data-theme="light"] .browse-map-panel,
+html[data-theme="light"] .browse-radius-map-fullpanel {
+  background: #f4fbfc;
+}
+
+html[data-theme="light"] .browse-map-hint-panel {
+  border-top-color: rgba(18, 91, 97, 0.12);
+  background: rgba(244, 251, 252, 0.96);
+  color: #53777d;
+}

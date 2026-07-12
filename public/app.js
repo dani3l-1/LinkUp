@@ -468,10 +468,23 @@ function getAppRoute() {
   return decodeURIComponent(window.location.hash.replace(/^#/, '')).trim();
 }
 
+let linkUpFeatureFlags = { bites: false, social: false };
+fetch('/api/config/features')
+  .then((response) => response.ok ? response.json() : linkUpFeatureFlags)
+  .then((flags) => {
+    linkUpFeatureFlags = { bites: flags?.bites === true, social: flags?.social === true };
+    eatsButton?.classList.toggle('hidden', !linkUpFeatureFlags.bites);
+    socialButton?.classList.toggle('hidden', !linkUpFeatureFlags.social);
+    document.querySelectorAll('[id^="eats-nav-"]').forEach((button) => button.classList.toggle('hidden', !linkUpFeatureFlags.bites));
+  })
+  .catch(() => {});
+
+function isBitesEnabled() {
+  return linkUpFeatureFlags.bites === true;
+}
+
 function isSocialPreviewEnabled() {
-  const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
-    || window.location.hostname.endsWith('.local');
-  return isLocalHost && window.localStorage?.getItem('LINKUP_ENABLE_SOCIAL') === 'true';
+  return linkUpFeatureFlags.social === true;
 }
 
 function setAppRoute(route) {
@@ -11639,6 +11652,10 @@ async function loadEatsList() {
 }
 
 function showEatsPage() {
+  if (!isBitesEnabled()) {
+    returnToBrowseRides();
+    return;
+  }
   if (currentUser && !currentUser.serviceApproved) {
     showWaitlistPage(currentUser);
     return;
@@ -11942,7 +11959,9 @@ document.getElementById('eats-food-request-form')?.addEventListener('submit', as
   }
 });
 
-eatsButton?.addEventListener('click', () => showEatsPage());
+eatsButton?.addEventListener('click', () => {
+  if (isBitesEnabled()) showEatsPage();
+});
 eatsBackHomeButton?.addEventListener('click', () => returnToBrowseRides());
 
 document.getElementById('feedback-profile-form')?.addEventListener('submit', async (e) => {

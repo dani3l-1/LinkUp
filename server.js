@@ -72,6 +72,8 @@ const ADMIN_EMAILS = new Set(String(process.env.ADMIN_EMAILS || '')
   .map((email) => normalizeEmail(email))
   .filter(Boolean));
 const RIDE_SERVICES_PAUSED = process.env.RIDE_SERVICES_PAUSED !== 'false';
+const LINKUP_BITES_ENABLED = process.env.LINKUP_BITES_ENABLED === 'true';
+const LINKUP_SOCIAL_ENABLED = process.env.LINKUP_SOCIAL_ENABLED === 'true';
 const WAITLIST_MODE = process.env.WAITLIST_MODE === 'true';
 const WEEKLY_RECAP_EMAILS_ENABLED = process.env.WEEKLY_RECAP_EMAILS_ENABLED !== 'false';
 const WEEKLY_RECAP_CHECK_INTERVAL_MS = 60 * 1000;
@@ -7801,6 +7803,10 @@ app.get('/api/config/google-maps-key', requireAuth, (req, res) => {
     return res.status(503).json({ error: 'Google Maps API key is not configured' });
   }
   res.json({ apiKey: GOOGLE_MAPS_API_KEY });
+});
+
+app.get('/api/config/features', (req, res) => {
+  res.json({ bites: LINKUP_BITES_ENABLED, social: LINKUP_SOCIAL_ENABLED });
 });
 
 app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res) => {
