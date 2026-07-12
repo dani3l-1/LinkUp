@@ -8190,29 +8190,57 @@ function buildRideSummary(ride, options = {}) {
   const container = document.createElement('div');
   container.className = 'ride-card';
   const isMoving = ride.rideProviderType === 'moving_service';
+  const parkingFeeCents = getRideParkingFeeCents(ride);
+  const facts = [];
+  if (!isMoving) facts.push(ride.sameGenderOnly ? 'Same gender only' : 'Open to all');
+  if (ride.sameSchoolOnly) facts.push('Same school only');
+  if (isMoving) {
+    if (ride.movingVehicleType) facts.push(ride.movingVehicleType);
+    if (ride.movingCapacity) facts.push(ride.movingCapacity + ' cargo capacity');
+    if (ride.movingLoadingHelp) facts.push('Loading help included');
+    if (ride.movingFurniture) facts.push('Large furniture accepted');
+  } else if (ride.rideProviderType === 'rideshare_service') {
+    facts.push(ride.rideshareService || 'Rideshare service');
+  } else {
+    const vehicleName = [ride.carColor, ride.carMaker, ride.carModel].filter(Boolean).join(' ');
+    if (vehicleName) facts.push(vehicleName);
+    if (canSeeRideLicensePlate(ride) && ride.licensePlate) facts.push('Plate ' + ride.licensePlate);
+  }
+  if (!isMoving) {
+    const passengerCount = (ride.passengers || []).length;
+    facts.push(passengerCount + ' passenger' + (passengerCount === 1 ? '' : 's') + ' booked');
+  }
+  const stops = currentPassenger || ride;
+  if (stops.actualPickup) facts.push('Pickup at ' + stops.actualPickup);
+  if (stops.actualDropoff) facts.push('Drop-off at ' + stops.actualDropoff);
+  if (parkingFeeCents) facts.push(formatRidePrice(ride) + ' seat + ' + formatCents(parkingFeeCents) + ' parking/airport fee');
+
+  const seatsChip = isMoving
+    ? esc(ride.seatsAvailable) + ' slots available'
+    : (selectedSeatId
+      ? 'Your seat: ' + esc(getSeatLabel(selectedSeatId))
+      : esc(ride.seatsAvailable) + ' seat' + (Number(ride.seatsAvailable) === 1 ? '' : 's') + ' available');
+
   container.innerHTML = `
-    <h4>${isMoving ? '<span class="moving-service-badge">Moving</span> ' : ''}${esc(ride.origin)} → ${esc(ride.destination)}</h4>
-    <div class="ride-details">
-      <div><strong>${isMoving ? 'Mover' : 'Driver'}:</strong> ${publicProfileLinkMarkup(ride.driverId, driverName)}</div>
-      <div><strong>School:</strong> ${esc(ride.university || 'Unknown school')}</div>
-      <div><strong>Driver rating:</strong> ${esc(formatDriverRating(ride))}</div>
-      ${!isMoving ? `<div><strong>Preference:</strong> ${ride.sameGenderOnly ? 'Same gender only' : 'Open to all'}</div>` : ''}
-      ${ride.sameSchoolOnly ? '<div><strong>School restriction:</strong> Same school only</div>' : ''}
-      ${getCoordinateMarkup(ride)}
-      <div><strong>Departure:</strong> ${esc(formatRideDateTime(ride))}</div>
-      <div><strong>Estimated time:</strong> ${esc(formatDuration(ride.estimatedDurationMinutes))}</div>
-      ${ride.returnRide ? `<div><strong>Return:</strong> ${esc(formatRideDateTime(ride.returnRide))}</div>` : ''}
-      ${isMoving
-        ? `<div><strong>Slots available:</strong> ${esc(ride.seatsAvailable)}</div>`
-        : `<div><strong>Seats available:</strong> ${esc(ride.seatsAvailable)}</div>
-           ${selectedSeatId ? `<div><strong>Seat:</strong> ${esc(getSeatLabel(selectedSeatId))}</div>` : ''}`
-      }
-      ${getRiderStopDetailMarkup(currentPassenger || ride)}
-      <div><strong>Miles:</strong> ${esc(formatMiles(getRideMiles(ride)))}</div>
-      ${getRideFeeDetailMarkup(ride, { flatRate: isMoving })}
-      ${getVehicleDetailMarkup(ride)}
-      ${!isMoving ? `<div><strong>Passengers:</strong> ${esc((ride.passengers || []).length)}</div>` : ''}
+    <div class="ride-card-head">
+      <h4>${isMoving ? '<span class="moving-service-badge">Moving</span> ' : ''}${esc(ride.origin)} → ${esc(ride.destination)}</h4>
+      <div class="ride-card-price">
+        <strong>${esc(parkingFeeCents ? formatRideTotalPrice(ride) : formatRidePrice(ride))}</strong>
+        <span>${isMoving ? 'flat rate' : 'per seat'}${parkingFeeCents ? ' · incl. fees' : ''}</span>
+      </div>
     </div>
+    <div class="ride-card-meta">
+      <span>${esc(formatRideDateTime(ride))}</span>
+      <span>${esc(formatDuration(ride.estimatedDurationMinutes))}</span>
+      <span>${esc(formatMiles(getRideMiles(ride)))}</span>
+      ${ride.returnRide ? `<span>Return ${esc(formatRideDateTime(ride.returnRide))}</span>` : ''}
+      <span class="ride-meta-seats">${seatsChip}</span>
+    </div>
+    <div class="ride-driver-row">
+      ${publicProfileLinkMarkup(ride.driverId, driverName)}
+      <span class="ride-driver-sub">${esc(formatDriverRating(ride))} · ${esc(ride.university || 'Unknown school')}</span>
+    </div>
+    <div class="ride-fact-line">${facts.map((fact) => `<span>${esc(fact)}</span>`).join('<i aria-hidden="true">·</i>')}</div>
   `;
   if (ride.seatingChartUnavailable) {
     const notice = document.createElement('div');
