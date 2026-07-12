@@ -8076,6 +8076,23 @@ function buildDriverRideSummary(ride) {
   const container = buildRideSummary(ride);
   container.classList.add('driver-pinned-ride');
 
+  // Drivers do not need their own name, school, rating, or booking rules
+  // repeated back to them. Keep only the vehicle information needed at pickup.
+  container.querySelector(':scope > .ride-driver-row')?.remove();
+  const factLine = container.querySelector(':scope > .ride-fact-line');
+  if (factLine) {
+    const vehicleName = [ride.carColor, ride.carMaker, ride.carModel].filter(Boolean).join(' ');
+    const operationalFacts = [
+      vehicleName,
+      ride.licensePlate ? 'Plate ' + ride.licensePlate : '',
+    ].filter(Boolean);
+    if (operationalFacts.length) {
+      factLine.innerHTML = operationalFacts.map((fact) => `<span>${esc(fact)}</span>`).join('<i aria-hidden="true">·</i>');
+    } else {
+      factLine.remove();
+    }
+  }
+
   const badge = document.createElement('div');
   badge.className = 'driver-pinned-badge';
   badge.textContent = 'Pinned driving ride';
@@ -8841,7 +8858,7 @@ function buildHistoryRideCard(ride, role) {
 
 function makeYourRideCardCollapsible(item, label = 'View ride details') {
   if (!item || item.querySelector(':scope > .your-ride-disclosure')) return item;
-  const anchor = item.querySelector(':scope > .ride-driver-row');
+  const anchor = item.querySelector(':scope > .ride-driver-row, :scope > .ride-card-meta');
   if (!anchor?.nextSibling) return item;
   const disclosure = document.createElement('details');
   disclosure.className = 'your-ride-disclosure';
