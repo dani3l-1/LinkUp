@@ -4933,6 +4933,7 @@ function bpHash(str) {
 }
 
 function bpPassCode(ride) {
+  if (/^LU-[A-Z0-9]{6,16}$/.test(String(ride.referenceId || ''))) return ride.referenceId;
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let value = bpHash(String(ride.id || `${ride.date}|${ride.time}|${ride.destination}`));
   let code = '';
@@ -5075,7 +5076,7 @@ function buildBoardingPass(ride, role) {
           <div class="bp-field-value">${esc(formatMiles(getRideMiles(ride)))}</div>
         </div>
       </div>
-      <div class="bp-barcode">${bpBarcodeSVG(ride.id)}<span class="bp-pass-code">${esc(bpPassCode(ride))}</span></div>
+      <div class="bp-barcode">${bpBarcodeSVG(ride.id)}<a class="bp-pass-code" href="/rides/yours?ride=${encodeURIComponent(ride.id)}" aria-label="Open ride ${esc(bpPassCode(ride))}">${esc(bpPassCode(ride))}</a></div>
     </div>
   `;
 
@@ -9049,6 +9050,28 @@ async function loadYourRides() {
       ...reservedRides.filter(isExpiredRideActivity).map((ride) => ({ type: 'ride', ride, role: 'Rider', sortTime: getRideStartTime(ride) })),
       ...expiredRequests.map((request) => ({ type: 'request', request, sortTime: getRideStartTime(request) })),
     ].sort((a, b) => b.sortTime - a.sortTime);
+
+    const linkedRideId = new URLSearchParams(window.location.search).get('ride');
+    if (linkedRideId) {
+      const drivingRide = drivingRides.find((ride) => String(ride.id) === linkedRideId);
+      const ridingRide = reservedRides.find((ride) => String(ride.id) === linkedRideId);
+      const linkedRide = drivingRide || ridingRide;
+      if (!linkedRide) {
+        yourRidesList.innerHTML = '<p class="error-message show">This ride was not found or is not available to your account.</p>';
+        return;
+      }
+      const historical = isExpiredRideActivity(linkedRide);
+      const linkedRole = drivingRide ? 'Driver' : 'Rider';
+      setYourRidesView(historical ? 'history' : (drivingRide ? 'driving' : 'riding'));
+      const linkedCard = historical
+        ? buildHistoryRideCard(linkedRide, linkedRole)
+        : makeYourRideCardCollapsible(drivingRide ? buildDriverRideSummary(linkedRide) : buildRideSummary(linkedRide), drivingRide ? 'Manage this ride' : 'View trip details');
+      linkedCard.classList.add('linked-ride-record');
+      linkedCard.querySelector(':scope > details')?.setAttribute('open', '');
+      appendRideSection(yourRidesList, `Ride ${bpPassCode(linkedRide)}`, [linkedRide], () => linkedCard);
+      linkedCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
 
     if (yourRidesView === 'requests') {
       if (!requestedRides.length) {

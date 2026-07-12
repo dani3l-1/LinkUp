@@ -4023,6 +4023,14 @@ function rideForUser(ride, userId, db = null) {
   return publicRide;
 }
 
+function createRideReference(db) {
+  let referenceId = '';
+  do {
+    referenceId = 'LU-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+  } while ((db.rides || []).some((ride) => ride.referenceId === referenceId));
+  return referenceId;
+}
+
 function getUserDisplayName(user) {
   return [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'User';
 }
@@ -8337,6 +8345,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
 
   const ride = {
     id: uuidv4(),
+    referenceId: createRideReference(db),
     sourceRequestId: request.id,
     sharedRequestRide: true,
     seatingChartUnavailable: true,
@@ -8481,6 +8490,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
 
   const ride = {
     id: uuidv4(),
+    referenceId: createRideReference(db),
     driverId: driver.id,
     driverFirstName: driver.firstName,
     driverLastName: driver.lastName,
