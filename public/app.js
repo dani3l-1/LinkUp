@@ -856,6 +856,34 @@ const UNIVERSITY_LOCATION_REGIONS = {
 const LIVE_TRACKING_POLL_MS = 5000;
 
 let _googleMapsPromise = null;
+const googleGeocodeCache = new Map();
+const googleDirectionsCache = new Map();
+const googleTripMetricsCache = new Map();
+
+function normalizedMapsKey(value) {
+  if (typeof value === 'string') return value.trim().toLowerCase().replace(/\s+/g, ' ');
+  const lat = typeof value?.lat === 'function' ? value.lat() : Number(value?.lat);
+  const lng = typeof value?.lng === 'function' ? value.lng() : Number(value?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+  return lat.toFixed(5) + ',' + lng.toFixed(5);
+}
+
+function getCachedDrivingDirections(origin, destination) {
+  const key = normalizedMapsKey(origin) + '>' + normalizedMapsKey(destination);
+  if (googleDirectionsCache.has(key)) return googleDirectionsCache.get(key);
+  const request = new Promise((resolve) => {
+    if (!window.google?.maps?.DirectionsService || !normalizedMapsKey(origin) || !normalizedMapsKey(destination)) {
+      resolve(null);
+      return;
+    }
+    new google.maps.DirectionsService().route(
+      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      (result, status) => resolve(status === 'OK' ? result : null)
+    );
+  });
+  googleDirectionsCache.set(key, request);
+  return request;
+}
 
 async function loadGoogleMapsAPI() {
   if (window.google?.maps) return;
@@ -1221,7 +1249,9 @@ function clearRequestLocationCoordinates(kind) {
 }
 
 function geocodeAddress(address) {
-  return new Promise((resolve) => {
+  const cacheKey = normalizedMapsKey(address);
+  if (googleGeocodeCache.has(cacheKey)) return googleGeocodeCache.get(cacheKey);
+  const requestPromise = new Promise((resolve) => {
     const knownLocation = getKnownLocationAlias(address);
     if (knownLocation) {
       resolve(knownLocation);
@@ -1246,6 +1276,8 @@ function geocodeAddress(address) {
       resolve(chooseGeocodeResult(address, results));
     });
   });
+  googleGeocodeCache.set(cacheKey, requestPromise);
+  return requestPromise;
 }
 
 function showLocationLookupError(input, message) {
@@ -6383,7 +6415,9 @@ async function estimateRideMetrics(origin, destination, departureDate = '', depa
   if (!window.google?.maps?.DistanceMatrixService || !origin || !destination) {
     return { durationMinutes: null, distanceMiles: null };
   }
-  return new Promise((resolve) => {
+  const metricsKey = [normalizedMapsKey(origin), normalizedMapsKey(destination), departureDate, departureTime].join('|');
+  if (googleTripMetricsCache.has(metricsKey)) return googleTripMetricsCache.get(metricsKey);
+  const metricsPromise = new Promise((resolve) => {
     const service = new google.maps.DistanceMatrixService();
     const request = {
       origins: [origin],
@@ -6408,6 +6442,8 @@ async function estimateRideMetrics(origin, destination, departureDate = '', depa
       });
     });
   });
+  googleTripMetricsCache.set(metricsKey, metricsPromise);
+  return metricsPromise;
 }
 
 function getRideMiles(ride) {
@@ -6542,17 +6578,19 @@ function drawBrowseRoute(map, pickupCenter, dropoffCenter) {
   clearBrowseRoute();
   if (!map || !pickupCenter || !dropoffCenter || browseRole !== 'rider') return;
   if (google.maps.DirectionsService && google.maps.DirectionsRenderer) {
-    const service = new google.maps.DirectionsService();
-    browseRouteRenderer = new google.maps.DirectionsRenderer({
+    const renderer = new google.maps.DirectionsRenderer({
       map,
       suppressMarkers: true,
       preserveViewport: true,
       polylineOptions: { strokeColor: '#67d7d9', strokeOpacity: 0.95, strokeWeight: 5 },
     });
-    service.route({ origin: pickupCenter, destination: dropoffCenter, travelMode: google.maps.TravelMode.DRIVING }, (result, status) => {
-      if (status === 'OK') {
-        browseRouteRenderer.setDirections(result);
+    browseRouteRenderer = renderer;
+    getCachedDrivingDirections(pickupCenter, dropoffCenter).then((result) => {
+      if (!renderer.getMap()) return;
+      if (result) {
+        renderer.setDirections(result);
       } else {
+        renderer.setMap(null);
         browseRouteLine = new google.maps.Polyline({ map, path: [pickupCenter, dropoffCenter], strokeColor: '#67d7d9', strokeOpacity: 0.9, strokeWeight: 4 });
       }
     });
@@ -6593,10 +6631,10 @@ function drawRideRouteOnMap(map, originPos, destPos, onRendererReady) {
       preserveViewport: true,
       polylineOptions: { strokeColor: routeColor, strokeOpacity: 0.72, strokeWeight: 4 },
     });
-    new google.maps.DirectionsService().route(
-      { origin: originPos, destination: destPos, travelMode: google.maps.TravelMode.DRIVING },
-      (result, status) => {
-        if (status === 'OK') {
+    getCachedDrivingDirections(originPos, destPos).then(
+      (result) => {
+        if (!renderer.getMap()) return;
+        if (result) {
           renderer.setDirections(result);
         } else {
           renderer.setMap(null);
