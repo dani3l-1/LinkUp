@@ -16620,3 +16620,12 @@ body.dashboard-mode:has(#waitlist-page:not(.hidden):not(.waitlist-guest-mode)) .
     margin-inline: auto;
   }
 }
+
+/* Keep the signed-in pending-access screen close to the dashboard header. */
+#waitlist-page:not(.waitlist-guest-mode) {
+  align-items: flex-start;
+  justify-content: center;
+  min-height: auto;
+  padding-top: clamp(1.5rem, 3vw, 2.5rem);
+  padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
