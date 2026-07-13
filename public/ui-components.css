@@ -548,6 +548,23 @@ html[data-theme="light"] #list-ride-page .ride-provider-choice.active {
   border-color: var(--accent);
 }
 
+/* Disabled hidden controls must remain hidden; the global disabled opacity
+   rule otherwise exposes their full-card hit areas in the demo. */
+.demo-settings-readonly .theme-choice-card input[type="radio"]:disabled,
+.demo-settings-readonly .profile-picture-input-hidden:disabled,
+.demo-settings-readonly .profile-avatar-edit-overlay:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.demo-settings-readonly .profile-picture-input-hidden:disabled {
+  display: none;
+}
+
+.demo-settings-readonly .profile-avatar-camera-badge {
+  display: none;
+}
+
 .demo-settings-readonly button:disabled { cursor: not-allowed; }
 
 .demo-settings-readonly a[aria-disabled="true"] {

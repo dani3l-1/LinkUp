@@ -136,6 +136,11 @@ function checkUiIntegrity() {
   if (!/input:not\(\[type="radio"\]\):not\(\[type="checkbox"\]\):disabled/.test(components)) {
     fail('Demo read-only styling must not reveal full-card radio or checkbox inputs.');
   }
+  if (!/profile-picture-input-hidden:disabled/.test(components)
+    || !/profile-avatar-edit-overlay:disabled/.test(components)
+    || !/theme-choice-card input\[type="radio"\]:disabled/.test(components)) {
+    fail('Disabled demo settings must keep file, avatar-overlay, and theme hit-area controls hidden.');
+  }
 
   ['/rides', '/rides/request', '/rides/list', '/rides/yours', '/cart', '/checkout', '/messages', '/profile'].forEach((pathname) => {
     if (!app.includes(`'${pathname}'`)) fail(`Clean route mapping is missing ${pathname}.`);
