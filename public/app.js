@@ -1705,7 +1705,7 @@ function playLoginSplash(callback) {
       <circle class="lu-warp-burst" cx="0" cy="0" r="22"/>
       <circle class="lu-warp-ring"  cx="0" cy="0" r="8"/>
     </svg>
-    <img class="lu-splash-wordmark" src="assets/images/LinkUp-wordmark.png" alt="" aria-hidden="true">
+    <img class="lu-splash-wordmark" src="/assets/images/LinkUp-wordmark.png?v=20260713-demo-settings-readonly" alt="" aria-hidden="true">
   `;
   document.body.appendChild(splash);
 
@@ -2004,7 +2004,7 @@ async function loadConductRecord() {
 async function loadReleaseNotes() {
   if (!releaseNoteFeed) return;
   try {
-    const response = await fetch('release-notes.md', { cache: 'no-store' });
+    const response = await fetch('/release-notes.md', { cache: 'no-store' });
     if (!response.ok) throw new Error('Failed to load release-notes.md');
     renderReleaseNotesMarkdown(await response.text(), releaseNoteFeed);
   } catch (error) {
@@ -2014,14 +2014,14 @@ async function loadReleaseNotes() {
 }
 
 function loadExternalDocuments() {
-  loadMarkdownDocument('privacy-notice.md', privacyContent);
-  loadMarkdownDocument('terms-and-conditions.md', termsContent);
+  loadMarkdownDocument('/privacy-notice.md', privacyContent);
+  loadMarkdownDocument('/terms-and-conditions.md', termsContent);
   loadReleaseNotes();
 }
 
 async function openLegalModal(type) {
   const isPrivacy = type === 'privacy';
-  const file = isPrivacy ? 'privacy-notice.md' : 'terms-and-conditions.md';
+  const file = isPrivacy ? '/privacy-notice.md' : '/terms-and-conditions.md';
   const existingContent = isPrivacy ? privacyContent : termsContent;
   legalModalTitle.textContent = isPrivacy ? 'Privacy Notice' : 'Terms and Conditions';
   legalModalContent.innerHTML = existingContent?.innerHTML || '<p class="legal-loading">Loading document...</p>';
@@ -2617,7 +2617,7 @@ async function loadPolicyFullDocument(mode) {
   const target = mode === 'terms' ? policyTermsFull : mode === 'privacy' ? policyPrivacyFull : null;
   if (!target || target.dataset.loaded === 'true') return;
   target.innerHTML = '<p class="legal-loading">Loading document...</p>';
-  await loadMarkdownDocument(mode === 'privacy' ? 'privacy-notice.md' : 'terms-and-conditions.md', target);
+  await loadMarkdownDocument(mode === 'privacy' ? '/privacy-notice.md' : '/terms-and-conditions.md', target);
   target.dataset.loaded = 'true';
 }
 

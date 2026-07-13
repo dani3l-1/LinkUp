@@ -39,7 +39,7 @@
     if (fixturesPromise) return fixturesPromise;
     fixturesPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = '/demo-data.js?v=20260712-clean-route-fixtures';
+      script.src = '/demo-data.js?v=20260713-demo-settings-readonly';
       script.onload = () => {
         const data = window.__LINKUP_DEMO_DATA;
         if (!data?.fixtures) { reject(new Error('Demo fixtures missing')); return; }
@@ -142,6 +142,39 @@
 
   /* ── Demo header: keep standalone and embedded previews identical ── */
   document.addEventListener('DOMContentLoaded', () => {
+    // Settings are visible as part of the product tour, but demo account data
+    // is immutable. Section navigation and Home remain available.
+    const profilePage = document.getElementById('profile-page');
+    if (profilePage && !profilePage.querySelector('.demo-settings-notice')) {
+      const notice = document.createElement('div');
+      notice.className = 'demo-settings-notice';
+      notice.setAttribute('role', 'note');
+      notice.innerHTML = '<strong>Preview only</strong><span>Explore every settings section. Changes are disabled in demo mode.</span>';
+      profilePage.querySelector('.profile-layout')?.before(notice);
+    }
+    const enforceReadOnlySettings = () => {
+      if (!profilePage) return;
+      profilePage.classList.add('demo-settings-readonly');
+      profilePage.querySelectorAll('input, select, textarea').forEach((control) => {
+        control.disabled = true;
+        control.setAttribute('aria-disabled', 'true');
+      });
+      profilePage.querySelectorAll('button').forEach((button) => {
+        if (button.matches('.profile-sidebar-button, #profile-back-home')) return;
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+      });
+      profilePage.querySelectorAll('a').forEach((link) => {
+        link.setAttribute('aria-disabled', 'true');
+        link.tabIndex = -1;
+      });
+    };
+    enforceReadOnlySettings();
+    if (profilePage) {
+      const observer = new MutationObserver(enforceReadOnlySettings);
+      observer.observe(profilePage, { childList: true, subtree: true });
+    }
+
     const greetingBar = document.getElementById('dashboard-greeting-bar');
     const topRow = document.querySelector('#dashboard > .top-row');
     const topActions = topRow?.querySelector('.top-actions');
@@ -163,4 +196,10 @@
       try { window.top.location.assign('/'); } catch (_) { window.location.assign('/'); }
     }, true);
   });
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest?.('#profile-page a[aria-disabled="true"]')) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
 })();

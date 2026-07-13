@@ -87,6 +87,7 @@ function checkStaticAssetReferences() {
 
 function checkUiIntegrity() {
   const app = readText('public/app.js');
+  const demoMode = readText('public/demo-mode.js');
   const styles = readText('public/styles.css');
   const components = readText('public/ui-components.css');
   const demoHtml = readText('public/previews/linkup-demo-preview.html');
@@ -121,6 +122,16 @@ function checkUiIntegrity() {
 
   if (/[?&]ui=/.test(demoHtml) || /[?&]ui=/.test(demoScript)) {
     fail('Demo routes must inherit versioned production assets; do not add a separate ui= cache revision.');
+  }
+
+  if (!/fetch\(['"]\/release-notes\.md['"]/.test(app)) {
+    fail('Release notes must use a root-absolute URL so clean demo routes cannot receive index.html.');
+  }
+  if (!/demo-settings-readonly/.test(demoMode)
+    || !/input, select, textarea/.test(demoMode)
+    || !/\.profile-sidebar-button, #profile-back-home/.test(demoMode)
+    || !/MutationObserver/.test(demoMode)) {
+    fail('Demo settings must remain visible and navigable while every editable control stays read-only.');
   }
 
   ['/rides', '/rides/request', '/rides/list', '/rides/yours', '/cart', '/checkout', '/messages', '/profile'].forEach((pathname) => {

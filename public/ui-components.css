@@ -510,3 +510,34 @@ html[data-theme="light"] #list-ride-page .ride-provider-choice.active {
     justify-self: start;
   }
 }
+/* Demo account settings stay fully explorable without implying that edits save. */
+.demo-settings-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text-muted);
+}
+
+.demo-settings-notice strong {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.demo-settings-readonly input:disabled,
+.demo-settings-readonly select:disabled,
+.demo-settings-readonly textarea:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.demo-settings-readonly button:disabled { cursor: not-allowed; }
+
+.demo-settings-readonly a[aria-disabled="true"] {
+  pointer-events: none;
+  cursor: not-allowed;
+}
