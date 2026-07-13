@@ -133,6 +133,9 @@ function checkUiIntegrity() {
     || !/MutationObserver/.test(demoMode)) {
     fail('Demo settings must remain visible and navigable while every editable control stays read-only.');
   }
+  if (!/input:not\(\[type="radio"\]\):not\(\[type="checkbox"\]\):disabled/.test(components)) {
+    fail('Demo read-only styling must not reveal full-card radio or checkbox inputs.');
+  }
 
   ['/rides', '/rides/request', '/rides/list', '/rides/yours', '/cart', '/checkout', '/messages', '/profile'].forEach((pathname) => {
     if (!app.includes(`'${pathname}'`)) fail(`Clean route mapping is missing ${pathname}.`);

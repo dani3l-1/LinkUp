@@ -528,11 +528,24 @@ html[data-theme="light"] #list-ride-page .ride-provider-choice.active {
   white-space: nowrap;
 }
 
-.demo-settings-readonly input:disabled,
+.demo-settings-readonly input:not([type="radio"]):not([type="checkbox"]):disabled,
 .demo-settings-readonly select:disabled,
 .demo-settings-readonly textarea:disabled {
   opacity: 1;
   cursor: not-allowed;
+}
+
+.demo-settings-readonly .theme-choice-card:has(input:disabled) {
+  cursor: not-allowed;
+}
+
+.demo-settings-readonly .theme-choice-card:has(input:disabled):hover {
+  border-color: var(--border);
+  transform: none;
+}
+
+.demo-settings-readonly .theme-choice-card:has(input:checked):hover {
+  border-color: var(--accent);
 }
 
 .demo-settings-readonly button:disabled { cursor: not-allowed; }
