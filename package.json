@@ -7,7 +7,8 @@
     "start": "node server.js",
     "start:test": "LINKUP_ENV_FILE=.env.local node server.js",
     "check": "node scripts/check-launch-readiness.js",
-    "test": "npm run check"
+    "test": "npm run check",
+    "backup:production": "node scripts/backup-production.js"
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",
