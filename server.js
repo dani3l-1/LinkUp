@@ -15,7 +15,7 @@ const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
-const apn = require('apn');
+const apn = require('@parse/node-apn');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -40,6 +40,38 @@ const SESSION_STORE_PATH = path.join(DATA_DIR, 'sessions.json');
 // Local testing uses .env.local through npm run start:test, with no DATABASE_URL.
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const USE_POSTGRES = Boolean(DATABASE_URL);
+const DATA_ENCRYPTION_KEY = process.env.DATA_ENCRYPTION_KEY || '';
+
+if (NODE_ENV === 'production' && DATA_ENCRYPTION_KEY.length < 32) {
+  console.error('FATAL: DATA_ENCRYPTION_KEY must be at least 32 characters in production.');
+  process.exit(1);
+}
+
+const dataEncryptionKey = DATA_ENCRYPTION_KEY
+  ? crypto.createHash('sha256').update(DATA_ENCRYPTION_KEY, 'utf8').digest()
+  : null;
+
+function encryptSensitiveValue(value) {
+  const plaintext = String(value || '');
+  if (!plaintext) return '';
+  if (!dataEncryptionKey) return plaintext;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', dataEncryptionKey, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `enc:v1:${iv.toString('base64')}:${tag.toString('base64')}:${ciphertext.toString('base64')}`;
+}
+
+function decryptSensitiveValue(value) {
+  const stored = String(value || '');
+  if (!stored.startsWith('enc:v1:')) return stored;
+  if (!dataEncryptionKey) throw new Error('DATA_ENCRYPTION_KEY is required to decrypt protected user data');
+  const parts = stored.split(':');
+  if (parts.length !== 5) throw new Error('Protected user data has an invalid format');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', dataEncryptionKey, Buffer.from(parts[2], 'base64'));
+  decipher.setAuthTag(Buffer.from(parts[3], 'base64'));
+  return Buffer.concat([decipher.update(Buffer.from(parts[4], 'base64')), decipher.final()]).toString('utf8');
+}
 
 const isLocalMachine = process.cwd().startsWith('/Users/');
 const allowProductionDatabaseLocally = process.env.ALLOW_PRODUCTION_DATABASE_LOCALLY === 'true';
@@ -185,13 +217,16 @@ function shouldUsePostgresSsl(databaseUrl) {
 }
 const pgPool = USE_POSTGRES ? new Pool({
   connectionString: DATABASE_URL,
-  // Supabase uses a managed TLS cert; rejectUnauthorized:false allows it.
-  ssl: shouldUsePostgresSsl(DATABASE_URL) ? { rejectUnauthorized: false } : false,
+  ssl: shouldUsePostgresSsl(DATABASE_URL) ? {
+    rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+    ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA.replace(/\\n/g, '\n') } : {}),
+  } : false,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 }) : null;
-fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+try { fs.chmodSync(DATA_DIR, 0o700); } catch (_) {}
 
 // Supabase/Postgres production connection checks.
 // Uses DATABASE_URL from .env or your production host environment.
@@ -2966,8 +3001,9 @@ class JsonSessionStore extends session.Store {
 
   writeSessions(sessions) {
     const tmpPath = this.filePath + '.tmp';
-    fs.writeFileSync(tmpPath, JSON.stringify(sessions, null, 2));
+    fs.writeFileSync(tmpPath, JSON.stringify(sessions, null, 2), { mode: 0o600 });
     fs.renameSync(tmpPath, this.filePath);
+    fs.chmodSync(this.filePath, 0o600);
   }
 
   isExpired(sess) {
@@ -3113,9 +3149,10 @@ app.use('/api/cart/create-embedded-checkout', sensitiveWriteRateLimit);
 app.use('/api/cart/checkout', sensitiveWriteRateLimit);
 app.use('/api/cart/checkout/complete', sensitiveWriteRateLimit);
 app.use('/api/track', trackingRateLimit);
+const sessionStore = USE_POSTGRES ? new PostgresSessionStore(pgPool) : new JsonSessionStore(SESSION_STORE_PATH);
 const sessionMiddleware = session({
   name: 'linkup.sid',
-  store: USE_POSTGRES ? new PostgresSessionStore(pgPool) : new JsonSessionStore(SESSION_STORE_PATH),
+  store: sessionStore,
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -3568,8 +3605,9 @@ function saveDb(db) {
 
   const tmpPath = DB_PATH + '.tmp';
   try {
-    fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2));
+    fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), { mode: 0o600 });
     fs.renameSync(tmpPath, DB_PATH);
+    fs.chmodSync(DB_PATH, 0o600);
   } catch (err) {
     console.error('saveDb error:', err);
     try { fs.unlinkSync(tmpPath); } catch (_) {}
@@ -3649,6 +3687,14 @@ function normalizeUserAccess(db) {
   let changed = false;
   (db.users || []).forEach((user) => {
     if (user.deletedAt) return;
+    if (user.totpSecret && !String(user.totpSecret).startsWith('enc:v1:') && dataEncryptionKey) {
+      user.totpSecret = encryptSensitiveValue(user.totpSecret);
+      changed = true;
+    }
+    if (user.totpTempSecret && !String(user.totpTempSecret).startsWith('enc:v1:') && dataEncryptionKey) {
+      user.totpTempSecret = encryptSensitiveValue(user.totpTempSecret);
+      changed = true;
+    }
     if (!user.universityDomain) {
       user.universityDomain = getEmailDomain(user.email);
       changed = true;
@@ -5016,7 +5062,8 @@ function writeEmailToOutbox(to, subject, body, reason = 'SMTP not configured', h
   }
 
   outbox.push(email);
-  fs.writeFileSync(EMAIL_OUTBOX_PATH, JSON.stringify(outbox, null, 2));
+  fs.writeFileSync(EMAIL_OUTBOX_PATH, JSON.stringify(outbox, null, 2), { mode: 0o600 });
+  fs.chmodSync(EMAIL_OUTBOX_PATH, 0o600);
   console.log('Auth email saved to local outbox:', email);
 }
 
@@ -6573,7 +6620,7 @@ app.post('/api/auth/2fa/verify', sensitiveWriteRateLimit, async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Sign-in session expired. Please sign in again.' });
 
   if (user.totpEnabled && user.totpSecret) {
-    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: 'base32', token: code, window: 1 });
+    const valid = speakeasy.totp.verify({ secret: decryptSensitiveValue(user.totpSecret), encoding: 'base32', token: code, window: 1 });
     if (!valid) return res.status(401).json({ error: 'Incorrect code. Check your authenticator app and try again.' });
   } else if (user.emailTwoFactorEnabled) {
     const storedCode = req.session.pending2FAEmailCode;
@@ -6599,7 +6646,7 @@ app.post('/api/auth/2fa/setup', requireAuth, async (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.totpEnabled) return res.status(400).json({ error: '2FA is already enabled on your account' });
   const secret = speakeasy.generateSecret({ name: `LinkUp (${user.email})`, issuer: 'LinkUp', length: 20 });
-  user.totpTempSecret = secret.base32;
+  user.totpTempSecret = encryptSensitiveValue(secret.base32);
   saveDb(db);
   const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url, { width: 220, margin: 1 });
   res.json({ secret: secret.base32, qrDataUrl, otpauthUrl: secret.otpauth_url });
@@ -6613,7 +6660,7 @@ app.post('/api/auth/2fa/enable', requireAuth, sensitiveWriteRateLimit, (req, res
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (!user.totpTempSecret) return res.status(400).json({ error: 'Start the setup process first' });
-  const valid = speakeasy.totp.verify({ secret: user.totpTempSecret, encoding: 'base32', token: code, window: 1 });
+  const valid = speakeasy.totp.verify({ secret: decryptSensitiveValue(user.totpTempSecret), encoding: 'base32', token: code, window: 1 });
   if (!valid) return res.status(400).json({ error: 'Incorrect code. Make sure your authenticator app is synced and try again.' });
   user.totpSecret = user.totpTempSecret;
   user.totpEnabled = true;
@@ -6630,7 +6677,7 @@ app.post('/api/auth/2fa/disable', requireAuth, sensitiveWriteRateLimit, (req, re
   const user = db.users.find((u) => u.id === req.session.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (!user.totpEnabled || !user.totpSecret) return res.status(400).json({ error: '2FA is not currently enabled' });
-  const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: 'base32', token: code, window: 1 });
+  const valid = speakeasy.totp.verify({ secret: decryptSensitiveValue(user.totpSecret), encoding: 'base32', token: code, window: 1 });
   if (!valid) return res.status(400).json({ error: 'Incorrect code. 2FA is still active.' });
   user.totpEnabled = false;
   delete user.totpSecret;
@@ -7153,6 +7200,18 @@ app.put('/api/profile/waitlist-intent', requireAuth, sensitiveWriteRateLimit, (r
   res.json(publicUser(user, db));
 });
 
+async function destroyAllUserSessions(userId) {
+  if (USE_POSTGRES) {
+    await pgPool.query("DELETE FROM linkup_sessions WHERE sess->>'userId' = $1", [userId]);
+    return;
+  }
+  const sessions = sessionStore.readSessions();
+  for (const [sid, sess] of Object.entries(sessions)) {
+    if (sess?.userId === userId) delete sessions[sid];
+  }
+  sessionStore.writeSessions(sessions);
+}
+
 app.delete('/api/profile/account', requireAuth, sensitiveWriteRateLimit, async (req, res) => {
   const password = String(req.body.password || '');
   const confirmText = String(req.body.confirmText || '').trim().toUpperCase();
@@ -7178,7 +7237,13 @@ app.delete('/api/profile/account', requireAuth, sensitiveWriteRateLimit, async (
 
   anonymizeDeletedUser(db, user);
   saveDb(db);
-  req.session.destroy(() => res.json({ message: 'Your LinkUp account has been deleted.' }));
+  if (USE_POSTGRES) await dbWritePromise;
+  await destroyAllUserSessions(user.id);
+  req.session.destroy((error) => {
+    if (error) return res.status(500).json({ error: 'Account data was deleted, but the session could not be closed.' });
+    res.clearCookie('linkup.sid');
+    res.json({ message: 'Your LinkUp account has been deleted.' });
+  });
 });
 
 app.put('/api/profile/policies', requireAuth, (req, res) => {

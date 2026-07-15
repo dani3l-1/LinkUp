@@ -20,10 +20,12 @@ Set these on the host. Do not commit real values.
 NODE_ENV=production
 PORT=3000
 SESSION_SECRET=replace_with_a_64_byte_random_hex_string
+DATA_ENCRYPTION_KEY=replace_with_a_different_64_byte_random_hex_string
 ADMIN_EMAILS=founder@university.edu,ops@gmail.com
 
 DATABASE_URL=postgresql://user:password@host:5432/database
 DATABASE_SSL=true
+DATABASE_SSL_REJECT_UNAUTHORIZED=true
 
 APP_BASE_URL=https://linkuprides.com
 CORS_ORIGIN=https://linkuprides.com
@@ -52,6 +54,10 @@ Generate a session secret:
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
+
+Generate `DATA_ENCRYPTION_KEY` separately with the same command. Never reuse the
+session secret. Existing authenticator secrets are encrypted with AES-256-GCM;
+losing this key makes those secrets unrecoverable.
 
 ## Database Setup
 

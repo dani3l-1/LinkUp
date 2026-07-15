@@ -10,22 +10,22 @@
     "test": "npm run check"
   },
   "dependencies": {
+    "@parse/node-apn": "^8.1.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
-    "apn": "^2.2.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
-    "express": "^4.18.2",
+    "express": "^4.22.2",
     "express-session": "^1.17.3",
     "helmet": "^8.1.0",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.3",
     "pg": "^8.20.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.3",
     "speakeasy": "^2.0.0",
     "stripe": "^22.1.0",
-    "uuid": "^9.0.0",
+    "uuid": "^11.1.1",
     "web-push": "^3.6.7"
   }
 }
