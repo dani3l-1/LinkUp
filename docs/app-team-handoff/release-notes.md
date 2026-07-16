@@ -2,6 +2,18 @@
 
 ---
 
+## v2026.07.16 BETA
+
+### Improvements
+- **Browse Rides now keeps the map in place.** On desktop, the map matches the visible height of three collapsed ride cards while only the rides column scrolls, making it easier to compare routes without losing map context.
+- **Expanded ride details remain fully usable.** Opening a ride no longer causes neighboring cards to compress or disappear; the results column continues scrolling normally in both collapsed and expanded states.
+- **Four-ride production demo.** The interactive demo now includes a fourth fictional ride so the fixed-map and independently scrollable results experience can be evaluated with realistic overflow.
+
+### Documentation
+- **Feature and release references updated.** The shared web/iOS feature manifest and app-team guide now document the desktop browse workspace behavior and four-ride demo.
+
+---
+
 ## v2026.06.04 BETA
 
 ### New

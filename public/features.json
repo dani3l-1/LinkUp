@@ -1,7 +1,7 @@
 {
   "app": "LinkUp",
-  "version": "v2026.06.02",
-  "updatedAt": "2026-06-02",
+  "version": "v2026.07.16",
+  "updatedAt": "2026-07-16",
   "source": "features.md",
   "intendedClients": ["web", "ios"],
   "notes": [
@@ -63,6 +63,8 @@
         "Filter by destination, pickup/dropoff radius, date, seats, and price",
         "Same-school and same-gender filters",
         "Live map with matching ride pins",
+        "Desktop results scroll independently beside a fixed map sized to three collapsed rides",
+        "Expanded ride details remain scrollable without compressing other results",
         "View public driver profile",
         "Make an offer on a request",
         "Post a shared ride from a request"

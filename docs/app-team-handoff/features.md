@@ -179,6 +179,9 @@ Primary screen:
 
 Rider mode:
 - Browse available driver listings.
+- On desktop, the map stays fixed beside a results panel sized to approximately three collapsed ride cards.
+- Only the rides list scrolls inside that workspace; expanding a ride preserves its full content and the other cards keep their natural height.
+- The production demo contains four fictional rides so this overflow behavior can be tested without touching production data.
 - Filter by destination, pickup radius, drop-off radius, date, seats, max price, same school, and same gender.
 - Sort by soonest departure, lowest price, highest price, and most seats.
 - Map panel shows matching ride areas and pins.

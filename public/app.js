@@ -8804,10 +8804,33 @@ async function loadRides() {
     }
     sortVisibleRides(visibleRides)
       .forEach((ride) => ridesList.appendChild(renderRideCard(ride)));
+    requestAnimationFrame(syncBrowseWorkspaceHeight);
   } catch (err) {
     ridesList.textContent = 'Unable to load rides.';
   }
 }
+
+function syncBrowseWorkspaceHeight() {
+  if (!browseRiderLayout || window.innerWidth < 960) {
+    browseRiderLayout?.style.removeProperty('--browse-workspace-height');
+    return;
+  }
+  const cards = Array.from(ridesList?.querySelectorAll(':scope > .ride-card') || []).slice(0, 3);
+  if (!cards.length) {
+    browseRiderLayout.style.setProperty('--browse-workspace-height', '620px');
+    return;
+  }
+  const listStyles = window.getComputedStyle(ridesList);
+  const gap = Number.parseFloat(listStyles.rowGap || listStyles.gap) || 0;
+  const cardsHeight = cards.reduce((sum, card) => sum + card.getBoundingClientRect().height, 0);
+  const header = document.querySelector('.browse-results-header')?.getBoundingClientRect().height || 0;
+  const cardStyles = window.getComputedStyle(document.querySelector('.browse-results-card'));
+  const padding = (Number.parseFloat(cardStyles.paddingTop) || 0) + (Number.parseFloat(cardStyles.paddingBottom) || 0);
+  const height = Math.max(620, Math.min(920, Math.ceil(cardsHeight + gap * Math.max(0, cards.length - 1) + header + padding + 18)));
+  browseRiderLayout.style.setProperty('--browse-workspace-height', `${height}px`);
+}
+
+window.addEventListener('resize', syncBrowseWorkspaceHeight);
 
 function hasActiveDriverRequestFilters() {
   return Boolean(

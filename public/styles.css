@@ -16647,3 +16647,55 @@ body.waitlist-lock-mode #social-button,
 body.waitlist-lock-mode [id^="eats-nav-"] {
   display: none !important;
 }
+
+/* Desktop browse workspace: three collapsed rides tall, with only the ride
+   list scrolling. Keep this final so legacy browse rules cannot override it. */
+@media (min-width: 960px) {
+  .browse-rider-layout.rider-active { --browse-workspace-height: 820px; }
+
+  .browse-rider-layout.rider-active .browse-results-card,
+  .browse-rider-layout.rider-active .browse-map-panel {
+    height: var(--browse-workspace-height);
+    max-height: var(--browse-workspace-height);
+    min-height: 0;
+  }
+
+  .browse-rider-layout.rider-active .browse-results-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .browse-rider-layout.rider-active .browse-results-card #rides-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+  }
+
+  .browse-rider-layout.rider-active .browse-results-card #rides-list > .ride-card {
+    flex: 0 0 auto;
+  }
+
+  .browse-rider-layout.rider-active .browse-map-panel {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 80px;
+    overflow: hidden;
+  }
+
+  .browse-rider-layout.rider-active .browse-radius-map-fullpanel {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .browse-rider-layout.rider-active .browse-map-hint-panel {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+}

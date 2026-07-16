@@ -69,6 +69,34 @@
 
   /* Cart is interactive: adding/removing seats works, entirely in-page. */
   let cartRides = null;
+  const getDemoRides = (fx) => {
+    const rides = (fx.rides || []).map((ride) => structuredClone(ride));
+    if (rides.length === 3) {
+      const sample = structuredClone(rides[1]);
+      rides.push({
+        ...sample,
+        id: 'demo-fourth-ride-fenway',
+        driverId: 'demo-driver-alex-chen',
+        driverFirstName: 'Alex',
+        driverLastName: 'Chen',
+        origin: 'West Campus',
+        originLat: 42.3489,
+        originLng: -71.1037,
+        destination: 'Fenway Park, Boston, MA',
+        destinationLat: 42.3467,
+        destinationLng: -71.0972,
+        eventName: 'College Night at Fenway',
+        date: '2026-07-20',
+        time: '18:30',
+        estimatedDurationMinutes: 18,
+        distanceMiles: 3.2,
+        seatsAvailable: 2,
+        priceCents: 1200,
+        passengers: [],
+      });
+    }
+    return rides;
+  };
   const getCartRides = (fx) => {
     if (!cartRides) cartRides = (fx.cart?.rides || []).map((ride) => structuredClone(ride));
     return cartRides;
@@ -79,7 +107,7 @@
 
     if (path === '/api/auth/me' && method === 'GET') return json(fx.me);
     if (path === '/api/auth/signout') return json({ message: 'Demo closed.' });
-    if (path === '/api/rides' && method === 'GET') return json(fx.rides);
+    if (path === '/api/rides' && method === 'GET') return json(getDemoRides(fx));
     if (path === '/api/ride-requests' && method === 'GET') return json(fx.rideRequests);
     if (path === '/api/profile' && method === 'GET') return json(fx.profile);
     if (path === '/api/leaderboard/schools' && method === 'GET') return json(fx.leaderboard);
@@ -91,7 +119,7 @@
     const cartMatch = path.match(/^\/api\/cart\/([^/]+)$/);
     if (cartMatch && method === 'POST') {
       const rideId = decodeURIComponent(cartMatch[1]);
-      const ride = fx.rides.find((item) => item.id === rideId);
+      const ride = getDemoRides(fx).find((item) => item.id === rideId);
       if (!ride) return json({ error: 'That sample ride is not in the demo.' }, 404);
       const payload = bodyJson(options);
       const rides = getCartRides(fx);
