@@ -215,13 +215,27 @@ function shouldUsePostgresSsl(databaseUrl) {
   if (process.env.DATABASE_SSL === 'false') return false;
   return !/(localhost|127\.0\.0\.1)/i.test(databaseUrl);
 }
+const DATABASE_POOL_MAX = Math.max(1, Math.min(20, Number.parseInt(process.env.DATABASE_POOL_MAX || '5', 10) || 5));
+const APP_INSTANCE_COUNT = Math.max(1, Number.parseInt(
+  process.env.APP_INSTANCE_COUNT || process.env.WEB_CONCURRENCY || process.env.PM2_INSTANCES || '1',
+  10
+) || 1);
+
+// The current production architecture intentionally runs one Node process.
+// Sessions are shared in Postgres, but rate limits, Socket.IO connections, and
+// the cached application state are process-local. Refuse an unsafe cluster.
+if (NODE_ENV === 'production' && APP_INSTANCE_COUNT !== 1) {
+  console.error('FATAL: APP_INSTANCE_COUNT must be 1 with the current storage architecture. Use PM2 fork mode with one instance.');
+  process.exit(1);
+}
+
 const pgPool = USE_POSTGRES ? new Pool({
   connectionString: DATABASE_URL,
   ssl: shouldUsePostgresSsl(DATABASE_URL) ? {
     rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
     ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA.replace(/\\n/g, '\n') } : {}),
   } : false,
-  max: 10,
+  max: DATABASE_POOL_MAX,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 }) : null;
@@ -3617,6 +3631,13 @@ function saveDb(db) {
 
 async function initPostgresStorage() {
   await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS linkup_schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pgPool.query(`
     CREATE TABLE IF NOT EXISTS linkup_state (
       state_key TEXT PRIMARY KEY,
       data JSONB NOT NULL,
@@ -3632,6 +3653,11 @@ async function initPostgresStorage() {
   `);
   await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_sessions_expires_idx ON linkup_sessions (expires)');
   await pgPool.query('DELETE FROM linkup_sessions WHERE expires <= NOW()');
+  await pgPool.query(
+    `INSERT INTO linkup_schema_migrations (version, name)
+     VALUES (1, 'initial_state_and_sessions')
+     ON CONFLICT (version) DO NOTHING`
+  );
 
   const result = await pgPool.query('SELECT data FROM linkup_state WHERE state_key = $1', ['main']);
   if (result.rows[0]?.data) {
@@ -9843,6 +9869,9 @@ app.get('/api/profile', requireAuth, requireServiceAccess, (req, res) => {
   });
 });
 
+let applicationReady = false;
+let applicationDraining = false;
+
 app.get('/health', (req, res) => {
   res.json({
     ok: true,
@@ -9850,10 +9879,31 @@ app.get('/health', (req, res) => {
     version: APP_VERSION,
     environment: NODE_ENV,
     database: USE_POSTGRES ? 'postgres' : 'json',
+    instanceMode: 'single',
     rideServicesPaused: RIDE_SERVICES_PAUSED,
     waitlistMode: WAITLIST_MODE,
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get('/ready', async (req, res) => {
+  if (!applicationReady || applicationDraining) {
+    return res.status(503).json({ ok: false, ready: false, draining: applicationDraining });
+  }
+  try {
+    if (pgPool) await pgPool.query('SELECT 1');
+    return res.json({
+      ok: true,
+      ready: true,
+      database: USE_POSTGRES ? 'postgres' : 'json',
+      instanceMode: 'single',
+      databasePoolMax: DATABASE_POOL_MAX,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('Readiness check failed:', err.message);
+    return res.status(503).json({ ok: false, ready: false, database: 'unavailable' });
+  }
 });
 
 app.get('/api/version', (req, res) => {
@@ -10428,8 +10478,21 @@ app.get('*', (req, res) => {
 let server;
 
 async function shutdown(signal) {
+  if (applicationDraining) return;
+  applicationDraining = true;
+  applicationReady = false;
   console.log(`${signal} received. Shutting down LinkUp...`);
   try {
+    if (server) {
+      await new Promise((resolve) => {
+        const forceClose = setTimeout(resolve, 10000);
+        forceClose.unref();
+        server.close(() => {
+          clearTimeout(forceClose);
+          resolve();
+        });
+      });
+    }
     await dbWritePromise;
     if (pgPool) await pgPool.end();
   } catch (err) {
@@ -10445,7 +10508,9 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 migrateDbOnStartup().then(() => {
   const listenArgs = HOST ? [PORT, HOST] : [PORT];
   server = httpServer.listen(...listenArgs, () => {
+    applicationReady = true;
     console.log(`LinkUp server listening on http://${HOST || 'localhost'}:${PORT}`);
+    console.log(`Runtime capacity: single process, PostgreSQL pool max ${DATABASE_POOL_MAX}.`);
     startWeeklyRecapScheduler();
   });
   server.on('error', (err) => {

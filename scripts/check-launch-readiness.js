@@ -236,8 +236,9 @@ function waitForServer(port, child, getOutput) {
         return;
       }
       try {
-        const res = await requestJson({ port, pathname: '/api/auth/me' });
-        if (res.status === 401) {
+        const ready = await requestJson({ port, pathname: '/ready' });
+        const auth = await requestJson({ port, pathname: '/api/auth/me' });
+        if (ready.status === 200 && ready.data?.ready === true && auth.status === 401) {
           resolve();
           return;
         }

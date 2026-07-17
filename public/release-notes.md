@@ -2,6 +2,16 @@
 
 ---
 
+## v2026.07.17 BETA
+
+### Reliability
+- **Production readiness monitoring.** A new `/ready` check confirms startup is complete and Supabase is reachable, while `/health` remains a lightweight process check.
+- **Safer releases and shutdowns.** LinkUp drains HTTP traffic, flushes queued database writes, and closes its PostgreSQL pool before exiting.
+- **Current-resource scaling guardrails.** Production now enforces one PM2 process and uses a free-tier-friendly database connection pool, preventing unsafe cluster configuration until shared storage adapters are introduced.
+- **Disabled products stay disabled.** LinkUp Bites and LinkUp Social remain off in production.
+
+---
+
 ## v2026.07.16 BETA
 
 ### Improvements
