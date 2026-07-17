@@ -16699,3 +16699,46 @@ body.waitlist-lock-mode [id^="eats-nav-"] {
     min-height: 0;
   }
 }
+/* LinkUp LinkLine icons and Events catalog */
+.lu-icon-host { display: inline-flex; align-items: center; justify-content: center; line-height: 0; }
+.lu-icon { display: block; flex: 0 0 auto; vector-effect: non-scaling-stroke; }
+
+#events-page .events-catalog-card { display: grid; gap: 1rem; }
+#events-page .events-search-label { display: grid; gap: 0.45rem; font-weight: 700; max-width: 34rem; }
+#events-page .events-search-label input,
+.optional-event-field input { width: 100%; }
+#events-page .events-list { display: grid; gap: 0.9rem; }
+#events-page .event-catalog-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+#events-page .event-date-tile {
+  width: 60px;
+  height: 68px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--accent);
+}
+#events-page .event-date-tile span { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.09em; }
+#events-page .event-date-tile strong { font-size: 1.6rem; line-height: 1; }
+#events-page .event-catalog-body { min-width: 0; }
+#events-page .event-catalog-body h4 { margin: 0 0 0.3rem; }
+#events-page .event-catalog-body p { margin: 0; color: var(--muted); }
+#events-page .event-catalog-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; margin-top: 0.45rem; color: var(--muted); font-size: 0.82rem; }
+#events-page .event-ride-count { color: var(--accent); font-weight: 700; }
+#events-page .event-catalog-item > button { display: inline-flex; align-items: center; gap: 0.45rem; white-space: nowrap; }
+.optional-event-field { display: grid; gap: 0.4rem; }
+.optional-event-field > span { color: var(--muted); font-weight: 500; }
+
+@media (max-width: 720px) {
+  #events-page .event-catalog-item { grid-template-columns: 54px minmax(0, 1fr); }
+  #events-page .event-catalog-item > button { grid-column: 1 / -1; width: 100%; justify-content: center; }
+}

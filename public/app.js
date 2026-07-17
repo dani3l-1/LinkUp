@@ -251,6 +251,10 @@ const defaultPaymentElementNode = document.getElementById('default-payment-eleme
 const defaultPaymentConfirmButton = document.getElementById('default-payment-confirm');
 const browseRidesButton = document.getElementById('browse-rides-button');
 const browsePage = document.getElementById('browse-page');
+const eventsButton = document.getElementById('events-button');
+const eventsPage = document.getElementById('events-page');
+const eventsSearchInput = document.getElementById('events-search');
+const eventsList = document.getElementById('events-list');
 const startTrackingButton = document.getElementById('start-tracking');
 const stopTrackingButton = document.getElementById('stop-tracking');
 const copyTrackingLinkButton = document.getElementById('copy-tracking-link');
@@ -478,6 +482,7 @@ const ROUTE_PATHS = new Map([
   ['payment', '/checkout'],
   ['chat', '/messages'],
   ['leaderboard', '/leaderboard'],
+  ['events', '/events'],
   ['profile', '/profile'],
   ['admin', '/admin'],
   ['privacy', '/privacy'],
@@ -501,6 +506,7 @@ const ROUTE_TITLES = new Map([
   ['payment', 'Checkout'],
   ['chat', 'Messages'],
   ['leaderboard', 'Leaderboard'],
+  ['events', 'Events'],
   ['profile', 'Profile'],
   ['admin', 'Admin'],
   ['privacy', 'Privacy Notice'],
@@ -572,7 +578,7 @@ function clearAppRoute() {
   updateRouteMetadata('home');
 }
 
-const NAV_BUTTON_IDS = ['browse-rides-button', 'request-ride-button', 'list-ride-button', 'your-rides-button', 'eats-button', 'leaderboard-button'];
+const NAV_BUTTON_IDS = ['browse-rides-button', 'events-button', 'request-ride-button', 'list-ride-button', 'your-rides-button', 'eats-button', 'leaderboard-button'];
 function setActiveNavButton(activeId) {
   NAV_BUTTON_IDS.forEach((id) => {
     const btn = document.getElementById(id);
@@ -2243,6 +2249,7 @@ function hideDashboardPages() {
   hideLegalPages();
   dashboardHome.classList.add('hidden');
   socialPage?.classList.add('hidden');
+  eventsPage?.classList.add('hidden');
   browsePage.classList.add('hidden');
   waitlistPage.classList.add('hidden');
   requestRidePage.classList.add('hidden');
@@ -5266,6 +5273,61 @@ function showBrowsePage() {
   if (currentUser?.rideServicesPaused) renderRideServicesPausedState();
 }
 
+function formatEventCatalogDate(event) {
+  if (!event.date) return 'Date varies by ride';
+  return formatRideDateTime({ date: event.date, time: event.time || '' });
+}
+
+function renderEventsCatalog(events) {
+  if (!eventsList) return;
+  const query = eventsSearchInput?.value.trim().toLowerCase() || '';
+  const visible = events.filter((event) => !query || [event.name, event.venue].join(' ').toLowerCase().includes(query));
+  eventsList.innerHTML = '';
+  if (!visible.length) {
+    eventsList.innerHTML = `<div class="ride-empty-state"><p>${query ? 'No events match your search.' : 'No event rides have been posted yet.'}</p></div>`;
+    return;
+  }
+  visible.forEach((event) => {
+    const card = document.createElement('article');
+    card.className = 'event-catalog-item';
+    card.innerHTML = `<div class="event-date-tile"><span>EVENT</span><strong>${esc(event.date ? new Date(`${event.date}T12:00:00`).getDate() : '—')}</strong></div><div class="event-catalog-body"><h4>${esc(event.name)}</h4><p>${esc(event.venue)}</p><div class="event-catalog-meta"><span>${esc(formatEventCatalogDate(event))}</span><span class="event-ride-count">${esc(event.rideCount)} ride${Number(event.rideCount) === 1 ? '' : 's'} available</span></div></div><button type="button">Browse rides <span data-lu-icon="forward" data-lu-icon-size="15"></span></button>`;
+    card.querySelector('button').addEventListener('click', () => {
+      showBrowsePage();
+      showRiderBrowse();
+      const destinationInput = document.getElementById('dropoff-radius-location');
+      if (destinationInput) {
+        destinationInput.value = event.venue || '';
+        destinationInput.dataset.lat = Number.isFinite(Number(event.lat)) ? String(event.lat) : '';
+        destinationInput.dataset.lng = Number.isFinite(Number(event.lng)) ? String(event.lng) : '';
+      }
+      loadRides();
+    });
+    eventsList.appendChild(card);
+    window.LinkUpIcons?.upgrade(card);
+  });
+}
+
+let cachedEventsCatalog = [];
+async function showEventsPage() {
+  if (!ensureServiceAccess()) return;
+  setAppRoute('events');
+  setActiveNavButton('events-button');
+  hideDashboardPages();
+  eventsPage?.classList.remove('hidden');
+  if (!eventsList) return;
+  eventsList.textContent = 'Loading events…';
+  try {
+    cachedEventsCatalog = await fetchJson('/api/events');
+    renderEventsCatalog(cachedEventsCatalog);
+  } catch (_) {
+    eventsList.textContent = 'Unable to load events.';
+  }
+}
+
+eventsSearchInput?.addEventListener('input', () => renderEventsCatalog(cachedEventsCatalog));
+eventsButton?.addEventListener('click', () => showEventsPage());
+document.getElementById('events-back-home')?.addEventListener('click', () => returnToBrowseRides());
+
 function returnFromLegalPage() {
   if (!currentUser) {
     showAuthSection();
@@ -5606,6 +5668,7 @@ function restoreAppRoute() {
     else if (route === 'list-ride') showListRidePage();
     else if (route === 'eats') showEatsPage();
     else if (route === 'leaderboard') showLeaderboardPage();
+    else if (route === 'events') showEventsPage();
     else if (route.startsWith('user-profile-')) showPublicProfilePage(route.replace(/^user-profile-/, ''));
     else if (route === 'profile-payment') showProfilePage('payment');
     else if (route === 'profile-school-transfer') showProfilePage('school-transfer');
@@ -9891,6 +9954,7 @@ offerForm.addEventListener('submit', async (event) => {
       body: JSON.stringify({
         origin,
         destination,
+        eventName: document.getElementById('ride-event-name')?.value.trim() || '',
         originLat: parseFloat(originLat),
         originLng: parseFloat(originLng),
         destinationLat: parseFloat(destinationLat),
@@ -9968,6 +10032,7 @@ requestRideForm.addEventListener('submit', async (event) => {
   });
   const requestDestinationCoordinate = getRideDestinationCoordinate({
     destination: document.getElementById('request-destination').value.trim(),
+    eventName: document.getElementById('request-event-name')?.value.trim() || '',
     destinationLat: document.getElementById('request-destination-lat').value,
     destinationLng: document.getElementById('request-destination-lng').value,
   });
@@ -9980,6 +10045,7 @@ requestRideForm.addEventListener('submit', async (event) => {
   const payload = {
     origin: document.getElementById('request-origin').value.trim(),
     destination: document.getElementById('request-destination').value.trim(),
+    eventName: document.getElementById('request-event-name')?.value.trim() || '',
     originLat: document.getElementById('request-origin-lat').value || null,
     originLng: document.getElementById('request-origin-lng').value || null,
     destinationLat: document.getElementById('request-destination-lat').value || null,

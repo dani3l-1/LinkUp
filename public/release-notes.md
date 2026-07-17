@@ -4,6 +4,10 @@
 
 ## v2026.07.17 BETA
 
+### New
+- **Events discovery.** Riders and drivers can open Events, search event rides, and jump directly into Browse Rides with the event venue already selected. Event names are optional when listing or requesting a ride.
+- **LinkUp LinkLine icons.** Primary navigation and account controls now use LinkUp's own rounded, node-based icon language instead of generic stock glyphs.
+
 ### Reliability
 - **Production readiness monitoring.** A new `/ready` check confirms startup is complete and Supabase is reachable, while `/health` remains a lightweight process check.
 - **Safer releases and shutdowns.** LinkUp drains HTTP traffic, flushes queued database writes, and closes its PostgreSQL pool before exiting.

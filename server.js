@@ -8227,6 +8227,7 @@ app.get('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
 
 app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => {
   const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, riderCount, willingToPay, shareRideWithOthers, sameGenderDriverOnly, sameSchoolDriverOnly, noSmoking, estimatedDurationMinutes, distanceMiles, notes, hideDestination } = req.body;
+  const eventName = String(req.body.eventName || '').replace(/\s+/g, ' ').trim().slice(0, 100);
   const requestType = req.body.requestType === 'moving' ? 'moving' : 'ride';
   const isMovingRequest = requestType === 'moving';
   const movingSize = isMovingRequest ? String(req.body.movingSize || 'Small').trim() : '';
@@ -8317,6 +8318,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     university: rider.university,
     origin,
     destination,
+    eventName,
     originLat: parsedOriginLat,
     originLng: parsedOriginLng,
     destinationLat: parsedDestinationLat,
@@ -8450,6 +8452,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
     university: driver.university,
     origin: request.origin,
     destination: request.destination,
+    eventName: request.eventName || '',
     originLat: request.originLat ?? null,
     originLng: request.originLng ?? null,
     destinationLat: request.destinationLat ?? null,
@@ -8496,8 +8499,39 @@ app.get('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     .map((ride) => rideForUser(ride, req.session.userId, db)));
 });
 
+app.get('/api/events', requireAuth, requireServiceAccess, (req, res) => {
+  const db = loadDb();
+  const events = new Map();
+  (db.rides || [])
+    .filter((ride) => ride.eventName && isRideBrowseVisibleToUser(db, ride, req.session.userId))
+    .forEach((ride) => {
+      const name = String(ride.eventName || '').trim();
+      const venue = String(ride.destination || '').trim();
+      const key = [name.toLowerCase(), venue.toLowerCase(), String(ride.date || '')].join('|');
+      const current = events.get(key) || {
+        id: crypto.createHash('sha256').update(key).digest('hex').slice(0, 16),
+        name,
+        venue,
+        lat: Number(ride.destinationLat),
+        lng: Number(ride.destinationLng),
+        date: ride.date || '',
+        time: ride.time || '',
+        rideCount: 0,
+      };
+      current.rideCount += 1;
+      if (String(ride.time || '') < String(current.time || '')) current.time = ride.time || current.time;
+      events.set(key, current);
+    });
+  res.json([...events.values()].sort((a, b) => {
+    const aTime = new Date(`${a.date}T${a.time || '23:59'}`).getTime();
+    const bTime = new Date(`${b.date}T${b.time || '23:59'}`).getTime();
+    return aTime - bTime;
+  }));
+});
+
 app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
   const { origin, destination, originLat, originLng, destinationLat, destinationLng, pickupRadiusMiles, dropoffRadiusMiles, date, time, hasReturnRide, returnDate, returnTime, sameGenderOnly, sameSchoolOnly, seatsAvailable, price, parkingFee, carMaker, carModel, carColor, licensePlate, termsAccepted, estimatedDurationMinutes, distanceMiles, notes } = req.body;
+  const eventName = String(req.body.eventName || '').replace(/\s+/g, ' ').trim().slice(0, 100);
   const rideProviderType = ['personal_car', 'rideshare_service', 'moving_service'].includes(req.body.rideProviderType) ? req.body.rideProviderType : '';
   const isRideshareService = rideProviderType === 'rideshare_service';
   const isMovingService = rideProviderType === 'moving_service';
@@ -8591,6 +8625,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     university: driver.university,
     origin,
     destination,
+    eventName,
     originLat: parsedOriginLat,
     originLng: parsedOriginLng,
     destinationLat: parsedDestinationLat,
