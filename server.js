@@ -3670,6 +3670,137 @@ function normalizeDbShape(db) {
 let dbCache = null;
 let dbWritePromise = Promise.resolve();
 
+// Entities migrated out of the linkup_state blob into their own per-row tables.
+// saveDb() strips these before writing the blob; loadDb() repopulates them from
+// the stores. The list grows as each entity is migrated.
+const MIGRATED_BLOB_KEYS = ['trackingTrips'];
+
+// Reload the small low-write blob from linkup_state after another instance
+// changed it (cross-instance coherence for carts/follows/groups/audit log/etc.).
+async function reloadBlob() {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_state WHERE state_key = $1', ['main']);
+  if (res.rows[0]?.data) dbCache = normalizeDbShape(res.rows[0].data);
+}
+registerReload('blob', reloadBlob);
+
+// ── Tracking-trip store ─────────────────────────────────────────────────
+// Live-trip GPS trails: one Postgres row per trip (a location ping is the
+// highest-frequency write), a dedicated JSON file in dev. Moved out of the
+// linkup_state blob so a ping writes one row instead of the whole database.
+const TRACKING_STORE_PATH = path.join(DATA_DIR, 'tracking-trips.json');
+const trackingCache = new Map();
+let trackingWritePromise = Promise.resolve();
+
+function normalizeTrackingTrip(trip) {
+  const createdAtMs = new Date(trip.createdAt || 0).getTime();
+  const fallbackExpiresAt = Number.isFinite(createdAtMs) && createdAtMs > 0
+    ? createdAtMs + TRACKING_VIEWER_TTL_MS
+    : Date.now() + TRACKING_VIEWER_TTL_MS;
+  const viewerAccessExpiresAt = Number(trip.viewerAccessExpiresAt);
+  return {
+    ...trip,
+    viewerAccessExpiresAt: Number.isFinite(viewerAccessExpiresAt) && viewerAccessExpiresAt > 0
+      ? viewerAccessExpiresAt
+      : fallbackExpiresAt,
+    locations: asArray(trip.locations).filter(isPlainObject),
+  };
+}
+
+function listTrackingTrips() {
+  return Array.from(trackingCache.values());
+}
+
+function scheduleTrackingFileWrite() {
+  trackingWritePromise = trackingWritePromise
+    .then(() => {
+      const tmp = TRACKING_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listTrackingTrips(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, TRACKING_STORE_PATH);
+      fs.chmodSync(TRACKING_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Tracking store file write error:', err));
+}
+
+// Upsert one trip. Replaces saveDb() for tracking mutations.
+function persistTrackingTrip(trip) {
+  if (!trip || !trip.id) return trip;
+  trackingCache.set(trip.id, trip);
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(trip));
+    trackingWritePromise = trackingWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_tracking_trips (id, owner_id, viewer_token_hash, status, data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         ON CONFLICT (id) DO UPDATE SET owner_id = EXCLUDED.owner_id, viewer_token_hash = EXCLUDED.viewer_token_hash, status = EXCLUDED.status, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, snap.ownerId || '', snap.viewerTokenHash || '', snap.status || '', snap]
+      ))
+      .then(() => publishInvalidation('linkup_tracking_trips', trip.id))
+      .catch((err) => console.error('Tracking trip save error:', err));
+  } else {
+    scheduleTrackingFileWrite();
+  }
+  return trip;
+}
+
+function removeTrackingTripsWhere(predicate) {
+  const removedIds = [];
+  for (const trip of listTrackingTrips()) {
+    if (predicate(trip)) { trackingCache.delete(trip.id); removedIds.push(trip.id); }
+  }
+  if (!removedIds.length) return 0;
+  if (USE_POSTGRES) {
+    trackingWritePromise = trackingWritePromise
+      .then(() => pgPool.query('DELETE FROM linkup_tracking_trips WHERE id = ANY($1)', [removedIds]))
+      .then(() => removedIds.forEach((id) => publishInvalidation('linkup_tracking_trips', id)))
+      .catch((err) => console.error('Tracking trip delete error:', err));
+  } else {
+    scheduleTrackingFileWrite();
+  }
+  return removedIds.length;
+}
+
+async function reloadTrackingTrip(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_tracking_trips WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) trackingCache.set(id, normalizeTrackingTrip(res.rows[0].data));
+  else trackingCache.delete(id);
+}
+registerReload('linkup_tracking_trips', reloadTrackingTrip);
+
+async function loadTrackingTrips() {
+  trackingCache.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_tracking_trips (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL DEFAULT '',
+        viewer_token_hash TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_tracking_trips_owner_idx ON linkup_tracking_trips (owner_id)');
+    const res = await pgPool.query('SELECT data FROM linkup_tracking_trips ORDER BY updated_at ASC');
+    for (const row of res.rows) if (row.data && row.data.id) trackingCache.set(row.data.id, normalizeTrackingTrip(row.data));
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(TRACKING_STORE_PATH, 'utf8'))) {
+        if (raw && raw.id) trackingCache.set(raw.id, normalizeTrackingTrip(raw));
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill: move trips still embedded in the main blob into the store.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = asArray(mainDb.trackingTrips);
+  if (legacy.length) {
+    for (const raw of legacy) if (raw && raw.id && !trackingCache.has(raw.id)) persistTrackingTrip(normalizeTrackingTrip(raw));
+    mainDb.trackingTrips = [];
+    saveDb(mainDb);
+  }
+}
+
 function readFileDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
@@ -3680,10 +3811,11 @@ function readFileDb() {
 }
 
 function loadDb() {
-  if (USE_POSTGRES) {
-    return normalizeDbShape(dbCache || getEmptyDb());
-  }
-  return readFileDb();
+  const db = USE_POSTGRES ? normalizeDbShape(dbCache || getEmptyDb()) : readFileDb();
+  // Migrated entities live in their own tables, not the blob — repopulate them
+  // from the stores so the many read sites (db.trackingTrips, ...) keep working.
+  db.trackingTrips = listTrackingTrips();
+  return db;
 }
 
 function queuePostgresDbSave(db) {
@@ -3695,13 +3827,18 @@ function queuePostgresDbSave(db) {
        ON CONFLICT (state_key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
       [snapshot]
     ))
+    .then(() => publishInvalidation('blob', 'main'))
     .catch((err) => {
       console.error('PostgreSQL saveDb error:', err);
     });
 }
 
 function saveDb(db) {
-  const normalized = normalizeDbShape(db);
+  // Migrated entities are persisted through their own stores, not the blob.
+  // Strip them so the blob write stays small and doesn't re-serialize them.
+  const forBlob = { ...db };
+  for (const key of MIGRATED_BLOB_KEYS) delete forBlob[key];
+  const normalized = normalizeDbShape(forBlob);
   normalized.meta.updatedAt = new Date().toISOString();
   if (USE_POSTGRES) {
     dbCache = normalized;
@@ -3770,11 +3907,17 @@ async function migrateDbOnStartup() {
   try {
     if (USE_POSTGRES) {
       await initPostgresStorage();
+      // Load per-entity stores BEFORE the first saveDb — each backfills its rows
+      // out of the blob, and saveDb strips those keys, so the order matters.
+      await loadTrackingTrips();
       saveDb(loadDb());
       await dbWritePromise;
       normalizeUserAccess(loadDb());
       await dbWritePromise;
+      // Only after every cache is warm — a reload mid-load could race a backfill.
+      await startInvalidationSubscriber();
     } else {
+      await loadTrackingTrips();
       saveDb(loadDb());
       normalizeUserAccess(loadDb());
     }
@@ -5523,6 +5666,7 @@ function anonymizeDeletedUser(db, user) {
     if (trip.ownerId === user.id) {
       trip.status = 'stopped';
       trip.stoppedAt = trip.stoppedAt || now;
+      persistTrackingTrip(trip);
     }
   });
 }
@@ -7229,6 +7373,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
   (db.trackingTrips || []).forEach((trip) => {
     if (trip.ownerId === user.id) {
       trip.ownerFirstName = user.firstName;
+      persistTrackingTrip(trip);
     }
   });
 
@@ -8019,7 +8164,6 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
   const trackingRoute = getTrackingRideRoute(trackingRide);
   const viewerToken = crypto.randomBytes(32).toString('hex');
   const viewerUrl = APP_BASE_URL + '/?trackToken=' + viewerToken;
-  const trips = getTrackingTrips(db);
   const trip = {
     id: uuidv4(),
     ownerId: user.id,
@@ -8036,8 +8180,7 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     updatedAt: new Date().toISOString(),
   };
 
-  trips.push(trip);
-  saveDb(db);
+  persistTrackingTrip(trip);
   if (trustedEmail) {
     const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp member') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
     sendAuthEmail(
@@ -8088,13 +8231,13 @@ app.put('/api/trips/track/:tripId/trusted-email', requireAuth, requireServiceAcc
     return res.status(404).json({ error: 'Active tracking trip not found' });
   }
   if (expireTrackingTrip(trip)) {
-    saveDb(db);
+    persistTrackingTrip(trip);
     return res.status(410).json({ error: 'This tracking link has expired. Restart sharing to send a new invite.' });
   }
 
   trip.trustedEmail = trustedEmail;
   trip.updatedAt = new Date().toISOString();
-  saveDb(db);
+  persistTrackingTrip(trip);
 
   if (!trip.viewerUrl) {
     return res.status(400).json({ error: 'This tracking trip was started before invite updates were supported. Copy the tracking link and send it manually, or restart sharing.' });
@@ -8138,7 +8281,7 @@ app.post('/api/trips/track/:tripId/location', requireAuth, requireServiceAccess,
     return res.status(400).json({ error: 'Location sharing is not active' });
   }
   if (expireTrackingTrip(trip)) {
-    saveDb(db);
+    persistTrackingTrip(trip);
     return res.status(410).json({ error: 'This tracking link has expired. Restart sharing to continue.' });
   }
 
@@ -8156,7 +8299,7 @@ app.post('/api/trips/track/:tripId/location', requireAuth, requireServiceAccess,
   trip.lastLocation = location;
   refreshTrackingTripRoute(db, trip);
   trip.updatedAt = location.recordedAt;
-  saveDb(db);
+  persistTrackingTrip(trip);
 
   res.json({ message: 'Location updated', trip: publicTrackingTrip(trip) });
 });
@@ -8171,7 +8314,7 @@ app.post('/api/trips/track/:tripId/stop', requireAuth, requireServiceAccess, (re
   trip.status = 'stopped';
   trip.stoppedAt = new Date().toISOString();
   trip.updatedAt = trip.stoppedAt;
-  saveDb(db);
+  persistTrackingTrip(trip);
   res.json({ message: 'Location sharing stopped', trip: publicTrackingTrip(trip) });
 });
 
@@ -8186,14 +8329,14 @@ app.get('/api/track/:viewerToken', (req, res) => {
     return res.status(410).json({ error: 'This tracking link is no longer active' });
   }
   if (expireTrackingTrip(trip)) {
-    saveDb(db);
+    persistTrackingTrip(trip);
     return res.status(410).json({ error: 'This tracking link has expired' });
   }
 
   const routeWasAdded = refreshTrackingTripRoute(db, trip);
   if (routeWasAdded) {
     trip.updatedAt = new Date().toISOString();
-    saveDb(db);
+    persistTrackingTrip(trip);
   }
   res.json(publicTrackingTrip(trip));
 });
