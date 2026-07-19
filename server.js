@@ -3673,7 +3673,7 @@ let dbWritePromise = Promise.resolve();
 // Entities migrated out of the linkup_state blob into their own per-row tables.
 // saveDb() strips these before writing the blob; loadDb() repopulates them from
 // the stores. The list grows as each entity is migrated.
-const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests', 'rides', 'rideMessages'];
+const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests', 'rides', 'rideMessages', 'payments', 'checkoutSessions', 'walletTransactions'];
 
 // Reload the small low-write blob from linkup_state after another instance
 // changed it (cross-instance coherence for carts/follows/groups/audit log/etc.).
@@ -4129,6 +4129,172 @@ async function loadMessages() {
   }
 }
 
+// ── Generic per-entity store (payments, wallet, checkout sessions) ────────
+// One Postgres row per record (dedicated JSON file in dev). persist() upserts
+// by id; insertUnique() is an idempotent create guarded by a partial UNIQUE
+// index (the hard money-safety guarantee); persistDirty() re-persists any record
+// whose signature changed since last write (change-detection safety net for
+// in-place mutations like checkout status transitions and payout updates).
+function makeCollectionStore({ legacyKey, table, file, indexColumns = [], uniqueColumn = null }) {
+  const cache = new Map();
+  const signatures = new Map();
+  const filePath = path.join(DATA_DIR, file);
+  let writePromise = Promise.resolve();
+
+  const list = () => Array.from(cache.values());
+  const get = (id) => cache.get(id) || null;
+  const signature = (record) => JSON.stringify(record);
+
+  function scheduleFileWrite() {
+    writePromise = writePromise
+      .then(() => {
+        const tmp = filePath + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(list(), null, 2), { mode: 0o600 });
+        fs.renameSync(tmp, filePath);
+        fs.chmodSync(filePath, 0o600);
+      })
+      .catch((err) => console.error(`${table} file write error:`, err));
+  }
+
+  // Table/column names come only from the hardcoded store configs below — never
+  // user input. Assert that so no identifier can carry SQL, then the dynamic-
+  // identifier SQL (built into named strings, values always parameterized) is
+  // provably injection-free.
+  const ident = (name) => {
+    if (!/^[a-z_][a-z0-9_]*$/.test(String(name))) throw new Error(`unsafe SQL identifier: ${name}`);
+    return name;
+  };
+  ident(table);
+  indexColumns.forEach((c) => ident(c.name));
+  if (uniqueColumn) ident(uniqueColumn.name);
+  const valueColumns = uniqueColumn ? [...indexColumns, uniqueColumn] : indexColumns;
+
+  function persist(record) {
+    if (!record || !record.id) return record;
+    cache.set(record.id, record);
+    signatures.set(record.id, signature(record));
+    if (USE_POSTGRES) {
+      const snap = JSON.parse(JSON.stringify(record));
+      const names = ['id', ...valueColumns.map((c) => c.name), 'data'];
+      const vals = [snap.id, ...valueColumns.map((c) => String(snap[c.from] ?? '')), snap];
+      const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+      const setClause = ['data', ...valueColumns.map((c) => c.name)].map((c) => `${c} = EXCLUDED.${c}`).join(', ');
+      const insertSql = `INSERT INTO ${table} (${names.join(', ')}, updated_at) VALUES (${placeholders}, NOW())`
+        + ` ON CONFLICT (id) DO UPDATE SET ${setClause}, updated_at = NOW()`;
+      writePromise = writePromise
+        .then(() => pgPool.query(insertSql, vals))
+        .then(() => publishInvalidation(table, record.id))
+        .catch((err) => console.error(`${table} save error:`, err));
+    } else {
+      scheduleFileWrite();
+    }
+    return record;
+  }
+
+  // Idempotent create: the DB's partial UNIQUE index on the dedupe column is the
+  // hard guarantee — even two instances racing the same checkout produce ONE row.
+  // The cache scan is just a fast path for the common same-instance retry.
+  function insertUnique(record) {
+    if (!record || !record.id) return record;
+    const key = uniqueColumn ? String(record[uniqueColumn.from] ?? '') : '';
+    if (!key) return persist(record);
+    if (list().some((r) => String(r[uniqueColumn.from] ?? '') === key)) return null;
+    cache.set(record.id, record);
+    signatures.set(record.id, signature(record));
+    if (USE_POSTGRES) {
+      const snap = JSON.parse(JSON.stringify(record));
+      const names = ['id', ...valueColumns.map((c) => c.name), 'data'];
+      const vals = [snap.id, ...valueColumns.map((c) => String(snap[c.from] ?? '')), snap];
+      const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+      const insertSql = `INSERT INTO ${table} (${names.join(', ')}, updated_at) VALUES (${placeholders}, NOW())`
+        + ` ON CONFLICT (${uniqueColumn.name}) WHERE ${uniqueColumn.name} <> '' DO NOTHING`;
+      writePromise = writePromise
+        .then(() => pgPool.query(insertSql, vals))
+        .then(() => publishInvalidation(table, record.id))
+        .catch((err) => console.error(`${table} insertUnique error:`, err));
+    } else {
+      scheduleFileWrite();
+    }
+    return record;
+  }
+
+  // Re-persist any record whose signature changed since its last write. Called
+  // by saveDb so in-place mutations across many handlers can't be missed.
+  function persistDirty() {
+    for (const record of cache.values()) {
+      if (signatures.get(record.id) !== signature(record)) persist(record);
+    }
+  }
+
+  function removeWhere(predicate) {
+    const removedIds = [];
+    for (const record of list()) if (predicate(record)) { cache.delete(record.id); signatures.delete(record.id); removedIds.push(record.id); }
+    if (!removedIds.length) return 0;
+    if (USE_POSTGRES) {
+      const deleteSql = `DELETE FROM ${table} WHERE id = ANY($1)`;
+      writePromise = writePromise
+        .then(() => pgPool.query(deleteSql, [removedIds]))
+        .then(() => removedIds.forEach((id) => publishInvalidation(table, id)))
+        .catch((err) => console.error(`${table} delete error:`, err));
+    } else {
+      scheduleFileWrite();
+    }
+    return removedIds.length;
+  }
+
+  async function reloadFromDb(id) {
+    if (!USE_POSTGRES) return;
+    const selectSql = `SELECT data FROM ${table} WHERE id = $1`;
+    const res = await pgPool.query(selectSql, [id]);
+    if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) { cache.set(id, res.rows[0].data); signatures.set(id, signature(res.rows[0].data)); }
+    else { cache.delete(id); signatures.delete(id); }
+  }
+  registerReload(table, reloadFromDb);
+
+  async function load() {
+    cache.clear();
+    signatures.clear();
+    if (USE_POSTGRES) {
+      const colDefs = valueColumns.map((c) => `${c.name} TEXT NOT NULL DEFAULT ''`).join(', ');
+      const createSql = `CREATE TABLE IF NOT EXISTS ${table} (id TEXT PRIMARY KEY, ${colDefs}${colDefs ? ', ' : ''}data JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+      await pgPool.query(createSql);
+      for (const c of valueColumns) {
+        const alterSql = `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${c.name} TEXT NOT NULL DEFAULT ''`;
+        await pgPool.query(alterSql);
+      }
+      for (const c of indexColumns) {
+        const indexSql = `CREATE INDEX IF NOT EXISTS ${table}_${c.name}_idx ON ${table} (${c.name})`;
+        await pgPool.query(indexSql);
+      }
+      if (uniqueColumn) {
+        const uniqueSql = `CREATE UNIQUE INDEX IF NOT EXISTS ${table}_${uniqueColumn.name}_uidx ON ${table} (${uniqueColumn.name}) WHERE ${uniqueColumn.name} <> ''`;
+        await pgPool.query(uniqueSql);
+      }
+      const selectSql = `SELECT data FROM ${table}`;
+      const res = await pgPool.query(selectSql);
+      for (const row of res.rows) if (row.data && row.data.id) { cache.set(row.data.id, row.data); signatures.set(row.data.id, signature(row.data)); }
+    } else {
+      try {
+        for (const rec of JSON.parse(fs.readFileSync(filePath, 'utf8'))) if (rec && rec.id) { cache.set(rec.id, rec); signatures.set(rec.id, signature(rec)); }
+      } catch (_) { /* no store file yet */ }
+    }
+    const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+    const legacy = uniqueById(asArray(mainDb[legacyKey]));
+    if (legacy.length) {
+      for (const rec of legacy) if (rec && rec.id && !cache.has(rec.id)) persist(rec);
+      mainDb[legacyKey] = [];
+      saveDb(mainDb);
+      console.log(`${table}: migrated ${legacy.length} record(s) out of the main database blob.`);
+    }
+  }
+
+  return { list, get, persist, insertUnique, persistDirty, removeWhere, load, flush: () => writePromise };
+}
+
+const paymentStore = makeCollectionStore({ legacyKey: 'payments', table: 'linkup_payments', file: 'payments.json', indexColumns: [{ name: 'student_id', from: 'studentId' }] });
+const checkoutStore = makeCollectionStore({ legacyKey: 'checkoutSessions', table: 'linkup_checkout_sessions', file: 'checkout-sessions.json', indexColumns: [{ name: 'student_id', from: 'studentId' }] });
+const walletStore = makeCollectionStore({ legacyKey: 'walletTransactions', table: 'linkup_wallet_transactions', file: 'wallet-transactions.json', indexColumns: [{ name: 'user_id', from: 'userId' }], uniqueColumn: { name: 'dedupe_key', from: 'dedupeKey' } });
+
 function readFileDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
@@ -4145,6 +4311,9 @@ function loadDb() {
   db.trackingTrips = listTrackingTrips();
   db.rideRequests = listRideRequests();
   db.rides = listRides();
+  db.payments = paymentStore.list();
+  db.checkoutSessions = checkoutStore.list();
+  db.walletTransactions = walletStore.list();
   return db;
 }
 
@@ -4164,9 +4333,13 @@ function queuePostgresDbSave(db) {
 }
 
 function saveDb(db) {
-  // Rides are mutated in place across ~20 handlers that all call saveDb; persist
-  // any whose signature changed (one row each) so no call site can be missed.
+  // Rides + money records are mutated in place across many handlers that all
+  // call saveDb; persist any whose signature changed (one row each) so no call
+  // site can be missed. Money creates/idempotency are still explicit at source.
   persistDirtyRides();
+  paymentStore.persistDirty();
+  checkoutStore.persistDirty();
+  walletStore.persistDirty();
   // Migrated entities are persisted through their own stores, not the blob.
   // Strip them so the blob write stays small and doesn't re-serialize them.
   const forBlob = { ...db };
@@ -4246,6 +4419,9 @@ async function migrateDbOnStartup() {
       await loadRideRequests();
       await loadRides();
       await loadMessages();
+      await paymentStore.load();
+      await checkoutStore.load();
+      await walletStore.load();
       saveDb(loadDb());
       await dbWritePromise;
       normalizeUserAccess(loadDb());
@@ -4257,6 +4433,9 @@ async function migrateDbOnStartup() {
       await loadRideRequests();
       await loadRides();
       await loadMessages();
+      await paymentStore.load();
+      await checkoutStore.load();
+      await walletStore.load();
       saveDb(loadDb());
       normalizeUserAccess(loadDb());
     }
@@ -6276,16 +6455,14 @@ function getCheckoutWalletCreditCents(db, userId, expectedAmountCents) {
 function addWalletCheckoutDebit(db, student, checkoutSession) {
   const amountCents = Math.max(0, Number(checkoutSession.walletCreditCents || 0));
   if (!amountCents || !student) return;
-  db.walletTransactions = db.walletTransactions || [];
   const sourceCheckoutSessionId = checkoutSession.id || checkoutSession.providerPaymentId || checkoutSession.stripePaymentIntentId;
-  const exists = db.walletTransactions.some((transaction) => transaction.type === 'wallet_checkout_debit'
-    && transaction.userId === student.id
-    && transaction.sourceCheckoutSessionId === sourceCheckoutSessionId);
-  if (exists) return;
-  db.walletTransactions.push({
+  // Idempotent: the DB unique index on dedupe_key blocks a duplicate debit even
+  // if two instances race the same checkout completion.
+  walletStore.insertUnique({
     id: uuidv4(),
     userId: student.id,
     type: 'wallet_checkout_debit',
+    dedupeKey: `wallet_checkout_debit:${student.id}:${sourceCheckoutSessionId}`,
     amountCents,
     currency: checkoutSession.stripeCurrency || 'usd',
     sourceCheckoutSessionId,
@@ -6297,7 +6474,6 @@ function addWalletCheckoutDebit(db, student, checkoutSession) {
 }
 
 function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, paymentRecord) {
-  db.walletTransactions = db.walletTransactions || [];
   const sourcePaymentId = paymentRecord?.id || checkoutSession.providerPaymentId || checkoutSession.id;
   reservation.ridesToReserve.forEach(({ ride }) => {
     if (!ride?.driverId) return;
@@ -6306,15 +6482,13 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
     const commissionCents = Math.round(getRideCommissionableCents(ride) * LINKUP_COMMISSION_RATE);
     const stripeFeesCents = calcStripeFee(grossCents);
     const amountCents = Math.max(0, grossCents - commissionCents - stripeFeesCents);
-    const exists = db.walletTransactions.some((transaction) => transaction.type === 'driver_earning_credit'
-      && transaction.userId === ride.driverId
-      && transaction.rideId === ride.id
-      && transaction.sourcePaymentId === sourcePaymentId);
-    if (exists) return;
-    db.walletTransactions.push({
+    // Idempotent: the DB unique index on dedupe_key makes a double driver credit
+    // impossible even if two instances race the same checkout.
+    walletStore.insertUnique({
       id: uuidv4(),
       userId: ride.driverId,
       type: 'driver_earning_credit',
+      dedupeKey: `driver_earning_credit:${ride.driverId}:${ride.id}:${sourcePaymentId}`,
       amountCents,
       grossCents,
       seatPriceCents: getRideCommissionableCents(ride),
@@ -6368,7 +6542,7 @@ async function createWeeklyStripePayouts(db, userIds = []) {
       note: 'Weekly driver payout',
       createdAt: startedAt,
     };
-    db.walletTransactions.push(transaction);
+    walletStore.persist(transaction);
     saveDb(db);
 
     try {
@@ -9677,7 +9851,7 @@ function finalizePaidCheckoutSession(db, student, checkoutSession) {
       status: 'paid',
       createdAt: checkoutSession.completedAt,
     };
-    db.payments.push(paymentRecord);
+    paymentStore.persist(paymentRecord);
   }
   addWalletCheckoutDebit(db, student, checkoutSession);
   addDriverWalletCreditsForReservation(db, checkoutSession, reservation, paymentRecord);
@@ -9788,7 +9962,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     if (amountDueCents === 0) {
       const walletSessionId = 'wallet_' + uuidv4();
       db.checkoutSessions = db.checkoutSessions || [];
-      db.checkoutSessions.push({
+      checkoutStore.persist({
         id: walletSessionId,
         provider: 'wallet',
         providerPaymentId: walletSessionId,
@@ -9818,7 +9992,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
       customer: customerId,
       payment_method_types: ['card'],
       receipt_email: student.email,
-      statement_descriptor: 'LINKUP RIDE',
+      statement_descriptor_suffix: 'RIDE',
       metadata: {
         linkupStudentId: student.id,
         linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
@@ -9828,7 +10002,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     });
 
     db.checkoutSessions = db.checkoutSessions || [];
-    db.checkoutSessions.push({
+    checkoutStore.persist({
       id: paymentIntent.id,
       provider,
       providerPaymentId: paymentIntent.id,
@@ -9886,7 +10060,7 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
     if (amountDueCents === 0) {
       const walletSessionId = 'wallet_' + uuidv4();
       db.checkoutSessions = db.checkoutSessions || [];
-      db.checkoutSessions.push({
+      checkoutStore.persist({
         id: walletSessionId,
         provider: 'wallet',
         providerPaymentId: walletSessionId,
@@ -9918,7 +10092,7 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
       customer_email: student.email,
       return_url: APP_BASE_URL + '/?checkout=success&session_id={CHECKOUT_SESSION_ID}',
       payment_intent_data: {
-        statement_descriptor: 'LINKUP RIDE',
+        statement_descriptor_suffix: 'RIDE',
         description: 'LinkUp ride reservation',
       },
       metadata: {
@@ -9930,7 +10104,7 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
     });
 
     db.checkoutSessions = db.checkoutSessions || [];
-    db.checkoutSessions.push({
+    checkoutStore.persist({
       id: session.id,
       provider,
       providerPaymentId: session.id,
