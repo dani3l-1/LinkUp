@@ -3673,7 +3673,7 @@ let dbWritePromise = Promise.resolve();
 // Entities migrated out of the linkup_state blob into their own per-row tables.
 // saveDb() strips these before writing the blob; loadDb() repopulates them from
 // the stores. The list grows as each entity is migrated.
-const MIGRATED_BLOB_KEYS = ['trackingTrips'];
+const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests'];
 
 // Reload the small low-write blob from linkup_state after another instance
 // changed it (cross-instance coherence for carts/follows/groups/audit log/etc.).
@@ -3801,6 +3801,106 @@ async function loadTrackingTrips() {
   }
 }
 
+// ── Ride-request store ──────────────────────────────────────────────────
+// "Looking for a ride" posts: one Postgres row per request (dedicated JSON file
+// in dev). Posting, offering, expiring, and moderating touch one row.
+const RIDE_REQUEST_STORE_PATH = path.join(DATA_DIR, 'ride-requests.json');
+const rideRequestCache = new Map();
+let rideRequestWritePromise = Promise.resolve();
+
+function listRideRequests() {
+  return Array.from(rideRequestCache.values());
+}
+
+function scheduleRideRequestFileWrite() {
+  rideRequestWritePromise = rideRequestWritePromise
+    .then(() => {
+      const tmp = RIDE_REQUEST_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listRideRequests(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, RIDE_REQUEST_STORE_PATH);
+      fs.chmodSync(RIDE_REQUEST_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Ride-request store file write error:', err));
+}
+
+function persistRideRequest(request) {
+  if (!request || !request.id) return request;
+  rideRequestCache.set(request.id, request);
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(request));
+    rideRequestWritePromise = rideRequestWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_ride_requests (id, rider_id, status, data, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (id) DO UPDATE SET rider_id = EXCLUDED.rider_id, status = EXCLUDED.status, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, snap.riderId || '', snap.status || 'open', snap]
+      ))
+      .then(() => publishInvalidation('linkup_ride_requests', request.id))
+      .catch((err) => console.error('Ride-request save error:', err));
+  } else {
+    scheduleRideRequestFileWrite();
+  }
+  return request;
+}
+
+function removeRideRequestsWhere(predicate) {
+  const removedIds = [];
+  for (const request of listRideRequests()) {
+    if (predicate(request)) { rideRequestCache.delete(request.id); removedIds.push(request.id); }
+  }
+  if (!removedIds.length) return 0;
+  if (USE_POSTGRES) {
+    rideRequestWritePromise = rideRequestWritePromise
+      .then(() => pgPool.query('DELETE FROM linkup_ride_requests WHERE id = ANY($1)', [removedIds]))
+      .then(() => removedIds.forEach((id) => publishInvalidation('linkup_ride_requests', id)))
+      .catch((err) => console.error('Ride-request delete error:', err));
+  } else {
+    scheduleRideRequestFileWrite();
+  }
+  return removedIds.length;
+}
+
+async function reloadRideRequest(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_ride_requests WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) rideRequestCache.set(id, res.rows[0].data);
+  else rideRequestCache.delete(id);
+}
+registerReload('linkup_ride_requests', reloadRideRequest);
+
+async function loadRideRequests() {
+  rideRequestCache.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_ride_requests (
+        id TEXT PRIMARY KEY,
+        rider_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'open',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_ride_requests_rider_idx ON linkup_ride_requests (rider_id)');
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_ride_requests_status_idx ON linkup_ride_requests (status)');
+    const res = await pgPool.query('SELECT data FROM linkup_ride_requests ORDER BY updated_at ASC');
+    for (const row of res.rows) if (row.data && row.data.id) rideRequestCache.set(row.data.id, row.data);
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(RIDE_REQUEST_STORE_PATH, 'utf8'))) {
+        if (raw && raw.id) rideRequestCache.set(raw.id, raw);
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill out of the main blob.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = uniqueById(asArray(mainDb.rideRequests));
+  if (legacy.length) {
+    for (const raw of legacy) if (raw && raw.id && !rideRequestCache.has(raw.id)) persistRideRequest(raw);
+    mainDb.rideRequests = [];
+    saveDb(mainDb);
+  }
+}
+
 function readFileDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
@@ -3815,6 +3915,7 @@ function loadDb() {
   // Migrated entities live in their own tables, not the blob — repopulate them
   // from the stores so the many read sites (db.trackingTrips, ...) keep working.
   db.trackingTrips = listTrackingTrips();
+  db.rideRequests = listRideRequests();
   return db;
 }
 
@@ -3910,6 +4011,7 @@ async function migrateDbOnStartup() {
       // Load per-entity stores BEFORE the first saveDb — each backfills its rows
       // out of the blob, and saveDb strips those keys, so the order matters.
       await loadTrackingTrips();
+      await loadRideRequests();
       saveDb(loadDb());
       await dbWritePromise;
       normalizeUserAccess(loadDb());
@@ -3918,6 +4020,7 @@ async function migrateDbOnStartup() {
       await startInvalidationSubscriber();
     } else {
       await loadTrackingTrips();
+      await loadRideRequests();
       saveDb(loadDb());
       normalizeUserAccess(loadDb());
     }
@@ -3937,6 +4040,7 @@ function expireUnclaimedRideRequests(db) {
     if (isOpen && !hasDriverClaim && requestStart > 0 && requestStart < now) {
       request.status = 'expired';
       request.expiredAt = new Date().toISOString();
+      persistRideRequest(request);
       changed = true;
     }
   });
@@ -5654,12 +5758,14 @@ function anonymizeDeletedUser(db, user) {
   });
 
   (db.rideRequests || []).forEach((request) => {
+    const before = request.driverOffers ? request.driverOffers.length : 0;
     if (request.riderId === user.id && request.status === 'open') {
       request.status = 'removed';
       request.moderationNote = request.moderationNote || 'Rider deleted account.';
       request.removedAt = request.removedAt || now;
     }
     request.driverOffers = (request.driverOffers || []).filter((offer) => offer.driverId !== user.id);
+    if (request.riderId === user.id || request.driverOffers.length !== before) persistRideRequest(request);
   });
 
   (db.trackingTrips || []).forEach((trip) => {
@@ -7358,6 +7464,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
   });
 
   (db.rideRequests || []).forEach((request) => {
+    const references = request.riderId === user.id || (request.driverOffers || []).some((offer) => offer.driverId === user.id);
     if (request.riderId === user.id) {
       request.riderFirstName = user.firstName;
       request.riderLastName = user.lastName;
@@ -7368,6 +7475,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
         offer.driverLastName = user.lastName;
       }
     });
+    if (references) persistRideRequest(request);
   });
 
   (db.trackingTrips || []).forEach((trip) => {
@@ -7645,6 +7753,7 @@ app.post('/api/profile/school-transfer/verify', requireAuth, (req, res) => {
     });
   });
   (db.rideRequests || []).forEach((request) => {
+    const references = request.riderId === user.id || (request.driverOffers || []).some((offer) => offer.driverId === user.id);
     if (request.riderId === user.id) {
       request.riderEmail = user.email;
       request.university = user.university;
@@ -7652,6 +7761,7 @@ app.post('/api/profile/school-transfer/verify', requireAuth, (req, res) => {
     (request.driverOffers || []).forEach((offer) => {
       if (offer.driverId === user.id) offer.email = user.email;
     });
+    if (references) persistRideRequest(request);
   });
   addAdminAuditEntry(db, null, 'completed_school_transfer', 'user', user, {
     targetLabel: user.email,
@@ -8585,7 +8695,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     return res.status(400).json({ error: 'This request overlaps with another ride you are already driving, riding, or requesting: ' + describeTripTime(conflict) });
   }
 
-  db.rideRequests.push(request);
+  persistRideRequest(request);
   notifyRideAlertSubscribers(db, rider, request, 'request');
   saveDb(db);
   res.json(publicRideRequest(request, rider.id));
@@ -8629,6 +8739,7 @@ app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAcces
     email: driver.email,
     createdAt: new Date().toISOString(),
   });
+  persistRideRequest(request);
   saveDb(db);
   res.json(request);
 });
@@ -10644,6 +10755,7 @@ app.delete('/api/admin/ride-requests/:requestId', requireAuth, requireAdmin, adm
     targetLabel: [request.origin, request.destination].filter(Boolean).join(' -> ') || request.id,
     notePreview: request.moderationNote.slice(0, 120),
   });
+  persistRideRequest(request);
   saveDb(db);
   res.json({ message: 'Request removed.', request: summarizeAdminRequest(request) });
 });
