@@ -424,8 +424,10 @@ async function checkAuthSmoke() {
     if (deletedMe.status !== 401) {
       fail(`Deleted account session smoke test expected 401, got ${deletedMe.status}: ${deletedMe.text || JSON.stringify(deletedMe.data)}`);
     }
-    const deletedDb = JSON.parse(fs.readFileSync(path.join(dataDir, 'db.json'), 'utf8'));
-    const deletedUser = (deletedDb.users || []).find((user) => user.id === me.data.id);
+    // Users migrated out of the blob into their own per-row store (users.json in file mode).
+    const usersPath = path.join(dataDir, 'users.json');
+    const storedUsers = fs.existsSync(usersPath) ? JSON.parse(fs.readFileSync(usersPath, 'utf8')) : [];
+    const deletedUser = storedUsers.find((user) => user.id === me.data.id);
     if (!deletedUser?.deletedAt || !String(deletedUser.email || '').endsWith('@deleted.linkup.local') || deletedUser.firstName !== 'Deleted') {
       fail(`Delete account smoke test did not anonymize the user: ${JSON.stringify(deletedUser)}`);
     }
