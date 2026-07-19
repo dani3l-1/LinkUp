@@ -16,3 +16,9 @@ public/.DS_Store
 ios/LinkUp/DerivedData/
 ios/LinkUp/LinkUp.xcodeproj/xcuserdata/
 ios/LinkUp/LinkUp.xcodeproj/project.xcworkspace/xcuserdata/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
