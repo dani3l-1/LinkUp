@@ -221,12 +221,79 @@ const APP_INSTANCE_COUNT = Math.max(1, Number.parseInt(
   10
 ) || 1);
 
-// The current production architecture intentionally runs one Node process.
-// Sessions are shared in Postgres, but rate limits, Socket.IO connections, and
-// the cached application state are process-local. Refuse an unsafe cluster.
-if (NODE_ENV === 'production' && APP_INSTANCE_COUNT !== 1) {
-  console.error('FATAL: APP_INSTANCE_COUNT must be 1 with the current storage architecture. Use PM2 fork mode with one instance.');
+// Multiple instances are safe ONLY when Redis is configured: it shares the rate
+// limiter, the Socket.IO adapter, AND cross-instance cache invalidation (a write
+// on one instance publishes an invalidation the others use to reload that row).
+// Money idempotency is enforced by a DB unique index, independent of caches. On
+// Postgres storage each instance also needs its own connection budget, so total
+// pool usage (APP_INSTANCE_COUNT × DATABASE_POOL_MAX) must fit the database.
+// Without Redis, refuse the cluster — process-local caches would desync.
+if (NODE_ENV === 'production' && APP_INSTANCE_COUNT !== 1 && !process.env.REDIS_URL) {
+  console.error('FATAL: APP_INSTANCE_COUNT > 1 requires REDIS_URL. Redis provides the shared rate limiter, Socket.IO adapter, and cross-instance cache invalidation that keep multiple instances coherent. Set REDIS_URL or run a single instance. See docs/operations/scalability.md.');
   process.exit(1);
+}
+if (NODE_ENV === 'production' && APP_INSTANCE_COUNT * DATABASE_POOL_MAX > 90) {
+  console.error(`FATAL: APP_INSTANCE_COUNT (${APP_INSTANCE_COUNT}) × DATABASE_POOL_MAX (${DATABASE_POOL_MAX}) = ${APP_INSTANCE_COUNT * DATABASE_POOL_MAX} exceeds a safe Postgres connection budget (90). Lower DATABASE_POOL_MAX or run fewer instances. See docs/operations/scalability.md.`);
+  process.exit(1);
+}
+
+// ── Redis (optional) — shared state for horizontal scale ──────────────────
+// When REDIS_URL is set, rate limits and Socket.IO fan-out run through Redis so
+// they work across app instances. Without it (or if Redis is unreachable), both
+// fall back to in-memory single-instance behavior — Redis being down never takes
+// the app down.
+const REDIS_URL = process.env.REDIS_URL || '';
+let redisClient = null;          // rate-limiter client: fail fast so a Redis hiccup degrades to in-memory
+let socketPubClient = null;      // Socket.IO adapter pub/sub pair: queue until connected
+let socketSubClient = null;
+let invalidationSub = null;      // dedicated subscriber for cross-instance cache invalidation
+let redisReady = false;
+if (REDIS_URL) {
+  const IORedis = require('ioredis');
+  redisClient = new IORedis(REDIS_URL, { maxRetriesPerRequest: 2, enableOfflineQueue: false });
+  redisClient.on('ready', () => { redisReady = true; console.log('Redis connected — shared rate limits + Socket.IO fan-out enabled.'); });
+  redisClient.on('error', (err) => { redisReady = false; console.error('Redis error (falling back to in-memory):', err.message); });
+  redisClient.on('end', () => { redisReady = false; });
+  socketPubClient = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+  socketSubClient = socketPubClient.duplicate();
+  socketPubClient.on('error', (err) => console.error('Redis pub error:', err.message));
+  socketSubClient.on('error', (err) => console.error('Redis sub error:', err.message));
+  invalidationSub = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+  invalidationSub.on('error', (err) => console.error('Redis invalidation-sub error:', err.message));
+}
+
+// ── Cross-instance cache invalidation ────────────────────────────────────
+// Each app instance caches data in memory. When REDIS_URL is set, every write
+// publishes a small {kind, key} message; the OTHER instances reload that one
+// record (or the blob) from Postgres so their caches stay coherent. Without
+// Redis this is inert (single instance). Money correctness does NOT depend on
+// this — duplicate credits are already blocked by the DB unique index; this is
+// only about read freshness across instances.
+const INSTANCE_ID = crypto.randomUUID();
+const INVALIDATION_CHANNEL = 'linkup:invalidate';
+const reloadHandlers = new Map(); // kind -> async (key) => reload one record from DB
+
+function registerReload(kind, fn) { reloadHandlers.set(kind, fn); }
+
+function publishInvalidation(kind, key) {
+  if (!redisClient || !USE_POSTGRES) return;
+  // Fire-and-forget; a publish failure only costs a moment of staleness elsewhere.
+  redisClient.publish(INVALIDATION_CHANNEL, JSON.stringify({ from: INSTANCE_ID, kind, key: String(key) }))
+    .catch(() => {});
+}
+
+async function startInvalidationSubscriber() {
+  if (!invalidationSub || !USE_POSTGRES) return;
+  invalidationSub.on('message', (channel, raw) => {
+    if (channel !== INVALIDATION_CHANNEL) return;
+    let msg;
+    try { msg = JSON.parse(raw); } catch (_) { return; }
+    if (!msg || msg.from === INSTANCE_ID) return; // ignore our own writes
+    const handler = reloadHandlers.get(msg.kind);
+    if (handler) Promise.resolve(handler(msg.key)).catch((err) => console.error(`invalidation reload (${msg.kind}) error:`, err.message));
+  });
+  await invalidationSub.subscribe(INVALIDATION_CHANNEL);
+  console.log('Cross-instance cache invalidation subscriber active.');
 }
 
 const pgPool = USE_POSTGRES ? new Pool({
@@ -2960,7 +3027,7 @@ function securityHeaders(req, res, next) {
 }
 
 function makeRateLimiter({ windowMs, max, message }) {
-  const hits = new Map();
+  const hits = new Map(); // in-memory fallback (single instance, or when Redis is down)
   // Periodically evict expired entries to prevent unbounded memory growth
   setInterval(() => {
     const now = Date.now();
@@ -2969,20 +3036,37 @@ function makeRateLimiter({ windowMs, max, message }) {
     }
   }, windowMs).unref();
 
-  return (req, res, next) => {
+  function localHit(key) {
     const now = Date.now();
-    const key = (req.ip || req.socket.remoteAddress || 'unknown') + ':' + req.baseUrl + req.path;
     const current = hits.get(key) || { count: 0, resetAt: now + windowMs };
-    if (current.resetAt <= now) {
-      current.count = 0;
-      current.resetAt = now + windowMs;
-    }
+    if (current.resetAt <= now) { current.count = 0; current.resetAt = now + windowMs; }
     current.count += 1;
     hits.set(key, current);
+    return current;
+  }
+
+  return async (req, res, next) => {
+    const key = (req.ip || req.socket.remoteAddress || 'unknown') + ':' + req.baseUrl + req.path;
+    let count;
+    let resetAt;
+    if (redisReady) {
+      // Shared fixed-window counter so the limit holds across instances.
+      try {
+        const redisKey = 'rl:' + key;
+        count = await redisClient.incr(redisKey);
+        if (count === 1) await redisClient.pexpire(redisKey, windowMs);
+        const ttl = await redisClient.pttl(redisKey);
+        resetAt = Date.now() + (ttl > 0 ? ttl : windowMs);
+      } catch (_) {
+        ({ count, resetAt } = localHit(key)); // Redis hiccup → degrade to per-instance limiting
+      }
+    } else {
+      ({ count, resetAt } = localHit(key));
+    }
     res.setHeader('RateLimit-Limit', String(max));
-    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - current.count)));
-    res.setHeader('RateLimit-Reset', String(Math.ceil(current.resetAt / 1000)));
-    if (current.count > max) {
+    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - count)));
+    res.setHeader('RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+    if (count > max) {
       return res.status(429).json({ error: message || 'Too many requests. Please wait and try again.' });
     }
     next();
@@ -3199,6 +3283,14 @@ const io = new Server(httpServer, {
   },
 });
 io.engine.use(sessionMiddleware);
+
+// With Redis, chat/live-trip events fan out across instances via a pub/sub pair
+// (dedicated clients so the fail-fast rate-limiter client is unaffected).
+if (socketPubClient && socketSubClient) {
+  const { createAdapter } = require('@socket.io/redis-adapter');
+  io.adapter(createAdapter(socketPubClient, socketSubClient));
+  console.log('Socket.IO Redis adapter enabled — events fan out across instances.');
+}
 
 function getSocketUserId(socket) {
   return socket.request.session?.userId || '';
@@ -3578,6 +3670,746 @@ function normalizeDbShape(db) {
 let dbCache = null;
 let dbWritePromise = Promise.resolve();
 
+// Entities migrated out of the linkup_state blob into their own per-row tables.
+// saveDb() strips these before writing the blob; loadDb() repopulates them from
+// the stores. The list grows as each entity is migrated.
+const MIGRATED_BLOB_KEYS = ['users', 'trackingTrips', 'rideRequests', 'rides', 'rideMessages', 'payments', 'checkoutSessions', 'walletTransactions'];
+
+// Reload the small low-write blob from linkup_state after another instance
+// changed it (cross-instance coherence for carts/follows/groups/audit log/etc.).
+async function reloadBlob() {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_state WHERE state_key = $1', ['main']);
+  if (res.rows[0]?.data) dbCache = normalizeDbShape(res.rows[0].data);
+}
+registerReload('blob', reloadBlob);
+
+// ── Tracking-trip store ─────────────────────────────────────────────────
+// Live-trip GPS trails: one Postgres row per trip (a location ping is the
+// highest-frequency write), a dedicated JSON file in dev. Moved out of the
+// linkup_state blob so a ping writes one row instead of the whole database.
+const TRACKING_STORE_PATH = path.join(DATA_DIR, 'tracking-trips.json');
+const trackingCache = new Map();
+let trackingWritePromise = Promise.resolve();
+
+function normalizeTrackingTrip(trip) {
+  const createdAtMs = new Date(trip.createdAt || 0).getTime();
+  const fallbackExpiresAt = Number.isFinite(createdAtMs) && createdAtMs > 0
+    ? createdAtMs + TRACKING_VIEWER_TTL_MS
+    : Date.now() + TRACKING_VIEWER_TTL_MS;
+  const viewerAccessExpiresAt = Number(trip.viewerAccessExpiresAt);
+  return {
+    ...trip,
+    viewerAccessExpiresAt: Number.isFinite(viewerAccessExpiresAt) && viewerAccessExpiresAt > 0
+      ? viewerAccessExpiresAt
+      : fallbackExpiresAt,
+    locations: asArray(trip.locations).filter(isPlainObject),
+  };
+}
+
+function listTrackingTrips() {
+  return Array.from(trackingCache.values());
+}
+
+function scheduleTrackingFileWrite() {
+  trackingWritePromise = trackingWritePromise
+    .then(() => {
+      const tmp = TRACKING_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listTrackingTrips(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, TRACKING_STORE_PATH);
+      fs.chmodSync(TRACKING_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Tracking store file write error:', err));
+}
+
+// Upsert one trip. Replaces saveDb() for tracking mutations.
+function persistTrackingTrip(trip) {
+  if (!trip || !trip.id) return trip;
+  trackingCache.set(trip.id, trip);
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(trip));
+    trackingWritePromise = trackingWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_tracking_trips (id, owner_id, viewer_token_hash, status, data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         ON CONFLICT (id) DO UPDATE SET owner_id = EXCLUDED.owner_id, viewer_token_hash = EXCLUDED.viewer_token_hash, status = EXCLUDED.status, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, snap.ownerId || '', snap.viewerTokenHash || '', snap.status || '', snap]
+      ))
+      .then(() => publishInvalidation('linkup_tracking_trips', trip.id))
+      .catch((err) => console.error('Tracking trip save error:', err));
+  } else {
+    scheduleTrackingFileWrite();
+  }
+  return trip;
+}
+
+function removeTrackingTripsWhere(predicate) {
+  const removedIds = [];
+  for (const trip of listTrackingTrips()) {
+    if (predicate(trip)) { trackingCache.delete(trip.id); removedIds.push(trip.id); }
+  }
+  if (!removedIds.length) return 0;
+  if (USE_POSTGRES) {
+    trackingWritePromise = trackingWritePromise
+      .then(() => pgPool.query('DELETE FROM linkup_tracking_trips WHERE id = ANY($1)', [removedIds]))
+      .then(() => removedIds.forEach((id) => publishInvalidation('linkup_tracking_trips', id)))
+      .catch((err) => console.error('Tracking trip delete error:', err));
+  } else {
+    scheduleTrackingFileWrite();
+  }
+  return removedIds.length;
+}
+
+async function reloadTrackingTrip(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_tracking_trips WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) trackingCache.set(id, normalizeTrackingTrip(res.rows[0].data));
+  else trackingCache.delete(id);
+}
+registerReload('linkup_tracking_trips', reloadTrackingTrip);
+
+async function loadTrackingTrips() {
+  trackingCache.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_tracking_trips (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL DEFAULT '',
+        viewer_token_hash TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_tracking_trips_owner_idx ON linkup_tracking_trips (owner_id)');
+    const res = await pgPool.query('SELECT data FROM linkup_tracking_trips ORDER BY updated_at ASC');
+    for (const row of res.rows) if (row.data && row.data.id) trackingCache.set(row.data.id, normalizeTrackingTrip(row.data));
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(TRACKING_STORE_PATH, 'utf8'))) {
+        if (raw && raw.id) trackingCache.set(raw.id, normalizeTrackingTrip(raw));
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill: move trips still embedded in the main blob into the store.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = asArray(mainDb.trackingTrips);
+  if (legacy.length) {
+    for (const raw of legacy) if (raw && raw.id && !trackingCache.has(raw.id)) persistTrackingTrip(normalizeTrackingTrip(raw));
+  }
+}
+
+// ── Ride-request store ──────────────────────────────────────────────────
+// "Looking for a ride" posts: one Postgres row per request (dedicated JSON file
+// in dev). Posting, offering, expiring, and moderating touch one row.
+const RIDE_REQUEST_STORE_PATH = path.join(DATA_DIR, 'ride-requests.json');
+const rideRequestCache = new Map();
+let rideRequestWritePromise = Promise.resolve();
+
+function listRideRequests() {
+  return Array.from(rideRequestCache.values());
+}
+
+function scheduleRideRequestFileWrite() {
+  rideRequestWritePromise = rideRequestWritePromise
+    .then(() => {
+      const tmp = RIDE_REQUEST_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listRideRequests(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, RIDE_REQUEST_STORE_PATH);
+      fs.chmodSync(RIDE_REQUEST_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Ride-request store file write error:', err));
+}
+
+function persistRideRequest(request) {
+  if (!request || !request.id) return request;
+  rideRequestCache.set(request.id, request);
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(request));
+    rideRequestWritePromise = rideRequestWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_ride_requests (id, rider_id, status, data, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (id) DO UPDATE SET rider_id = EXCLUDED.rider_id, status = EXCLUDED.status, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, snap.riderId || '', snap.status || 'open', snap]
+      ))
+      .then(() => publishInvalidation('linkup_ride_requests', request.id))
+      .catch((err) => console.error('Ride-request save error:', err));
+  } else {
+    scheduleRideRequestFileWrite();
+  }
+  return request;
+}
+
+function removeRideRequestsWhere(predicate) {
+  const removedIds = [];
+  for (const request of listRideRequests()) {
+    if (predicate(request)) { rideRequestCache.delete(request.id); removedIds.push(request.id); }
+  }
+  if (!removedIds.length) return 0;
+  if (USE_POSTGRES) {
+    rideRequestWritePromise = rideRequestWritePromise
+      .then(() => pgPool.query('DELETE FROM linkup_ride_requests WHERE id = ANY($1)', [removedIds]))
+      .then(() => removedIds.forEach((id) => publishInvalidation('linkup_ride_requests', id)))
+      .catch((err) => console.error('Ride-request delete error:', err));
+  } else {
+    scheduleRideRequestFileWrite();
+  }
+  return removedIds.length;
+}
+
+async function reloadRideRequest(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_ride_requests WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) rideRequestCache.set(id, res.rows[0].data);
+  else rideRequestCache.delete(id);
+}
+registerReload('linkup_ride_requests', reloadRideRequest);
+
+async function loadRideRequests() {
+  rideRequestCache.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_ride_requests (
+        id TEXT PRIMARY KEY,
+        rider_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'open',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_ride_requests_rider_idx ON linkup_ride_requests (rider_id)');
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_ride_requests_status_idx ON linkup_ride_requests (status)');
+    const res = await pgPool.query('SELECT data FROM linkup_ride_requests ORDER BY updated_at ASC');
+    for (const row of res.rows) if (row.data && row.data.id) rideRequestCache.set(row.data.id, row.data);
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(RIDE_REQUEST_STORE_PATH, 'utf8'))) {
+        if (raw && raw.id) rideRequestCache.set(raw.id, raw);
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill out of the main blob.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = uniqueById(asArray(mainDb.rideRequests));
+  if (legacy.length) {
+    for (const raw of legacy) if (raw && raw.id && !rideRequestCache.has(raw.id)) persistRideRequest(raw);
+  }
+}
+
+// ── Ride store ──────────────────────────────────────────────────────────
+// Ride listings + passengers: one Postgres row per ride. Rides are mutated in
+// ~20 places (join/reserve, rating, completion, cancel, admin, checkout seat
+// reservation) that all relied on saveDb(), so — like users — saveDb() persists
+// any ride whose change-signature differs since its last write. That catches
+// every in-place mutation without editing each call site; creation uses addRide.
+const RIDE_STORE_PATH = path.join(DATA_DIR, 'rides.json');
+const rideCache = new Map();
+const rideSignatures = new Map();
+let rideWritePromise = Promise.resolve();
+
+function rideSignature(ride) { return JSON.stringify(ride); }
+function listRides() { return Array.from(rideCache.values()); }
+
+function scheduleRideFileWrite() {
+  rideWritePromise = rideWritePromise
+    .then(() => {
+      const tmp = RIDE_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listRides(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, RIDE_STORE_PATH);
+      fs.chmodSync(RIDE_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Ride store file write error:', err));
+}
+
+function persistRide(ride) {
+  if (!ride || !ride.id) return ride;
+  rideCache.set(ride.id, ride);
+  rideSignatures.set(ride.id, rideSignature(ride));
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(ride));
+    rideWritePromise = rideWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_rides (id, driver_id, data, updated_at) VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (id) DO UPDATE SET driver_id = EXCLUDED.driver_id, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, snap.driverId || '', snap]
+      ))
+      .then(() => publishInvalidation('linkup_rides', ride.id))
+      .catch((err) => console.error('Ride save error:', err));
+  } else {
+    scheduleRideFileWrite();
+  }
+  return ride;
+}
+
+function addRide(ride) {
+  if (!ride || !ride.id) return ride;
+  rideCache.set(ride.id, ride);
+  persistRide(ride);
+  return ride;
+}
+
+// Persist every ride whose signature changed since last write. Called by saveDb.
+function persistDirtyRides() {
+  for (const ride of rideCache.values()) {
+    if (rideSignatures.get(ride.id) !== rideSignature(ride)) persistRide(ride);
+  }
+}
+
+function removeRidesWhere(predicate) {
+  const removedIds = [];
+  for (const ride of listRides()) if (predicate(ride)) { rideCache.delete(ride.id); rideSignatures.delete(ride.id); removedIds.push(ride.id); }
+  if (!removedIds.length) return 0;
+  if (USE_POSTGRES) {
+    rideWritePromise = rideWritePromise
+      .then(() => pgPool.query('DELETE FROM linkup_rides WHERE id = ANY($1)', [removedIds]))
+      .then(() => removedIds.forEach((id) => publishInvalidation('linkup_rides', id)))
+      .catch((err) => console.error('Ride delete error:', err));
+  } else {
+    scheduleRideFileWrite();
+  }
+  return removedIds.length;
+}
+
+async function reloadRide(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_rides WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) { rideCache.set(id, res.rows[0].data); rideSignatures.set(id, rideSignature(res.rows[0].data)); }
+  else { rideCache.delete(id); rideSignatures.delete(id); }
+}
+registerReload('linkup_rides', reloadRide);
+
+async function loadRides() {
+  rideCache.clear();
+  rideSignatures.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_rides (
+        id TEXT PRIMARY KEY,
+        driver_id TEXT NOT NULL DEFAULT '',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_rides_driver_idx ON linkup_rides (driver_id)');
+    const res = await pgPool.query('SELECT data FROM linkup_rides ORDER BY updated_at ASC');
+    for (const row of res.rows) if (row.data && row.data.id) { rideCache.set(row.data.id, row.data); rideSignatures.set(row.data.id, rideSignature(row.data)); }
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(RIDE_STORE_PATH, 'utf8'))) if (raw && raw.id) { rideCache.set(raw.id, raw); rideSignatures.set(raw.id, rideSignature(raw)); }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill out of the main blob.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = uniqueById(asArray(mainDb.rides));
+  if (legacy.length) {
+    for (const raw of legacy) if (raw && raw.id && !rideCache.has(raw.id)) addRide(raw);
+  }
+}
+
+// ── Message store ───────────────────────────────────────────────────────
+// Ride chat: append-only, one Postgres row per message (dedicated JSON file in
+// dev). Keyed by channel + conversation so social/club chat can reuse it later;
+// production uses the 'ride' channel keyed by ride id. Moved out of the blob so
+// a send inserts one row instead of rewriting the whole database.
+const MESSAGE_STORE_PATH = path.join(DATA_DIR, 'messages.json');
+const messageCache = new Map(); // `${channel}::${conversationKey}` -> message[]
+let messageWritePromise = Promise.resolve();
+
+function messageCacheKey(channel, conversationKey) {
+  return `${channel}::${conversationKey}`;
+}
+
+function getChannelMessages(channel, conversationKey) {
+  return messageCache.get(messageCacheKey(channel, conversationKey)) || [];
+}
+
+function scheduleMessageFileWrite() {
+  messageWritePromise = messageWritePromise
+    .then(() => {
+      const out = {};
+      for (const [k, msgs] of messageCache) {
+        const idx = k.indexOf('::');
+        const channel = k.slice(0, idx);
+        const conv = k.slice(idx + 2);
+        (out[channel] = out[channel] || {})[conv] = msgs;
+      }
+      const tmp = MESSAGE_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(out, null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, MESSAGE_STORE_PATH);
+      fs.chmodSync(MESSAGE_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Message store file write error:', err));
+}
+
+function appendChannelMessage(channel, conversationKey, message) {
+  const ck = messageCacheKey(channel, conversationKey);
+  const arr = messageCache.get(ck) || [];
+  arr.push(message);
+  messageCache.set(ck, arr);
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(message));
+    messageWritePromise = messageWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_messages (id, channel, conversation_key, data, created_at)
+         VALUES ($1, $2, $3, $4, NOW()) ON CONFLICT (id) DO NOTHING`,
+        [snap.id, channel, String(conversationKey), snap]
+      ))
+      .then(() => publishInvalidation('linkup_messages', ck))
+      .catch((err) => console.error('Message save error:', err));
+  } else {
+    scheduleMessageFileWrite();
+  }
+  return message;
+}
+
+// Messages are append-only per conversation; the invalidation key is the full
+// cache key. Reload re-queries that one conversation and replaces its array.
+async function reloadMessages(cacheKey) {
+  if (!USE_POSTGRES) return;
+  const idx = String(cacheKey).indexOf('::');
+  if (idx < 0) return;
+  const channel = String(cacheKey).slice(0, idx);
+  const conv = String(cacheKey).slice(idx + 2);
+  const res = await pgPool.query(
+    'SELECT data FROM linkup_messages WHERE channel = $1 AND conversation_key = $2 ORDER BY created_at ASC, id ASC',
+    [channel, conv]
+  );
+  if (res.rows.length) messageCache.set(String(cacheKey), res.rows.map((r) => r.data));
+  else messageCache.delete(String(cacheKey));
+}
+registerReload('linkup_messages', reloadMessages);
+
+async function loadMessages() {
+  messageCache.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_messages (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL,
+        conversation_key TEXT NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_messages_conv_idx ON linkup_messages (channel, conversation_key, created_at)');
+    const res = await pgPool.query('SELECT channel, conversation_key, data FROM linkup_messages ORDER BY created_at ASC, id ASC');
+    for (const row of res.rows) {
+      const ck = messageCacheKey(row.channel, row.conversation_key);
+      const arr = messageCache.get(ck) || [];
+      arr.push(row.data);
+      messageCache.set(ck, arr);
+    }
+  } else {
+    try {
+      const raw = JSON.parse(fs.readFileSync(MESSAGE_STORE_PATH, 'utf8'));
+      for (const channel of Object.keys(raw)) {
+        for (const conv of Object.keys(raw[channel] || {})) messageCache.set(messageCacheKey(channel, conv), asArray(raw[channel][conv]));
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill from the blob's rideMessages { rideId: [messages] }.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = mainDb.rideMessages && typeof mainDb.rideMessages === 'object' ? mainDb.rideMessages : {};
+  const rideIds = Object.keys(legacy);
+  if (rideIds.length) {
+    for (const rideId of rideIds) {
+      const ck = messageCacheKey('ride', rideId);
+      if (messageCache.has(ck)) continue;
+      for (const m of asArray(legacy[rideId])) if (m && m.id) appendChannelMessage('ride', rideId, m);
+    }
+  }
+}
+
+// ── Generic per-entity store (payments, wallet, checkout sessions) ────────
+// One Postgres row per record (dedicated JSON file in dev). persist() upserts
+// by id; insertUnique() is an idempotent create guarded by a partial UNIQUE
+// index (the hard money-safety guarantee); persistDirty() re-persists any record
+// whose signature changed since last write (change-detection safety net for
+// in-place mutations like checkout status transitions and payout updates).
+function makeCollectionStore({ legacyKey, table, file, indexColumns = [], uniqueColumn = null }) {
+  const cache = new Map();
+  const signatures = new Map();
+  const filePath = path.join(DATA_DIR, file);
+  let writePromise = Promise.resolve();
+
+  const list = () => Array.from(cache.values());
+  const get = (id) => cache.get(id) || null;
+  const signature = (record) => JSON.stringify(record);
+
+  function scheduleFileWrite() {
+    writePromise = writePromise
+      .then(() => {
+        const tmp = filePath + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(list(), null, 2), { mode: 0o600 });
+        fs.renameSync(tmp, filePath);
+        fs.chmodSync(filePath, 0o600);
+      })
+      .catch((err) => console.error(`${table} file write error:`, err));
+  }
+
+  // Table/column names come only from the hardcoded store configs below — never
+  // user input. Assert that so no identifier can carry SQL, then the dynamic-
+  // identifier SQL (built into named strings, values always parameterized) is
+  // provably injection-free.
+  const ident = (name) => {
+    if (!/^[a-z_][a-z0-9_]*$/.test(String(name))) throw new Error(`unsafe SQL identifier: ${name}`);
+    return name;
+  };
+  ident(table);
+  indexColumns.forEach((c) => ident(c.name));
+  if (uniqueColumn) ident(uniqueColumn.name);
+  const valueColumns = uniqueColumn ? [...indexColumns, uniqueColumn] : indexColumns;
+
+  function persist(record) {
+    if (!record || !record.id) return record;
+    cache.set(record.id, record);
+    signatures.set(record.id, signature(record));
+    if (USE_POSTGRES) {
+      const snap = JSON.parse(JSON.stringify(record));
+      const names = ['id', ...valueColumns.map((c) => c.name), 'data'];
+      const vals = [snap.id, ...valueColumns.map((c) => String(snap[c.from] ?? '')), snap];
+      const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+      const setClause = ['data', ...valueColumns.map((c) => c.name)].map((c) => `${c} = EXCLUDED.${c}`).join(', ');
+      const insertSql = `INSERT INTO ${table} (${names.join(', ')}, updated_at) VALUES (${placeholders}, NOW())`
+        + ` ON CONFLICT (id) DO UPDATE SET ${setClause}, updated_at = NOW()`;
+      writePromise = writePromise
+        .then(() => pgPool.query(insertSql, vals))
+        .then(() => publishInvalidation(table, record.id))
+        .catch((err) => console.error(`${table} save error:`, err));
+    } else {
+      scheduleFileWrite();
+    }
+    return record;
+  }
+
+  // Idempotent create: the DB's partial UNIQUE index on the dedupe column is the
+  // hard guarantee — even two instances racing the same checkout produce ONE row.
+  // The cache scan is just a fast path for the common same-instance retry.
+  function insertUnique(record) {
+    if (!record || !record.id) return record;
+    const key = uniqueColumn ? String(record[uniqueColumn.from] ?? '') : '';
+    if (!key) return persist(record);
+    if (list().some((r) => String(r[uniqueColumn.from] ?? '') === key)) return null;
+    cache.set(record.id, record);
+    signatures.set(record.id, signature(record));
+    if (USE_POSTGRES) {
+      const snap = JSON.parse(JSON.stringify(record));
+      const names = ['id', ...valueColumns.map((c) => c.name), 'data'];
+      const vals = [snap.id, ...valueColumns.map((c) => String(snap[c.from] ?? '')), snap];
+      const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+      const insertSql = `INSERT INTO ${table} (${names.join(', ')}, updated_at) VALUES (${placeholders}, NOW())`
+        + ` ON CONFLICT (${uniqueColumn.name}) WHERE ${uniqueColumn.name} <> '' DO NOTHING`;
+      writePromise = writePromise
+        .then(() => pgPool.query(insertSql, vals))
+        .then(() => publishInvalidation(table, record.id))
+        .catch((err) => console.error(`${table} insertUnique error:`, err));
+    } else {
+      scheduleFileWrite();
+    }
+    return record;
+  }
+
+  // Re-persist any record whose signature changed since its last write. Called
+  // by saveDb so in-place mutations across many handlers can't be missed.
+  function persistDirty() {
+    for (const record of cache.values()) {
+      if (signatures.get(record.id) !== signature(record)) persist(record);
+    }
+  }
+
+  function removeWhere(predicate) {
+    const removedIds = [];
+    for (const record of list()) if (predicate(record)) { cache.delete(record.id); signatures.delete(record.id); removedIds.push(record.id); }
+    if (!removedIds.length) return 0;
+    if (USE_POSTGRES) {
+      const deleteSql = `DELETE FROM ${table} WHERE id = ANY($1)`;
+      writePromise = writePromise
+        .then(() => pgPool.query(deleteSql, [removedIds]))
+        .then(() => removedIds.forEach((id) => publishInvalidation(table, id)))
+        .catch((err) => console.error(`${table} delete error:`, err));
+    } else {
+      scheduleFileWrite();
+    }
+    return removedIds.length;
+  }
+
+  async function reloadFromDb(id) {
+    if (!USE_POSTGRES) return;
+    const selectSql = `SELECT data FROM ${table} WHERE id = $1`;
+    const res = await pgPool.query(selectSql, [id]);
+    if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) { cache.set(id, res.rows[0].data); signatures.set(id, signature(res.rows[0].data)); }
+    else { cache.delete(id); signatures.delete(id); }
+  }
+  registerReload(table, reloadFromDb);
+
+  async function load() {
+    cache.clear();
+    signatures.clear();
+    if (USE_POSTGRES) {
+      const colDefs = valueColumns.map((c) => `${c.name} TEXT NOT NULL DEFAULT ''`).join(', ');
+      const createSql = `CREATE TABLE IF NOT EXISTS ${table} (id TEXT PRIMARY KEY, ${colDefs}${colDefs ? ', ' : ''}data JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+      await pgPool.query(createSql);
+      for (const c of valueColumns) {
+        const alterSql = `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${c.name} TEXT NOT NULL DEFAULT ''`;
+        await pgPool.query(alterSql);
+      }
+      for (const c of indexColumns) {
+        const indexSql = `CREATE INDEX IF NOT EXISTS ${table}_${c.name}_idx ON ${table} (${c.name})`;
+        await pgPool.query(indexSql);
+      }
+      if (uniqueColumn) {
+        const uniqueSql = `CREATE UNIQUE INDEX IF NOT EXISTS ${table}_${uniqueColumn.name}_uidx ON ${table} (${uniqueColumn.name}) WHERE ${uniqueColumn.name} <> ''`;
+        await pgPool.query(uniqueSql);
+      }
+      const selectSql = `SELECT data FROM ${table}`;
+      const res = await pgPool.query(selectSql);
+      for (const row of res.rows) if (row.data && row.data.id) { cache.set(row.data.id, row.data); signatures.set(row.data.id, signature(row.data)); }
+    } else {
+      try {
+        for (const rec of JSON.parse(fs.readFileSync(filePath, 'utf8'))) if (rec && rec.id) { cache.set(rec.id, rec); signatures.set(rec.id, signature(rec)); }
+      } catch (_) { /* no store file yet */ }
+    }
+    const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+    const legacy = uniqueById(asArray(mainDb[legacyKey]));
+    if (legacy.length) {
+      for (const rec of legacy) if (rec && rec.id && !cache.has(rec.id)) persist(rec);
+      console.log(`${table}: migrated ${legacy.length} record(s) out of the main database blob.`);
+    }
+  }
+
+  return { list, get, persist, insertUnique, persistDirty, removeWhere, load, flush: () => writePromise };
+}
+
+const paymentStore = makeCollectionStore({ legacyKey: 'payments', table: 'linkup_payments', file: 'payments.json', indexColumns: [{ name: 'student_id', from: 'studentId' }] });
+const checkoutStore = makeCollectionStore({ legacyKey: 'checkoutSessions', table: 'linkup_checkout_sessions', file: 'checkout-sessions.json', indexColumns: [{ name: 'student_id', from: 'studentId' }] });
+const walletStore = makeCollectionStore({ legacyKey: 'walletTransactions', table: 'linkup_wallet_transactions', file: 'wallet-transactions.json', indexColumns: [{ name: 'user_id', from: 'userId' }], uniqueColumn: { name: 'dedupe_key', from: 'dedupeKey' } });
+
+// ── User store ──────────────────────────────────────────────────────────
+// Accounts. Mutated in ~100 handlers that all rely on saveDb, so saveDb persists
+// any user whose change-signature differs (persistDirtyUsers) — no call site can
+// be missed. The signature excludes the inline profile photo (compared by
+// length+prefix) to keep the per-save scan cheap. New signups use addUser();
+// account deletion tombstones in place (deletedAt), caught by change-detection.
+const USER_STORE_PATH = path.join(DATA_DIR, 'users.json');
+const userCache = new Map();
+const userSignatures = new Map();
+let userWritePromise = Promise.resolve();
+
+function normalizeUserRecord(user) {
+  return {
+    ...user,
+    pushSubscriptions: normalizePushSubscriptions(user.pushSubscriptions),
+    friendInvites: normalizeFriendInvites(user.friendInvites),
+    linkupAcceptedAt: asPlainObject(user.linkupAcceptedAt),
+    strikes: asArray(user.strikes).filter(isPlainObject),
+    apiTokens: asArray(user.apiTokens).filter(isPlainObject),
+  };
+}
+
+function userSignature(user) {
+  const photo = typeof user.profilePictureDataUrl === 'string' ? user.profilePictureDataUrl : '';
+  return JSON.stringify({ ...user, profilePictureDataUrl: photo ? `#${photo.length}:${photo.slice(0, 48)}` : '' });
+}
+
+function listUsers() { return Array.from(userCache.values()); }
+
+function scheduleUserFileWrite() {
+  userWritePromise = userWritePromise
+    .then(() => {
+      const tmp = USER_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listUsers(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, USER_STORE_PATH);
+      fs.chmodSync(USER_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('User store file write error:', err));
+}
+
+function persistUserRow(user) {
+  if (!user || !user.id) return user;
+  userCache.set(user.id, user);
+  userSignatures.set(user.id, userSignature(user));
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(user));
+    userWritePromise = userWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_users (id, email, data, updated_at) VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, String(snap.email || ''), snap]
+      ))
+      .then(() => publishInvalidation('linkup_users', user.id))
+      .catch((err) => console.error('User save error:', err));
+  } else {
+    scheduleUserFileWrite();
+  }
+  return user;
+}
+
+function addUser(user) {
+  if (!user || !user.id) return user;
+  userCache.set(user.id, user);
+  persistUserRow(user);
+  return user;
+}
+
+// Persist every user whose signature changed since last write. Called by saveDb.
+function persistDirtyUsers() {
+  for (const user of userCache.values()) {
+    if (userSignatures.get(user.id) !== userSignature(user)) persistUserRow(user);
+  }
+}
+
+// Reload one user from Postgres. Sets userSignatures too, so persistDirtyUsers
+// won't see the reloaded row as dirty and re-publish (which would ping-pong).
+async function reloadUser(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_users WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) {
+    const u = normalizeUserRecord(res.rows[0].data);
+    userCache.set(u.id, u);
+    userSignatures.set(u.id, userSignature(u));
+  } else {
+    userCache.delete(id);
+    userSignatures.delete(id);
+  }
+}
+registerReload('linkup_users', reloadUser);
+
+async function loadUsers() {
+  userCache.clear();
+  userSignatures.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL DEFAULT '',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_users_email_idx ON linkup_users (email)');
+    // Order by creation so member/admin numbers (derived from user order) stay stable.
+    const res = await pgPool.query(`SELECT data FROM linkup_users ORDER BY data->>'createdAt' ASC NULLS FIRST, id ASC`);
+    for (const row of res.rows) if (row.data && row.data.id) {
+      const u = normalizeUserRecord(row.data);
+      userCache.set(u.id, u);
+      userSignatures.set(u.id, userSignature(u));
+    }
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(USER_STORE_PATH, 'utf8'))) if (raw && raw.id) {
+        const u = normalizeUserRecord(raw);
+        userCache.set(u.id, u);
+        userSignatures.set(u.id, userSignature(u));
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill out of the main blob (no saveDb here — see other stores).
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = uniqueById(asArray(mainDb.users));
+  for (const raw of legacy) if (raw && raw.id && !userCache.has(raw.id)) addUser(normalizeUserRecord(raw));
+}
+
 function readFileDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
@@ -3588,10 +4420,17 @@ function readFileDb() {
 }
 
 function loadDb() {
-  if (USE_POSTGRES) {
-    return normalizeDbShape(dbCache || getEmptyDb());
-  }
-  return readFileDb();
+  const db = USE_POSTGRES ? normalizeDbShape(dbCache || getEmptyDb()) : readFileDb();
+  // Migrated entities live in their own tables, not the blob — repopulate them
+  // from the stores so the many read sites (db.trackingTrips, ...) keep working.
+  db.users = listUsers();
+  db.trackingTrips = listTrackingTrips();
+  db.rideRequests = listRideRequests();
+  db.rides = listRides();
+  db.payments = paymentStore.list();
+  db.checkoutSessions = checkoutStore.list();
+  db.walletTransactions = walletStore.list();
+  return db;
 }
 
 function queuePostgresDbSave(db) {
@@ -3603,13 +4442,26 @@ function queuePostgresDbSave(db) {
        ON CONFLICT (state_key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
       [snapshot]
     ))
+    .then(() => publishInvalidation('blob', 'main'))
     .catch((err) => {
       console.error('PostgreSQL saveDb error:', err);
     });
 }
 
 function saveDb(db) {
-  const normalized = normalizeDbShape(db);
+  // Users, rides + money records are mutated in place across many handlers that
+  // all call saveDb; persist any whose signature changed (one row each) so no
+  // call site can be missed. Money creates/idempotency are still explicit at source.
+  persistDirtyUsers();
+  persistDirtyRides();
+  paymentStore.persistDirty();
+  checkoutStore.persistDirty();
+  walletStore.persistDirty();
+  // Migrated entities are persisted through their own stores, not the blob.
+  // Strip them so the blob write stays small and doesn't re-serialize them.
+  const forBlob = { ...db };
+  for (const key of MIGRATED_BLOB_KEYS) delete forBlob[key];
+  const normalized = normalizeDbShape(forBlob);
   normalized.meta.updatedAt = new Date().toISOString();
   if (USE_POSTGRES) {
     dbCache = normalized;
@@ -3678,11 +4530,32 @@ async function migrateDbOnStartup() {
   try {
     if (USE_POSTGRES) {
       await initPostgresStorage();
+      // Load per-entity stores BEFORE the first saveDb — each backfills its rows
+      // out of the blob (without rewriting it); the final saveDb strips all
+      // migrated keys at once, so a partial backfill can't wipe other entities.
+      await loadUsers();
+      await loadTrackingTrips();
+      await loadRideRequests();
+      await loadRides();
+      await loadMessages();
+      await paymentStore.load();
+      await checkoutStore.load();
+      await walletStore.load();
       saveDb(loadDb());
       await dbWritePromise;
       normalizeUserAccess(loadDb());
       await dbWritePromise;
+      // Only after every cache is warm — a reload mid-load could race a backfill.
+      await startInvalidationSubscriber();
     } else {
+      await loadUsers();
+      await loadTrackingTrips();
+      await loadRideRequests();
+      await loadRides();
+      await loadMessages();
+      await paymentStore.load();
+      await checkoutStore.load();
+      await walletStore.load();
       saveDb(loadDb());
       normalizeUserAccess(loadDb());
     }
@@ -3702,6 +4575,7 @@ function expireUnclaimedRideRequests(db) {
     if (isOpen && !hasDriverClaim && requestStart > 0 && requestStart < now) {
       request.status = 'expired';
       request.expiredAt = new Date().toISOString();
+      persistRideRequest(request);
       changed = true;
     }
   });
@@ -4038,8 +4912,6 @@ function validateChatText(value) {
 }
 
 function appendRideChatMessage(db, ride, sender, text) {
-  db.rideMessages = db.rideMessages || {};
-  db.rideMessages[ride.id] = db.rideMessages[ride.id] || [];
   const message = {
     id: uuidv4(),
     rideId: ride.id,
@@ -4050,8 +4922,7 @@ function appendRideChatMessage(db, ride, sender, text) {
     text,
     createdAt: new Date().toISOString(),
   };
-  db.rideMessages[ride.id].push(message);
-  return message;
+  return appendChannelMessage('ride', ride.id, message);
 }
 
 function rideForUser(ride, userId, db = null) {
@@ -5419,18 +6290,21 @@ function anonymizeDeletedUser(db, user) {
   });
 
   (db.rideRequests || []).forEach((request) => {
+    const before = request.driverOffers ? request.driverOffers.length : 0;
     if (request.riderId === user.id && request.status === 'open') {
       request.status = 'removed';
       request.moderationNote = request.moderationNote || 'Rider deleted account.';
       request.removedAt = request.removedAt || now;
     }
     request.driverOffers = (request.driverOffers || []).filter((offer) => offer.driverId !== user.id);
+    if (request.riderId === user.id || request.driverOffers.length !== before) persistRideRequest(request);
   });
 
   (db.trackingTrips || []).forEach((trip) => {
     if (trip.ownerId === user.id) {
       trip.status = 'stopped';
       trip.stoppedAt = trip.stoppedAt || now;
+      persistTrackingTrip(trip);
     }
   });
 }
@@ -5701,16 +6575,14 @@ function getCheckoutWalletCreditCents(db, userId, expectedAmountCents) {
 function addWalletCheckoutDebit(db, student, checkoutSession) {
   const amountCents = Math.max(0, Number(checkoutSession.walletCreditCents || 0));
   if (!amountCents || !student) return;
-  db.walletTransactions = db.walletTransactions || [];
   const sourceCheckoutSessionId = checkoutSession.id || checkoutSession.providerPaymentId || checkoutSession.stripePaymentIntentId;
-  const exists = db.walletTransactions.some((transaction) => transaction.type === 'wallet_checkout_debit'
-    && transaction.userId === student.id
-    && transaction.sourceCheckoutSessionId === sourceCheckoutSessionId);
-  if (exists) return;
-  db.walletTransactions.push({
+  // Idempotent: the DB unique index on dedupe_key blocks a duplicate debit even
+  // if two instances race the same checkout completion.
+  walletStore.insertUnique({
     id: uuidv4(),
     userId: student.id,
     type: 'wallet_checkout_debit',
+    dedupeKey: `wallet_checkout_debit:${student.id}:${sourceCheckoutSessionId}`,
     amountCents,
     currency: checkoutSession.stripeCurrency || 'usd',
     sourceCheckoutSessionId,
@@ -5722,7 +6594,6 @@ function addWalletCheckoutDebit(db, student, checkoutSession) {
 }
 
 function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, paymentRecord) {
-  db.walletTransactions = db.walletTransactions || [];
   const sourcePaymentId = paymentRecord?.id || checkoutSession.providerPaymentId || checkoutSession.id;
   reservation.ridesToReserve.forEach(({ ride }) => {
     if (!ride?.driverId) return;
@@ -5731,15 +6602,13 @@ function addDriverWalletCreditsForReservation(db, checkoutSession, reservation, 
     const commissionCents = Math.round(getRideCommissionableCents(ride) * LINKUP_COMMISSION_RATE);
     const stripeFeesCents = calcStripeFee(grossCents);
     const amountCents = Math.max(0, grossCents - commissionCents - stripeFeesCents);
-    const exists = db.walletTransactions.some((transaction) => transaction.type === 'driver_earning_credit'
-      && transaction.userId === ride.driverId
-      && transaction.rideId === ride.id
-      && transaction.sourcePaymentId === sourcePaymentId);
-    if (exists) return;
-    db.walletTransactions.push({
+    // Idempotent: the DB unique index on dedupe_key makes a double driver credit
+    // impossible even if two instances race the same checkout.
+    walletStore.insertUnique({
       id: uuidv4(),
       userId: ride.driverId,
       type: 'driver_earning_credit',
+      dedupeKey: `driver_earning_credit:${ride.driverId}:${ride.id}:${sourcePaymentId}`,
       amountCents,
       grossCents,
       seatPriceCents: getRideCommissionableCents(ride),
@@ -5793,7 +6662,7 @@ async function createWeeklyStripePayouts(db, userIds = []) {
       note: 'Weekly driver payout',
       createdAt: startedAt,
     };
-    db.walletTransactions.push(transaction);
+    walletStore.persist(transaction);
     saveDb(db);
 
     try {
@@ -6471,7 +7340,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
   if (BYPASS_EMAIL_VERIFICATION) {
     user.emailVerified = true;
-    db.users.push(user);
+    addUser(user);
     saveDb(db);
     return saveSessionAndJson(req, res, {
       message: 'Account created and verified for local testing.',
@@ -6482,7 +7351,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 
   const verificationCode = setEmailVerificationCode(user);
-  db.users.push(user);
+  addUser(user);
   saveDb(db);
   sendVerificationCode(user, verificationCode);
 
@@ -6596,7 +7465,7 @@ app.post('/api/auth/signin', async (req, res) => {
       policyAcceptedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
-    db.users.push(user);
+    addUser(user);
     saveDb(db);
   }
   if (!user || isDeletedUser(user)) {
@@ -7122,6 +7991,7 @@ app.put('/api/profile', requireAuth, (req, res) => {
   });
 
   (db.rideRequests || []).forEach((request) => {
+    const references = request.riderId === user.id || (request.driverOffers || []).some((offer) => offer.driverId === user.id);
     if (request.riderId === user.id) {
       request.riderFirstName = user.firstName;
       request.riderLastName = user.lastName;
@@ -7132,11 +8002,13 @@ app.put('/api/profile', requireAuth, (req, res) => {
         offer.driverLastName = user.lastName;
       }
     });
+    if (references) persistRideRequest(request);
   });
 
   (db.trackingTrips || []).forEach((trip) => {
     if (trip.ownerId === user.id) {
       trip.ownerFirstName = user.firstName;
+      persistTrackingTrip(trip);
     }
   });
 
@@ -7408,6 +8280,7 @@ app.post('/api/profile/school-transfer/verify', requireAuth, (req, res) => {
     });
   });
   (db.rideRequests || []).forEach((request) => {
+    const references = request.riderId === user.id || (request.driverOffers || []).some((offer) => offer.driverId === user.id);
     if (request.riderId === user.id) {
       request.riderEmail = user.email;
       request.university = user.university;
@@ -7415,6 +8288,7 @@ app.post('/api/profile/school-transfer/verify', requireAuth, (req, res) => {
     (request.driverOffers || []).forEach((offer) => {
       if (offer.driverId === user.id) offer.email = user.email;
     });
+    if (references) persistRideRequest(request);
   });
   addAdminAuditEntry(db, null, 'completed_school_transfer', 'user', user, {
     targetLabel: user.email,
@@ -7927,7 +8801,6 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
   const trackingRoute = getTrackingRideRoute(trackingRide);
   const viewerToken = crypto.randomBytes(32).toString('hex');
   const viewerUrl = APP_BASE_URL + '/?trackToken=' + viewerToken;
-  const trips = getTrackingTrips(db);
   const trip = {
     id: uuidv4(),
     ownerId: user.id,
@@ -7944,8 +8817,7 @@ app.post('/api/trips/track/start', requireAuth, requireServiceAccess, (req, res)
     updatedAt: new Date().toISOString(),
   };
 
-  trips.push(trip);
-  saveDb(db);
+  persistTrackingTrip(trip);
   if (trustedEmail) {
     const trackingText = 'Hi,\n\n' + (user.firstName || 'A LinkUp member') + ' wants to share their live LinkUp trip location with you for safety. Open this secure link to view this trip only while sharing is active:\n' + viewerUrl + '\n\nThis link expires when the trip ends or after 8 hours.\n\n- LinkUp';
     sendAuthEmail(
@@ -7996,13 +8868,13 @@ app.put('/api/trips/track/:tripId/trusted-email', requireAuth, requireServiceAcc
     return res.status(404).json({ error: 'Active tracking trip not found' });
   }
   if (expireTrackingTrip(trip)) {
-    saveDb(db);
+    persistTrackingTrip(trip);
     return res.status(410).json({ error: 'This tracking link has expired. Restart sharing to send a new invite.' });
   }
 
   trip.trustedEmail = trustedEmail;
   trip.updatedAt = new Date().toISOString();
-  saveDb(db);
+  persistTrackingTrip(trip);
 
   if (!trip.viewerUrl) {
     return res.status(400).json({ error: 'This tracking trip was started before invite updates were supported. Copy the tracking link and send it manually, or restart sharing.' });
@@ -8046,7 +8918,7 @@ app.post('/api/trips/track/:tripId/location', requireAuth, requireServiceAccess,
     return res.status(400).json({ error: 'Location sharing is not active' });
   }
   if (expireTrackingTrip(trip)) {
-    saveDb(db);
+    persistTrackingTrip(trip);
     return res.status(410).json({ error: 'This tracking link has expired. Restart sharing to continue.' });
   }
 
@@ -8064,7 +8936,7 @@ app.post('/api/trips/track/:tripId/location', requireAuth, requireServiceAccess,
   trip.lastLocation = location;
   refreshTrackingTripRoute(db, trip);
   trip.updatedAt = location.recordedAt;
-  saveDb(db);
+  persistTrackingTrip(trip);
 
   res.json({ message: 'Location updated', trip: publicTrackingTrip(trip) });
 });
@@ -8079,7 +8951,7 @@ app.post('/api/trips/track/:tripId/stop', requireAuth, requireServiceAccess, (re
   trip.status = 'stopped';
   trip.stoppedAt = new Date().toISOString();
   trip.updatedAt = trip.stoppedAt;
-  saveDb(db);
+  persistTrackingTrip(trip);
   res.json({ message: 'Location sharing stopped', trip: publicTrackingTrip(trip) });
 });
 
@@ -8094,14 +8966,14 @@ app.get('/api/track/:viewerToken', (req, res) => {
     return res.status(410).json({ error: 'This tracking link is no longer active' });
   }
   if (expireTrackingTrip(trip)) {
-    saveDb(db);
+    persistTrackingTrip(trip);
     return res.status(410).json({ error: 'This tracking link has expired' });
   }
 
   const routeWasAdded = refreshTrackingTripRoute(db, trip);
   if (routeWasAdded) {
     trip.updatedAt = new Date().toISOString();
-    saveDb(db);
+    persistTrackingTrip(trip);
   }
   res.json(publicTrackingTrip(trip));
 });
@@ -8350,7 +9222,7 @@ app.post('/api/ride-requests', requireAuth, requireServiceAccess, (req, res) => 
     return res.status(400).json({ error: 'This request overlaps with another ride you are already driving, riding, or requesting: ' + describeTripTime(conflict) });
   }
 
-  db.rideRequests.push(request);
+  persistRideRequest(request);
   notifyRideAlertSubscribers(db, rider, request, 'request');
   saveDb(db);
   res.json(publicRideRequest(request, rider.id));
@@ -8394,6 +9266,7 @@ app.post('/api/ride-requests/:requestId/offer', requireAuth, requireServiceAcces
     email: driver.email,
     createdAt: new Date().toISOString(),
   });
+  persistRideRequest(request);
   saveDb(db);
   res.json(request);
 });
@@ -8486,7 +9359,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
     return res.status(400).json({ error: 'This ride overlaps with another ride you are already driving, riding, or requesting: ' + describeTripTime(conflict) });
   }
 
-  db.rides.push(ride);
+  addRide(ride);
   notifyRideAlertSubscribers(db, driver, ride, 'ride');
   saveDb(db);
   res.json(rideForUser(ride, req.session.userId, db));
@@ -8669,7 +9542,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     return res.status(400).json({ error: 'This ride overlaps with another ride you are already driving, riding, or requesting: ' + describeTripTime(conflict) });
   }
 
-  db.rides.push(ride);
+  addRide(ride);
   saveDb(db);
   res.json(rideForUser(ride, req.session.userId, db));
 });
@@ -8733,9 +9606,8 @@ app.get('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req, 
   if (!canUserAccessRideChat(ride, req.session.userId)) {
     return res.status(403).json({ error: 'Only the driver and confirmed riders can view this chat' });
   }
-  db.rideMessages = db.rideMessages || {};
   res.json({
-    messages: db.rideMessages[ride.id] || [],
+    messages: getChannelMessages('ride', ride.id),
     chatDisabled: isRideChatDisabled(ride),
     chatDisabledAt: getRideChatDisabledAt(ride),
   });
@@ -8861,7 +9733,7 @@ app.post('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req,
   saveDb(db);
   io.to('ride:' + ride.id).emit('chat:message', { rideId: ride.id, message });
   notifyRideChatParticipants(db, ride, sender, message);
-  res.json({ message, messages: db.rideMessages[ride.id] });
+  res.json({ message, messages: getChannelMessages('ride', ride.id) });
 });
 
 app.post('/api/feedback', requireAuth, async (req, res) => {
@@ -9099,7 +9971,7 @@ function finalizePaidCheckoutSession(db, student, checkoutSession) {
       status: 'paid',
       createdAt: checkoutSession.completedAt,
     };
-    db.payments.push(paymentRecord);
+    paymentStore.persist(paymentRecord);
   }
   addWalletCheckoutDebit(db, student, checkoutSession);
   addDriverWalletCreditsForReservation(db, checkoutSession, reservation, paymentRecord);
@@ -9210,7 +10082,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     if (amountDueCents === 0) {
       const walletSessionId = 'wallet_' + uuidv4();
       db.checkoutSessions = db.checkoutSessions || [];
-      db.checkoutSessions.push({
+      checkoutStore.persist({
         id: walletSessionId,
         provider: 'wallet',
         providerPaymentId: walletSessionId,
@@ -9240,7 +10112,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
       customer: customerId,
       payment_method_types: ['card'],
       receipt_email: student.email,
-      statement_descriptor: 'LINKUP RIDE',
+      statement_descriptor_suffix: 'RIDE',
       metadata: {
         linkupStudentId: student.id,
         linkupRideIds: checkoutRides.map((ride) => ride.id).join(','),
@@ -9250,7 +10122,7 @@ app.post('/api/cart/create-checkout-session', requireAuth, requireServiceAccess,
     });
 
     db.checkoutSessions = db.checkoutSessions || [];
-    db.checkoutSessions.push({
+    checkoutStore.persist({
       id: paymentIntent.id,
       provider,
       providerPaymentId: paymentIntent.id,
@@ -9308,7 +10180,7 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
     if (amountDueCents === 0) {
       const walletSessionId = 'wallet_' + uuidv4();
       db.checkoutSessions = db.checkoutSessions || [];
-      db.checkoutSessions.push({
+      checkoutStore.persist({
         id: walletSessionId,
         provider: 'wallet',
         providerPaymentId: walletSessionId,
@@ -9340,7 +10212,7 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
       customer_email: student.email,
       return_url: APP_BASE_URL + '/?checkout=success&session_id={CHECKOUT_SESSION_ID}',
       payment_intent_data: {
-        statement_descriptor: 'LINKUP RIDE',
+        statement_descriptor_suffix: 'RIDE',
         description: 'LinkUp ride reservation',
       },
       metadata: {
@@ -9352,7 +10224,7 @@ app.post('/api/cart/create-embedded-checkout', requireAuth, requireServiceAccess
     });
 
     db.checkoutSessions = db.checkoutSessions || [];
-    db.checkoutSessions.push({
+    checkoutStore.persist({
       id: session.id,
       provider,
       providerPaymentId: session.id,
@@ -10409,6 +11281,7 @@ app.delete('/api/admin/ride-requests/:requestId', requireAuth, requireAdmin, adm
     targetLabel: [request.origin, request.destination].filter(Boolean).join(' -> ') || request.id,
     notePreview: request.moderationNote.slice(0, 120),
   });
+  persistRideRequest(request);
   saveDb(db);
   res.json({ message: 'Request removed.', request: summarizeAdminRequest(request) });
 });
