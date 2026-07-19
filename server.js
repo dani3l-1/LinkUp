@@ -3673,7 +3673,7 @@ let dbWritePromise = Promise.resolve();
 // Entities migrated out of the linkup_state blob into their own per-row tables.
 // saveDb() strips these before writing the blob; loadDb() repopulates them from
 // the stores. The list grows as each entity is migrated.
-const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests', 'rides'];
+const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests', 'rides', 'rideMessages'];
 
 // Reload the small low-write blob from linkup_state after another instance
 // changed it (cross-instance coherence for carts/follows/groups/audit log/etc.).
@@ -4013,6 +4013,122 @@ async function loadRides() {
   }
 }
 
+// ── Message store ───────────────────────────────────────────────────────
+// Ride chat: append-only, one Postgres row per message (dedicated JSON file in
+// dev). Keyed by channel + conversation so social/club chat can reuse it later;
+// production uses the 'ride' channel keyed by ride id. Moved out of the blob so
+// a send inserts one row instead of rewriting the whole database.
+const MESSAGE_STORE_PATH = path.join(DATA_DIR, 'messages.json');
+const messageCache = new Map(); // `${channel}::${conversationKey}` -> message[]
+let messageWritePromise = Promise.resolve();
+
+function messageCacheKey(channel, conversationKey) {
+  return `${channel}::${conversationKey}`;
+}
+
+function getChannelMessages(channel, conversationKey) {
+  return messageCache.get(messageCacheKey(channel, conversationKey)) || [];
+}
+
+function scheduleMessageFileWrite() {
+  messageWritePromise = messageWritePromise
+    .then(() => {
+      const out = {};
+      for (const [k, msgs] of messageCache) {
+        const idx = k.indexOf('::');
+        const channel = k.slice(0, idx);
+        const conv = k.slice(idx + 2);
+        (out[channel] = out[channel] || {})[conv] = msgs;
+      }
+      const tmp = MESSAGE_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(out, null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, MESSAGE_STORE_PATH);
+      fs.chmodSync(MESSAGE_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Message store file write error:', err));
+}
+
+function appendChannelMessage(channel, conversationKey, message) {
+  const ck = messageCacheKey(channel, conversationKey);
+  const arr = messageCache.get(ck) || [];
+  arr.push(message);
+  messageCache.set(ck, arr);
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(message));
+    messageWritePromise = messageWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_messages (id, channel, conversation_key, data, created_at)
+         VALUES ($1, $2, $3, $4, NOW()) ON CONFLICT (id) DO NOTHING`,
+        [snap.id, channel, String(conversationKey), snap]
+      ))
+      .then(() => publishInvalidation('linkup_messages', ck))
+      .catch((err) => console.error('Message save error:', err));
+  } else {
+    scheduleMessageFileWrite();
+  }
+  return message;
+}
+
+// Messages are append-only per conversation; the invalidation key is the full
+// cache key. Reload re-queries that one conversation and replaces its array.
+async function reloadMessages(cacheKey) {
+  if (!USE_POSTGRES) return;
+  const idx = String(cacheKey).indexOf('::');
+  if (idx < 0) return;
+  const channel = String(cacheKey).slice(0, idx);
+  const conv = String(cacheKey).slice(idx + 2);
+  const res = await pgPool.query(
+    'SELECT data FROM linkup_messages WHERE channel = $1 AND conversation_key = $2 ORDER BY created_at ASC, id ASC',
+    [channel, conv]
+  );
+  if (res.rows.length) messageCache.set(String(cacheKey), res.rows.map((r) => r.data));
+  else messageCache.delete(String(cacheKey));
+}
+registerReload('linkup_messages', reloadMessages);
+
+async function loadMessages() {
+  messageCache.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_messages (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL,
+        conversation_key TEXT NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_messages_conv_idx ON linkup_messages (channel, conversation_key, created_at)');
+    const res = await pgPool.query('SELECT channel, conversation_key, data FROM linkup_messages ORDER BY created_at ASC, id ASC');
+    for (const row of res.rows) {
+      const ck = messageCacheKey(row.channel, row.conversation_key);
+      const arr = messageCache.get(ck) || [];
+      arr.push(row.data);
+      messageCache.set(ck, arr);
+    }
+  } else {
+    try {
+      const raw = JSON.parse(fs.readFileSync(MESSAGE_STORE_PATH, 'utf8'));
+      for (const channel of Object.keys(raw)) {
+        for (const conv of Object.keys(raw[channel] || {})) messageCache.set(messageCacheKey(channel, conv), asArray(raw[channel][conv]));
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill from the blob's rideMessages { rideId: [messages] }.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = mainDb.rideMessages && typeof mainDb.rideMessages === 'object' ? mainDb.rideMessages : {};
+  const rideIds = Object.keys(legacy);
+  if (rideIds.length) {
+    for (const rideId of rideIds) {
+      const ck = messageCacheKey('ride', rideId);
+      if (messageCache.has(ck)) continue;
+      for (const m of asArray(legacy[rideId])) if (m && m.id) appendChannelMessage('ride', rideId, m);
+    }
+    mainDb.rideMessages = {};
+    saveDb(mainDb);
+  }
+}
+
 function readFileDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
@@ -4129,6 +4245,7 @@ async function migrateDbOnStartup() {
       await loadTrackingTrips();
       await loadRideRequests();
       await loadRides();
+      await loadMessages();
       saveDb(loadDb());
       await dbWritePromise;
       normalizeUserAccess(loadDb());
@@ -4139,6 +4256,7 @@ async function migrateDbOnStartup() {
       await loadTrackingTrips();
       await loadRideRequests();
       await loadRides();
+      await loadMessages();
       saveDb(loadDb());
       normalizeUserAccess(loadDb());
     }
@@ -4495,8 +4613,6 @@ function validateChatText(value) {
 }
 
 function appendRideChatMessage(db, ride, sender, text) {
-  db.rideMessages = db.rideMessages || {};
-  db.rideMessages[ride.id] = db.rideMessages[ride.id] || [];
   const message = {
     id: uuidv4(),
     rideId: ride.id,
@@ -4507,8 +4623,7 @@ function appendRideChatMessage(db, ride, sender, text) {
     text,
     createdAt: new Date().toISOString(),
   };
-  db.rideMessages[ride.id].push(message);
-  return message;
+  return appendChannelMessage('ride', ride.id, message);
 }
 
 function rideForUser(ride, userId, db = null) {
@@ -9197,9 +9312,8 @@ app.get('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req, 
   if (!canUserAccessRideChat(ride, req.session.userId)) {
     return res.status(403).json({ error: 'Only the driver and confirmed riders can view this chat' });
   }
-  db.rideMessages = db.rideMessages || {};
   res.json({
-    messages: db.rideMessages[ride.id] || [],
+    messages: getChannelMessages('ride', ride.id),
     chatDisabled: isRideChatDisabled(ride),
     chatDisabledAt: getRideChatDisabledAt(ride),
   });
@@ -9325,7 +9439,7 @@ app.post('/api/rides/:rideId/messages', requireAuth, requireServiceAccess, (req,
   saveDb(db);
   io.to('ride:' + ride.id).emit('chat:message', { rideId: ride.id, message });
   notifyRideChatParticipants(db, ride, sender, message);
-  res.json({ message, messages: db.rideMessages[ride.id] });
+  res.json({ message, messages: getChannelMessages('ride', ride.id) });
 });
 
 app.post('/api/feedback', requireAuth, async (req, res) => {
