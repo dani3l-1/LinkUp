@@ -3673,7 +3673,7 @@ let dbWritePromise = Promise.resolve();
 // Entities migrated out of the linkup_state blob into their own per-row tables.
 // saveDb() strips these before writing the blob; loadDb() repopulates them from
 // the stores. The list grows as each entity is migrated.
-const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests', 'rides', 'rideMessages', 'payments', 'checkoutSessions', 'walletTransactions'];
+const MIGRATED_BLOB_KEYS = ['users', 'trackingTrips', 'rideRequests', 'rides', 'rideMessages', 'payments', 'checkoutSessions', 'walletTransactions'];
 
 // Reload the small low-write blob from linkup_state after another instance
 // changed it (cross-instance coherence for carts/follows/groups/audit log/etc.).
@@ -3796,8 +3796,6 @@ async function loadTrackingTrips() {
   const legacy = asArray(mainDb.trackingTrips);
   if (legacy.length) {
     for (const raw of legacy) if (raw && raw.id && !trackingCache.has(raw.id)) persistTrackingTrip(normalizeTrackingTrip(raw));
-    mainDb.trackingTrips = [];
-    saveDb(mainDb);
   }
 }
 
@@ -3896,8 +3894,6 @@ async function loadRideRequests() {
   const legacy = uniqueById(asArray(mainDb.rideRequests));
   if (legacy.length) {
     for (const raw of legacy) if (raw && raw.id && !rideRequestCache.has(raw.id)) persistRideRequest(raw);
-    mainDb.rideRequests = [];
-    saveDb(mainDb);
   }
 }
 
@@ -4008,8 +4004,6 @@ async function loadRides() {
   const legacy = uniqueById(asArray(mainDb.rides));
   if (legacy.length) {
     for (const raw of legacy) if (raw && raw.id && !rideCache.has(raw.id)) addRide(raw);
-    mainDb.rides = [];
-    saveDb(mainDb);
   }
 }
 
@@ -4124,8 +4118,6 @@ async function loadMessages() {
       if (messageCache.has(ck)) continue;
       for (const m of asArray(legacy[rideId])) if (m && m.id) appendChannelMessage('ride', rideId, m);
     }
-    mainDb.rideMessages = {};
-    saveDb(mainDb);
   }
 }
 
@@ -4282,8 +4274,6 @@ function makeCollectionStore({ legacyKey, table, file, indexColumns = [], unique
     const legacy = uniqueById(asArray(mainDb[legacyKey]));
     if (legacy.length) {
       for (const rec of legacy) if (rec && rec.id && !cache.has(rec.id)) persist(rec);
-      mainDb[legacyKey] = [];
-      saveDb(mainDb);
       console.log(`${table}: migrated ${legacy.length} record(s) out of the main database blob.`);
     }
   }
@@ -4294,6 +4284,131 @@ function makeCollectionStore({ legacyKey, table, file, indexColumns = [], unique
 const paymentStore = makeCollectionStore({ legacyKey: 'payments', table: 'linkup_payments', file: 'payments.json', indexColumns: [{ name: 'student_id', from: 'studentId' }] });
 const checkoutStore = makeCollectionStore({ legacyKey: 'checkoutSessions', table: 'linkup_checkout_sessions', file: 'checkout-sessions.json', indexColumns: [{ name: 'student_id', from: 'studentId' }] });
 const walletStore = makeCollectionStore({ legacyKey: 'walletTransactions', table: 'linkup_wallet_transactions', file: 'wallet-transactions.json', indexColumns: [{ name: 'user_id', from: 'userId' }], uniqueColumn: { name: 'dedupe_key', from: 'dedupeKey' } });
+
+// ── User store ──────────────────────────────────────────────────────────
+// Accounts. Mutated in ~100 handlers that all rely on saveDb, so saveDb persists
+// any user whose change-signature differs (persistDirtyUsers) — no call site can
+// be missed. The signature excludes the inline profile photo (compared by
+// length+prefix) to keep the per-save scan cheap. New signups use addUser();
+// account deletion tombstones in place (deletedAt), caught by change-detection.
+const USER_STORE_PATH = path.join(DATA_DIR, 'users.json');
+const userCache = new Map();
+const userSignatures = new Map();
+let userWritePromise = Promise.resolve();
+
+function normalizeUserRecord(user) {
+  return {
+    ...user,
+    pushSubscriptions: normalizePushSubscriptions(user.pushSubscriptions),
+    friendInvites: normalizeFriendInvites(user.friendInvites),
+    linkupAcceptedAt: asPlainObject(user.linkupAcceptedAt),
+    strikes: asArray(user.strikes).filter(isPlainObject),
+    apiTokens: asArray(user.apiTokens).filter(isPlainObject),
+  };
+}
+
+function userSignature(user) {
+  const photo = typeof user.profilePictureDataUrl === 'string' ? user.profilePictureDataUrl : '';
+  return JSON.stringify({ ...user, profilePictureDataUrl: photo ? `#${photo.length}:${photo.slice(0, 48)}` : '' });
+}
+
+function listUsers() { return Array.from(userCache.values()); }
+
+function scheduleUserFileWrite() {
+  userWritePromise = userWritePromise
+    .then(() => {
+      const tmp = USER_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listUsers(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, USER_STORE_PATH);
+      fs.chmodSync(USER_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('User store file write error:', err));
+}
+
+function persistUserRow(user) {
+  if (!user || !user.id) return user;
+  userCache.set(user.id, user);
+  userSignatures.set(user.id, userSignature(user));
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(user));
+    userWritePromise = userWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_users (id, email, data, updated_at) VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, String(snap.email || ''), snap]
+      ))
+      .then(() => publishInvalidation('linkup_users', user.id))
+      .catch((err) => console.error('User save error:', err));
+  } else {
+    scheduleUserFileWrite();
+  }
+  return user;
+}
+
+function addUser(user) {
+  if (!user || !user.id) return user;
+  userCache.set(user.id, user);
+  persistUserRow(user);
+  return user;
+}
+
+// Persist every user whose signature changed since last write. Called by saveDb.
+function persistDirtyUsers() {
+  for (const user of userCache.values()) {
+    if (userSignatures.get(user.id) !== userSignature(user)) persistUserRow(user);
+  }
+}
+
+// Reload one user from Postgres. Sets userSignatures too, so persistDirtyUsers
+// won't see the reloaded row as dirty and re-publish (which would ping-pong).
+async function reloadUser(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_users WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) {
+    const u = normalizeUserRecord(res.rows[0].data);
+    userCache.set(u.id, u);
+    userSignatures.set(u.id, userSignature(u));
+  } else {
+    userCache.delete(id);
+    userSignatures.delete(id);
+  }
+}
+registerReload('linkup_users', reloadUser);
+
+async function loadUsers() {
+  userCache.clear();
+  userSignatures.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL DEFAULT '',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_users_email_idx ON linkup_users (email)');
+    // Order by creation so member/admin numbers (derived from user order) stay stable.
+    const res = await pgPool.query(`SELECT data FROM linkup_users ORDER BY data->>'createdAt' ASC NULLS FIRST, id ASC`);
+    for (const row of res.rows) if (row.data && row.data.id) {
+      const u = normalizeUserRecord(row.data);
+      userCache.set(u.id, u);
+      userSignatures.set(u.id, userSignature(u));
+    }
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(USER_STORE_PATH, 'utf8'))) if (raw && raw.id) {
+        const u = normalizeUserRecord(raw);
+        userCache.set(u.id, u);
+        userSignatures.set(u.id, userSignature(u));
+      }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill out of the main blob (no saveDb here — see other stores).
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = uniqueById(asArray(mainDb.users));
+  for (const raw of legacy) if (raw && raw.id && !userCache.has(raw.id)) addUser(normalizeUserRecord(raw));
+}
 
 function readFileDb() {
   try {
@@ -4308,6 +4423,7 @@ function loadDb() {
   const db = USE_POSTGRES ? normalizeDbShape(dbCache || getEmptyDb()) : readFileDb();
   // Migrated entities live in their own tables, not the blob — repopulate them
   // from the stores so the many read sites (db.trackingTrips, ...) keep working.
+  db.users = listUsers();
   db.trackingTrips = listTrackingTrips();
   db.rideRequests = listRideRequests();
   db.rides = listRides();
@@ -4333,9 +4449,10 @@ function queuePostgresDbSave(db) {
 }
 
 function saveDb(db) {
-  // Rides + money records are mutated in place across many handlers that all
-  // call saveDb; persist any whose signature changed (one row each) so no call
-  // site can be missed. Money creates/idempotency are still explicit at source.
+  // Users, rides + money records are mutated in place across many handlers that
+  // all call saveDb; persist any whose signature changed (one row each) so no
+  // call site can be missed. Money creates/idempotency are still explicit at source.
+  persistDirtyUsers();
   persistDirtyRides();
   paymentStore.persistDirty();
   checkoutStore.persistDirty();
@@ -4414,7 +4531,9 @@ async function migrateDbOnStartup() {
     if (USE_POSTGRES) {
       await initPostgresStorage();
       // Load per-entity stores BEFORE the first saveDb — each backfills its rows
-      // out of the blob, and saveDb strips those keys, so the order matters.
+      // out of the blob (without rewriting it); the final saveDb strips all
+      // migrated keys at once, so a partial backfill can't wipe other entities.
+      await loadUsers();
       await loadTrackingTrips();
       await loadRideRequests();
       await loadRides();
@@ -4429,6 +4548,7 @@ async function migrateDbOnStartup() {
       // Only after every cache is warm — a reload mid-load could race a backfill.
       await startInvalidationSubscriber();
     } else {
+      await loadUsers();
       await loadTrackingTrips();
       await loadRideRequests();
       await loadRides();
@@ -7220,7 +7340,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
   if (BYPASS_EMAIL_VERIFICATION) {
     user.emailVerified = true;
-    db.users.push(user);
+    addUser(user);
     saveDb(db);
     return saveSessionAndJson(req, res, {
       message: 'Account created and verified for local testing.',
@@ -7231,7 +7351,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 
   const verificationCode = setEmailVerificationCode(user);
-  db.users.push(user);
+  addUser(user);
   saveDb(db);
   sendVerificationCode(user, verificationCode);
 
@@ -7345,7 +7465,7 @@ app.post('/api/auth/signin', async (req, res) => {
       policyAcceptedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
-    db.users.push(user);
+    addUser(user);
     saveDb(db);
   }
   if (!user || isDeletedUser(user)) {
