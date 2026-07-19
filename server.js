@@ -3673,7 +3673,7 @@ let dbWritePromise = Promise.resolve();
 // Entities migrated out of the linkup_state blob into their own per-row tables.
 // saveDb() strips these before writing the blob; loadDb() repopulates them from
 // the stores. The list grows as each entity is migrated.
-const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests'];
+const MIGRATED_BLOB_KEYS = ['trackingTrips', 'rideRequests', 'rides'];
 
 // Reload the small low-write blob from linkup_state after another instance
 // changed it (cross-instance coherence for carts/follows/groups/audit log/etc.).
@@ -3901,6 +3901,118 @@ async function loadRideRequests() {
   }
 }
 
+// ── Ride store ──────────────────────────────────────────────────────────
+// Ride listings + passengers: one Postgres row per ride. Rides are mutated in
+// ~20 places (join/reserve, rating, completion, cancel, admin, checkout seat
+// reservation) that all relied on saveDb(), so — like users — saveDb() persists
+// any ride whose change-signature differs since its last write. That catches
+// every in-place mutation without editing each call site; creation uses addRide.
+const RIDE_STORE_PATH = path.join(DATA_DIR, 'rides.json');
+const rideCache = new Map();
+const rideSignatures = new Map();
+let rideWritePromise = Promise.resolve();
+
+function rideSignature(ride) { return JSON.stringify(ride); }
+function listRides() { return Array.from(rideCache.values()); }
+
+function scheduleRideFileWrite() {
+  rideWritePromise = rideWritePromise
+    .then(() => {
+      const tmp = RIDE_STORE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(listRides(), null, 2), { mode: 0o600 });
+      fs.renameSync(tmp, RIDE_STORE_PATH);
+      fs.chmodSync(RIDE_STORE_PATH, 0o600);
+    })
+    .catch((err) => console.error('Ride store file write error:', err));
+}
+
+function persistRide(ride) {
+  if (!ride || !ride.id) return ride;
+  rideCache.set(ride.id, ride);
+  rideSignatures.set(ride.id, rideSignature(ride));
+  if (USE_POSTGRES) {
+    const snap = JSON.parse(JSON.stringify(ride));
+    rideWritePromise = rideWritePromise
+      .then(() => pgPool.query(
+        `INSERT INTO linkup_rides (id, driver_id, data, updated_at) VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (id) DO UPDATE SET driver_id = EXCLUDED.driver_id, data = EXCLUDED.data, updated_at = NOW()`,
+        [snap.id, snap.driverId || '', snap]
+      ))
+      .then(() => publishInvalidation('linkup_rides', ride.id))
+      .catch((err) => console.error('Ride save error:', err));
+  } else {
+    scheduleRideFileWrite();
+  }
+  return ride;
+}
+
+function addRide(ride) {
+  if (!ride || !ride.id) return ride;
+  rideCache.set(ride.id, ride);
+  persistRide(ride);
+  return ride;
+}
+
+// Persist every ride whose signature changed since last write. Called by saveDb.
+function persistDirtyRides() {
+  for (const ride of rideCache.values()) {
+    if (rideSignatures.get(ride.id) !== rideSignature(ride)) persistRide(ride);
+  }
+}
+
+function removeRidesWhere(predicate) {
+  const removedIds = [];
+  for (const ride of listRides()) if (predicate(ride)) { rideCache.delete(ride.id); rideSignatures.delete(ride.id); removedIds.push(ride.id); }
+  if (!removedIds.length) return 0;
+  if (USE_POSTGRES) {
+    rideWritePromise = rideWritePromise
+      .then(() => pgPool.query('DELETE FROM linkup_rides WHERE id = ANY($1)', [removedIds]))
+      .then(() => removedIds.forEach((id) => publishInvalidation('linkup_rides', id)))
+      .catch((err) => console.error('Ride delete error:', err));
+  } else {
+    scheduleRideFileWrite();
+  }
+  return removedIds.length;
+}
+
+async function reloadRide(id) {
+  if (!USE_POSTGRES) return;
+  const res = await pgPool.query('SELECT data FROM linkup_rides WHERE id = $1', [id]);
+  if (res.rows[0] && res.rows[0].data && res.rows[0].data.id) { rideCache.set(id, res.rows[0].data); rideSignatures.set(id, rideSignature(res.rows[0].data)); }
+  else { rideCache.delete(id); rideSignatures.delete(id); }
+}
+registerReload('linkup_rides', reloadRide);
+
+async function loadRides() {
+  rideCache.clear();
+  rideSignatures.clear();
+  if (USE_POSTGRES) {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS linkup_rides (
+        id TEXT PRIMARY KEY,
+        driver_id TEXT NOT NULL DEFAULT '',
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pgPool.query('CREATE INDEX IF NOT EXISTS linkup_rides_driver_idx ON linkup_rides (driver_id)');
+    const res = await pgPool.query('SELECT data FROM linkup_rides ORDER BY updated_at ASC');
+    for (const row of res.rows) if (row.data && row.data.id) { rideCache.set(row.data.id, row.data); rideSignatures.set(row.data.id, rideSignature(row.data)); }
+  } else {
+    try {
+      for (const raw of JSON.parse(fs.readFileSync(RIDE_STORE_PATH, 'utf8'))) if (raw && raw.id) { rideCache.set(raw.id, raw); rideSignatures.set(raw.id, rideSignature(raw)); }
+    } catch (_) { /* no store file yet */ }
+  }
+  // One-time backfill out of the main blob.
+  const mainDb = USE_POSTGRES ? (dbCache || getEmptyDb()) : readFileDb();
+  const legacy = uniqueById(asArray(mainDb.rides));
+  if (legacy.length) {
+    for (const raw of legacy) if (raw && raw.id && !rideCache.has(raw.id)) addRide(raw);
+    mainDb.rides = [];
+    saveDb(mainDb);
+  }
+}
+
 function readFileDb() {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
@@ -3916,6 +4028,7 @@ function loadDb() {
   // from the stores so the many read sites (db.trackingTrips, ...) keep working.
   db.trackingTrips = listTrackingTrips();
   db.rideRequests = listRideRequests();
+  db.rides = listRides();
   return db;
 }
 
@@ -3935,6 +4048,9 @@ function queuePostgresDbSave(db) {
 }
 
 function saveDb(db) {
+  // Rides are mutated in place across ~20 handlers that all call saveDb; persist
+  // any whose signature changed (one row each) so no call site can be missed.
+  persistDirtyRides();
   // Migrated entities are persisted through their own stores, not the blob.
   // Strip them so the blob write stays small and doesn't re-serialize them.
   const forBlob = { ...db };
@@ -4012,6 +4128,7 @@ async function migrateDbOnStartup() {
       // out of the blob, and saveDb strips those keys, so the order matters.
       await loadTrackingTrips();
       await loadRideRequests();
+      await loadRides();
       saveDb(loadDb());
       await dbWritePromise;
       normalizeUserAccess(loadDb());
@@ -4021,6 +4138,7 @@ async function migrateDbOnStartup() {
     } else {
       await loadTrackingTrips();
       await loadRideRequests();
+      await loadRides();
       saveDb(loadDb());
       normalizeUserAccess(loadDb());
     }
@@ -8832,7 +8950,7 @@ app.post('/api/ride-requests/:requestId/post-shared-ride', requireAuth, requireS
     return res.status(400).json({ error: 'This ride overlaps with another ride you are already driving, riding, or requesting: ' + describeTripTime(conflict) });
   }
 
-  db.rides.push(ride);
+  addRide(ride);
   notifyRideAlertSubscribers(db, driver, ride, 'ride');
   saveDb(db);
   res.json(rideForUser(ride, req.session.userId, db));
@@ -9015,7 +9133,7 @@ app.post('/api/rides', requireAuth, requireServiceAccess, (req, res) => {
     return res.status(400).json({ error: 'This ride overlaps with another ride you are already driving, riding, or requesting: ' + describeTripTime(conflict) });
   }
 
-  db.rides.push(ride);
+  addRide(ride);
   saveDb(db);
   res.json(rideForUser(ride, req.session.userId, db));
 });
