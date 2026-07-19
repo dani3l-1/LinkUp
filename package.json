@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^2.4.3",
@@ -20,6 +21,7 @@
     "express": "^4.22.2",
     "express-session": "^1.17.3",
     "helmet": "^8.1.0",
+    "ioredis": "^5.11.1",
     "nodemailer": "^9.0.3",
     "pg": "^8.20.0",
     "qrcode": "^1.5.4",

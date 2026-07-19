@@ -221,12 +221,79 @@ const APP_INSTANCE_COUNT = Math.max(1, Number.parseInt(
   10
 ) || 1);
 
-// The current production architecture intentionally runs one Node process.
-// Sessions are shared in Postgres, but rate limits, Socket.IO connections, and
-// the cached application state are process-local. Refuse an unsafe cluster.
-if (NODE_ENV === 'production' && APP_INSTANCE_COUNT !== 1) {
-  console.error('FATAL: APP_INSTANCE_COUNT must be 1 with the current storage architecture. Use PM2 fork mode with one instance.');
+// Multiple instances are safe ONLY when Redis is configured: it shares the rate
+// limiter, the Socket.IO adapter, AND cross-instance cache invalidation (a write
+// on one instance publishes an invalidation the others use to reload that row).
+// Money idempotency is enforced by a DB unique index, independent of caches. On
+// Postgres storage each instance also needs its own connection budget, so total
+// pool usage (APP_INSTANCE_COUNT × DATABASE_POOL_MAX) must fit the database.
+// Without Redis, refuse the cluster — process-local caches would desync.
+if (NODE_ENV === 'production' && APP_INSTANCE_COUNT !== 1 && !process.env.REDIS_URL) {
+  console.error('FATAL: APP_INSTANCE_COUNT > 1 requires REDIS_URL. Redis provides the shared rate limiter, Socket.IO adapter, and cross-instance cache invalidation that keep multiple instances coherent. Set REDIS_URL or run a single instance. See docs/operations/scalability.md.');
   process.exit(1);
+}
+if (NODE_ENV === 'production' && APP_INSTANCE_COUNT * DATABASE_POOL_MAX > 90) {
+  console.error(`FATAL: APP_INSTANCE_COUNT (${APP_INSTANCE_COUNT}) × DATABASE_POOL_MAX (${DATABASE_POOL_MAX}) = ${APP_INSTANCE_COUNT * DATABASE_POOL_MAX} exceeds a safe Postgres connection budget (90). Lower DATABASE_POOL_MAX or run fewer instances. See docs/operations/scalability.md.`);
+  process.exit(1);
+}
+
+// ── Redis (optional) — shared state for horizontal scale ──────────────────
+// When REDIS_URL is set, rate limits and Socket.IO fan-out run through Redis so
+// they work across app instances. Without it (or if Redis is unreachable), both
+// fall back to in-memory single-instance behavior — Redis being down never takes
+// the app down.
+const REDIS_URL = process.env.REDIS_URL || '';
+let redisClient = null;          // rate-limiter client: fail fast so a Redis hiccup degrades to in-memory
+let socketPubClient = null;      // Socket.IO adapter pub/sub pair: queue until connected
+let socketSubClient = null;
+let invalidationSub = null;      // dedicated subscriber for cross-instance cache invalidation
+let redisReady = false;
+if (REDIS_URL) {
+  const IORedis = require('ioredis');
+  redisClient = new IORedis(REDIS_URL, { maxRetriesPerRequest: 2, enableOfflineQueue: false });
+  redisClient.on('ready', () => { redisReady = true; console.log('Redis connected — shared rate limits + Socket.IO fan-out enabled.'); });
+  redisClient.on('error', (err) => { redisReady = false; console.error('Redis error (falling back to in-memory):', err.message); });
+  redisClient.on('end', () => { redisReady = false; });
+  socketPubClient = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+  socketSubClient = socketPubClient.duplicate();
+  socketPubClient.on('error', (err) => console.error('Redis pub error:', err.message));
+  socketSubClient.on('error', (err) => console.error('Redis sub error:', err.message));
+  invalidationSub = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+  invalidationSub.on('error', (err) => console.error('Redis invalidation-sub error:', err.message));
+}
+
+// ── Cross-instance cache invalidation ────────────────────────────────────
+// Each app instance caches data in memory. When REDIS_URL is set, every write
+// publishes a small {kind, key} message; the OTHER instances reload that one
+// record (or the blob) from Postgres so their caches stay coherent. Without
+// Redis this is inert (single instance). Money correctness does NOT depend on
+// this — duplicate credits are already blocked by the DB unique index; this is
+// only about read freshness across instances.
+const INSTANCE_ID = crypto.randomUUID();
+const INVALIDATION_CHANNEL = 'linkup:invalidate';
+const reloadHandlers = new Map(); // kind -> async (key) => reload one record from DB
+
+function registerReload(kind, fn) { reloadHandlers.set(kind, fn); }
+
+function publishInvalidation(kind, key) {
+  if (!redisClient || !USE_POSTGRES) return;
+  // Fire-and-forget; a publish failure only costs a moment of staleness elsewhere.
+  redisClient.publish(INVALIDATION_CHANNEL, JSON.stringify({ from: INSTANCE_ID, kind, key: String(key) }))
+    .catch(() => {});
+}
+
+async function startInvalidationSubscriber() {
+  if (!invalidationSub || !USE_POSTGRES) return;
+  invalidationSub.on('message', (channel, raw) => {
+    if (channel !== INVALIDATION_CHANNEL) return;
+    let msg;
+    try { msg = JSON.parse(raw); } catch (_) { return; }
+    if (!msg || msg.from === INSTANCE_ID) return; // ignore our own writes
+    const handler = reloadHandlers.get(msg.kind);
+    if (handler) Promise.resolve(handler(msg.key)).catch((err) => console.error(`invalidation reload (${msg.kind}) error:`, err.message));
+  });
+  await invalidationSub.subscribe(INVALIDATION_CHANNEL);
+  console.log('Cross-instance cache invalidation subscriber active.');
 }
 
 const pgPool = USE_POSTGRES ? new Pool({
@@ -2960,7 +3027,7 @@ function securityHeaders(req, res, next) {
 }
 
 function makeRateLimiter({ windowMs, max, message }) {
-  const hits = new Map();
+  const hits = new Map(); // in-memory fallback (single instance, or when Redis is down)
   // Periodically evict expired entries to prevent unbounded memory growth
   setInterval(() => {
     const now = Date.now();
@@ -2969,20 +3036,37 @@ function makeRateLimiter({ windowMs, max, message }) {
     }
   }, windowMs).unref();
 
-  return (req, res, next) => {
+  function localHit(key) {
     const now = Date.now();
-    const key = (req.ip || req.socket.remoteAddress || 'unknown') + ':' + req.baseUrl + req.path;
     const current = hits.get(key) || { count: 0, resetAt: now + windowMs };
-    if (current.resetAt <= now) {
-      current.count = 0;
-      current.resetAt = now + windowMs;
-    }
+    if (current.resetAt <= now) { current.count = 0; current.resetAt = now + windowMs; }
     current.count += 1;
     hits.set(key, current);
+    return current;
+  }
+
+  return async (req, res, next) => {
+    const key = (req.ip || req.socket.remoteAddress || 'unknown') + ':' + req.baseUrl + req.path;
+    let count;
+    let resetAt;
+    if (redisReady) {
+      // Shared fixed-window counter so the limit holds across instances.
+      try {
+        const redisKey = 'rl:' + key;
+        count = await redisClient.incr(redisKey);
+        if (count === 1) await redisClient.pexpire(redisKey, windowMs);
+        const ttl = await redisClient.pttl(redisKey);
+        resetAt = Date.now() + (ttl > 0 ? ttl : windowMs);
+      } catch (_) {
+        ({ count, resetAt } = localHit(key)); // Redis hiccup → degrade to per-instance limiting
+      }
+    } else {
+      ({ count, resetAt } = localHit(key));
+    }
     res.setHeader('RateLimit-Limit', String(max));
-    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - current.count)));
-    res.setHeader('RateLimit-Reset', String(Math.ceil(current.resetAt / 1000)));
-    if (current.count > max) {
+    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - count)));
+    res.setHeader('RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+    if (count > max) {
       return res.status(429).json({ error: message || 'Too many requests. Please wait and try again.' });
     }
     next();
@@ -3199,6 +3283,14 @@ const io = new Server(httpServer, {
   },
 });
 io.engine.use(sessionMiddleware);
+
+// With Redis, chat/live-trip events fan out across instances via a pub/sub pair
+// (dedicated clients so the fail-fast rate-limiter client is unaffected).
+if (socketPubClient && socketSubClient) {
+  const { createAdapter } = require('@socket.io/redis-adapter');
+  io.adapter(createAdapter(socketPubClient, socketSubClient));
+  console.log('Socket.IO Redis adapter enabled — events fan out across instances.');
+}
 
 function getSocketUserId(socket) {
   return socket.request.session?.userId || '';
